@@ -164,8 +164,69 @@ const META_34: Record<string, VarMeta[]> = {
     v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'), v('DSDTC', 'Date/Time of Collection', 'Char', 'Timing', 'Perm'),
     v('DSSTDTC', 'Start Date/Time of Disposition Event', 'Char', 'Timing', 'Exp'), v('DSSTDY', 'Study Day of Start of Disposition Event', 'Num', 'Timing', 'Perm'),
   ],
+  LB: [
+    ...ids('LB'), v('LBGRPID', 'Group ID', 'Char', 'Identifier', 'Perm'), v('LBREFID', 'Specimen ID', 'Char', 'Identifier', 'Perm'), v('LBSPID', 'Sponsor-Defined Identifier', 'Char', 'Identifier', 'Perm'),
+    v('LBTESTCD', 'Lab Test or Examination Short Name', 'Char', 'Topic', 'Req', 'LBTESTCD'), v('LBTEST', 'Lab Test or Examination Name', 'Char', 'Synonym Qualifier', 'Req', 'LBTEST'),
+    v('LBCAT', 'Category for Lab Test', 'Char', 'Grouping Qualifier', 'Exp'), v('LBSCAT', 'Subcategory for Lab Test', 'Char', 'Grouping Qualifier', 'Perm'),
+    v('LBORRES', 'Result or Finding in Original Units', 'Char', 'Result Qualifier', 'Exp'), v('LBORRESU', 'Original Units', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('LBORNRLO', 'Reference Range Lower Limit in Orig Unit', 'Char', 'Variable Qualifier', 'Exp'), v('LBORNRHI', 'Reference Range Upper Limit in Orig Unit', 'Char', 'Variable Qualifier', 'Exp'),
+    v('LBSTRESC', 'Character Result/Finding in Std Format', 'Char', 'Result Qualifier', 'Exp'), v('LBSTRESN', 'Numeric Result/Finding in Standard Units', 'Num', 'Result Qualifier', 'Exp'), v('LBSTRESU', 'Standard Units', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('LBSTNRLO', 'Reference Range Lower Limit-Std Units', 'Num', 'Variable Qualifier', 'Exp'), v('LBSTNRHI', 'Reference Range Upper Limit-Std Units', 'Num', 'Variable Qualifier', 'Exp'),
+    v('LBNRIND', 'Reference Range Indicator', 'Char', 'Variable Qualifier', 'Exp', 'NRIND'),
+    v('LBSTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('LBREASND', 'Reason Test Not Done', 'Char', 'Record Qualifier', 'Perm'),
+    v('LBNAM', 'Vendor Name', 'Char', 'Record Qualifier', 'Perm'), v('LBSPEC', 'Specimen Type', 'Char', 'Record Qualifier', 'Perm', 'SPECTYPE'), v('LBMETHOD', 'Method of Test or Examination', 'Char', 'Record Qualifier', 'Perm'),
+    v('LBLOBXFL', 'Last Observation Before Exposure Flag', 'Char', 'Record Qualifier', 'Exp', 'NY'), v('LBBLFL', 'Baseline Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('LBFAST', 'Fasting Status', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('LBDRVFL', 'Derived Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('VISITNUM', 'Visit Number', 'Num', 'Timing', 'Exp'), v('VISIT', 'Visit Name', 'Char', 'Timing', 'Perm'), v('VISITDY', 'Planned Study Day of Visit', 'Num', 'Timing', 'Perm'),
+    v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'), v('LBDTC', 'Date/Time of Specimen Collection', 'Char', 'Timing', 'Exp'), v('LBDY', 'Study Day of Specimen Collection', 'Num', 'Timing', 'Perm'),
+  ],
+  SE: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Req'),
+    v('SESEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'), v('ETCD', 'Element Code', 'Char', 'Topic', 'Req'), v('ELEMENT', 'Description of Element', 'Char', 'Synonym Qualifier', 'Perm'),
+    v('TAETORD', 'Planned Order of Element within Arm', 'Num', 'Timing', 'Perm'), v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'),
+    v('SESTDTC', 'Start Date/Time of Element', 'Char', 'Timing', 'Req'), v('SEENDTC', 'End Date/Time of Element', 'Char', 'Timing', 'Exp'),
+    v('SESTDY', 'Study Day of Start of Element', 'Num', 'Timing', 'Perm'), v('SEENDY', 'Study Day of End of Element', 'Num', 'Timing', 'Perm'), v('SEUPDES', 'Description of Unplanned Element', 'Char', 'Synonym Qualifier', 'Perm'),
+  ],
+  TA: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'),
+    v('ARMCD', 'Planned Arm Code', 'Char', 'Topic', 'Req'), v('ARM', 'Description of Planned Arm', 'Char', 'Synonym Qualifier', 'Req'),
+    v('TAETORD', 'Planned Order of Element within Arm', 'Num', 'Timing', 'Req'), v('ETCD', 'Element Code', 'Char', 'Record Qualifier', 'Req'), v('ELEMENT', 'Description of Element', 'Char', 'Synonym Qualifier', 'Perm'),
+    v('TABRANCH', 'Branch', 'Char', 'Rule', 'Exp'), v('TATRANS', 'Transition Rule', 'Char', 'Rule', 'Exp'), v('EPOCH', 'Epoch', 'Char', 'Timing', 'Req', 'EPOCH'),
+  ],
+  TE: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'),
+    v('ETCD', 'Element Code', 'Char', 'Topic', 'Req'), v('ELEMENT', 'Description of Element', 'Char', 'Synonym Qualifier', 'Req'),
+    v('TESTRL', 'Rule for Start of Element', 'Char', 'Rule', 'Req'), v('TEENRL', 'Rule for End of Element', 'Char', 'Rule', 'Perm'), v('TEDUR', 'Planned Duration of Element', 'Char', 'Timing', 'Perm'),
+  ],
+  TV: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'),
+    v('VISITNUM', 'Visit Number', 'Num', 'Topic', 'Req'), v('VISIT', 'Visit Name', 'Char', 'Synonym Qualifier', 'Perm'), v('VISITDY', 'Planned Study Day of Visit', 'Num', 'Timing', 'Perm'),
+    v('ARMCD', 'Planned Arm Code', 'Char', 'Record Qualifier', 'Exp'), v('ARM', 'Description of Planned Arm', 'Char', 'Synonym Qualifier', 'Perm'),
+    v('TVSTRL', 'Visit Start Rule', 'Char', 'Rule', 'Req'), v('TVENRL', 'Visit End Rule', 'Char', 'Rule', 'Perm'),
+  ],
+  TI: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'),
+    v('IETESTCD', 'Incl/Excl Criterion Short Name', 'Char', 'Topic', 'Req'), v('IETEST', 'Inclusion/Exclusion Criterion', 'Char', 'Synonym Qualifier', 'Req'),
+    v('IECAT', 'Inclusion/Exclusion Category', 'Char', 'Grouping Qualifier', 'Req', 'IECAT'), v('IESCAT', 'Inclusion/Exclusion Subcategory', 'Char', 'Grouping Qualifier', 'Perm'),
+    v('TIRL', 'Inclusion/Exclusion Criterion Rule', 'Char', 'Rule', 'Perm'), v('TIVERS', 'Protocol Criteria Versions', 'Char', 'Record Qualifier', 'Perm'),
+  ],
+  TS: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'),
+    v('TSSEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'), v('TSGRPID', 'Group ID', 'Char', 'Identifier', 'Perm'),
+    v('TSPARMCD', 'Trial Summary Parameter Short Name', 'Char', 'Topic', 'Req', 'TSPARMCD'), v('TSPARM', 'Trial Summary Parameter', 'Char', 'Synonym Qualifier', 'Req', 'TSPARM'),
+    v('TSVAL', 'Parameter Value', 'Char', 'Result Qualifier', 'Exp'), v('TSVAL1', 'Parameter Value 1', 'Char', 'Result Qualifier', 'Perm'), v('TSVALNF', 'Parameter Null Flavor', 'Char', 'Result Qualifier', 'Perm'),
+    v('TSVALCD', 'Parameter Value Code', 'Char', 'Result Qualifier', 'Exp'), v('TSVCDREF', 'Name of the Reference Terminology', 'Char', 'Result Qualifier', 'Exp'), v('TSVCDVER', 'Version of the Reference Terminology', 'Char', 'Result Qualifier', 'Exp'),
+  ],
+  SUPPQUAL: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('RDOMAIN', 'Related Domain Abbreviation', 'Char', 'Identifier', 'Req'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Exp'),
+    v('IDVAR', 'Identifying Variable', 'Char', 'Identifier', 'Exp'), v('IDVARVAL', 'Identifying Variable Value', 'Char', 'Identifier', 'Exp'),
+    v('QNAM', 'Qualifier Variable Name', 'Char', 'Topic', 'Req'), v('QLABEL', 'Qualifier Variable Label', 'Char', 'Synonym Qualifier', 'Req'),
+    v('QVAL', 'Data Value', 'Char', 'Result Qualifier', 'Req'), v('QORIG', 'Origin', 'Char', 'Record Qualifier', 'Req'), v('QEVAL', 'Evaluator', 'Char', 'Record Qualifier', 'Exp'),
+  ],
 }
-export const DETAIL_DOMAINS = Object.keys(META_34)
+export const DETAIL_DOMAINS = Object.keys(META_34).filter((d) => !['SE', 'TA', 'TE', 'TV', 'TI', 'TS', 'SUPPQUAL'].includes(d))
+export const TRIAL_DESIGN = ['TA', 'TE', 'TV', 'TI', 'TS']
+export const hasMeta = (d: string) => !!META_34[d]
 
 // The SDTMIG v4.0 public-review draft, as CDISC presented it in February 2026: SUBJID in every
 // general-observation-class domain, --BLFL retired in favour of --LOBXFL, collected race and
@@ -177,7 +238,7 @@ export const DRAFT_CHANGES: { what: string; where: string }[] = [
   { what: 'SUBJID added after USUBJID in every Interventions, Events and Findings domain', where: 'VS, EX, AE, CM, DS and all other general-class domains' },
   { what: '--BLFL (Baseline Flag) retired; --LOBXFL (Last Observation Before Exposure Flag) carries the pre-treatment flag', where: 'Findings domains, e.g. VSBLFL' },
   { what: 'CRACE (Collected Race) and CETHNIC (Collected Ethnicity) added', where: 'DM' },
-  { what: 'Supplemental qualifiers (SUPP--) replaced by non-standard variable datasets (NS--), with IDVAR always --SEQ', where: 'Relationship datasets (Phase 2 of this trainer)' },
+  { what: 'Supplemental qualifiers (SUPP--) replaced by non-standard variable datasets (NS--), with IDVAR always --SEQ', where: 'Relationship datasets (the trainer still builds SUPP-- in draft mode)' },
   { what: 'New domains, including DC, EA and GI', where: 'Not used by this study' },
 ]
 
@@ -202,7 +263,9 @@ export const domainInfo = (code: string) => DOMAINS.find((d) => d.code === code)
 // CDISC Controlled Terminology is published quarterly through NCI EVS. The trainer bundles the
 // codelists its study needs, stamped with the release they were taken from. Submission values
 // are case-sensitive and must be used exactly.
-export const CT_VERSION = 'CDISC SDTM Controlled Terminology, 2026-09 release (subset bundled for this study)'
+export const BUNDLED_CT_LABEL = 'CDISC SDTM Controlled Terminology, 2026-09 release (subset bundled for this study)'
+// The terminology in use: the bundled subset, or a full NCI EVS file the learner loaded (ctload.ts).
+export const CT_INFO = { label: BUNDLED_CT_LABEL, loaded: false }
 export interface Codelist { id: string; name: string; extensible: boolean; terms: { value: string; decode?: string }[] }
 const cl = (id: string, name: string, extensible: boolean, terms: (string | [string, string])[]): Codelist => ({ id, name, extensible, terms: terms.map((t) => (typeof t === 'string' ? { value: t } : { value: t[0], decode: t[1] })) })
 
@@ -217,7 +280,7 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('VSTESTCD', 'Vital Signs Test Code', true, [['SYSBP', 'Systolic Blood Pressure'], ['DIABP', 'Diastolic Blood Pressure'], ['PULSE', 'Pulse Rate'], ['WEIGHT', 'Weight'], ['HEIGHT', 'Height'], ['BMI', 'Body Mass Index'], ['TEMP', 'Temperature']]),
   cl('VSTEST', 'Vital Signs Test Name', true, ['Systolic Blood Pressure', 'Diastolic Blood Pressure', 'Pulse Rate', 'Weight', 'Height', 'Body Mass Index', 'Temperature']),
   cl('VSRESU', 'Units for Vital Signs Results', true, ['mmHg', 'beats/min', 'kg', 'LB', 'cm', 'in', 'kg/m2', 'C', 'F']),
-  cl('UNIT', 'Unit', true, ['mg', 'g', 'mL', 'TABLET', 'kg', 'cm']),
+  cl('UNIT', 'Unit', true, ['mg', 'g', 'mL', 'TABLET', 'kg', 'cm', '%', 'mg/dL', 'mmol/L', 'umol/L', 'U/L', 'mmol/mol']),
   cl('POSITION', 'Position', true, ['SITTING', 'STANDING', 'SUPINE']),
   cl('ND', 'Not Done', false, ['NOT DONE']),
   cl('LOC', 'Anatomical Location', true, ['ARM', 'ORAL CAVITY']),
@@ -230,8 +293,23 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('ACN', 'Action Taken with Study Treatment', false, ['DOSE INCREASED', 'DOSE NOT CHANGED', 'DOSE REDUCED', 'DRUG INTERRUPTED', 'DRUG WITHDRAWN', 'NOT APPLICABLE', 'UNKNOWN']),
   cl('OUT', 'Outcome of Event', false, ['FATAL', 'NOT RECOVERED/NOT RESOLVED', 'RECOVERED/RESOLVED', 'RECOVERED/RESOLVED WITH SEQUELAE', 'RECOVERING/RESOLVING', 'UNKNOWN']),
   cl('NCOMPLT', 'Completion/Reason for Non-Completion', true, ['COMPLETED', 'ADVERSE EVENT', 'DEATH', 'LOST TO FOLLOW-UP', 'PHYSICIAN DECISION', 'PROTOCOL DEVIATION', 'SCREEN FAILURE', 'STUDY TERMINATED BY SPONSOR', 'WITHDRAWAL BY SUBJECT']),
+  cl('PROTMLST', 'Protocol Milestone', true, ['INFORMED CONSENT OBTAINED', 'RANDOMIZED', 'ELIGIBILITY CRITERIA MET']),
   cl('DSCAT', 'Category for Disposition Event', false, ['DISPOSITION EVENT', 'PROTOCOL MILESTONE', 'OTHER EVENT']),
   cl('STENRF', 'Relation to Reference Period', false, ['BEFORE', 'DURING', 'AFTER', 'DURING/AFTER', 'U', 'ONGOING']),
+  cl('LBTESTCD', 'Laboratory Test Code', true, [['HBA1C', 'Hemoglobin A1C'], ['GLUC', 'Glucose'], ['CREAT', 'Creatinine'], ['ALT', 'Alanine Aminotransferase'], ['AST', 'Aspartate Aminotransferase'], ['CHOL', 'Cholesterol']]),
+  cl('LBTEST', 'Laboratory Test Name', true, ['Hemoglobin A1C', 'Glucose', 'Creatinine', 'Alanine Aminotransferase', 'Aspartate Aminotransferase', 'Cholesterol']),
+  cl('NRIND', 'Reference Range Indicator', true, ['NORMAL', 'LOW', 'HIGH', 'ABNORMAL']),
+  cl('SPECTYPE', 'Specimen Type', true, ['BLOOD', 'SERUM', 'PLASMA', 'URINE']),
+  cl('IECAT', 'Category for Inclusion/Exclusion', false, ['INCLUSION', 'EXCLUSION']),
+  cl('TSPARMCD', 'Trial Summary Parameter Test Code', true, [['TITLE', 'Trial Title'], ['TPHASE', 'Trial Phase Classification'], ['STYPE', 'Study Type'], ['TTYPE', 'Trial Type'], ['INDIC', 'Trial Disease/Condition Indication'], ['TRT', 'Investigational Therapy or Treatment'], ['COMPTRT', 'Comparative Treatment Name'], ['TBLIND', 'Trial Blinding Schema'], ['TCNTRL', 'Control Type'], ['TINDTP', 'Trial Intent Type'], ['RANDOM', 'Trial is Randomized'], ['ADDON', 'Added on to Existing Treatments'], ['NARMS', 'Planned Number of Arms'], ['PLANSUB', 'Planned Number of Subjects'], ['ACTSUB', 'Actual Number of Subjects'], ['AGEMIN', 'Planned Minimum Age of Subjects'], ['AGEMAX', 'Planned Maximum Age of Subjects'], ['SEXPOP', 'Sex of Participants'], ['HLTSUBJI', 'Healthy Subject Indicator'], ['LENGTH', 'Trial Length'], ['FCNTRY', 'Planned Country of Investigational Sites'], ['SPONSOR', 'Clinical Study Sponsor'], ['SSTDTC', 'Study Start Date'], ['SENDTC', 'Study End Date'], ['SDTMVER', 'SDTM Version'], ['SDTIGVER', 'SDTM IG Version']]),
+  cl('TSPARM', 'Trial Summary Parameter Test Name', true, ['Trial Title', 'Trial Phase Classification', 'Study Type', 'Trial Type', 'Trial Disease/Condition Indication', 'Investigational Therapy or Treatment', 'Comparative Treatment Name', 'Trial Blinding Schema', 'Control Type', 'Trial Intent Type', 'Trial is Randomized', 'Added on to Existing Treatments', 'Planned Number of Arms', 'Planned Number of Subjects', 'Actual Number of Subjects', 'Planned Minimum Age of Subjects', 'Planned Maximum Age of Subjects', 'Sex of Participants', 'Healthy Subject Indicator', 'Trial Length', 'Planned Country of Investigational Sites', 'Clinical Study Sponsor', 'Study Start Date', 'Study End Date', 'SDTM Version', 'SDTM IG Version']),
+  cl('TPHASE', 'Trial Phase Response', true, ['PHASE I TRIAL', 'PHASE II TRIAL', 'PHASE III TRIAL', 'PHASE IV TRIAL']),
+  cl('STYPE', 'Study Type Response', true, ['INTERVENTIONAL', 'OBSERVATIONAL']),
+  cl('TTYPE', 'Trial Type Response', true, ['EFFICACY', 'SAFETY', 'PHARMACOKINETIC', 'PHARMACODYNAMIC']),
+  cl('TBLIND', 'Trial Blinding Schema Response', true, ['DOUBLE BLIND', 'OPEN LABEL', 'SINGLE BLIND']),
+  cl('TCNTRL', 'Control Type Response', true, ['PLACEBO', 'ACTIVE', 'NONE']),
+  cl('TINDTP', 'Trial Intent Type Response', true, ['TREATMENT', 'PREVENTION', 'DIAGNOSIS']),
+  cl('SEXPOP', 'Sex of Study Group Response', false, ['BOTH', 'F', 'M']),
   cl('DOMAIN', 'SDTM Domain Abbreviation', true, DOMAINS.filter((d) => /^[A-Z]{2}$/.test(d.code)).map((d) => d.code)),
 ].map((c) => [c.id, c]))
 export const inCt = (id: string, value: string) => !!CT[id]?.terms.some((t) => t.value === value)

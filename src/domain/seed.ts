@@ -10,21 +10,25 @@
 
 import { rng, addDays, type Rng } from './util'
 import { SITES, VISITS, ARMS, STUDY } from './study'
+import { SMD_10, exactLlt, path } from './dictmed'
+import { exactDrug, atcByCode, DRUGS } from './dictdrug'
 
 export type Row = Record<string, string> & { __id: string }
 export interface RawData { forms: Record<string, Row[]>; subjects: SubjectTruth[] }
+export const LAB_NAME = 'Meridian Central Laboratories (fictional)'
 export interface SubjectTruth { subj: string; site: string; fate: Fate; scr: string; d1?: string; arm?: string; kit?: string; doseTime?: string; lastDose?: string; end: string }
 export type Fate = 'completed' | 'screen-fail' | 'ae' | 'withdrew' | 'lost' | 'death' | 'not-dosed'
 
-export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT'; note: string }> = {
+export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | 'Vendor'; note: string }> = {
   DM: { name: 'Demographics', source: 'EDC', note: 'One row per subject. SEX, RACE and ETHNIC are exported as their EDC labels, not CT values.' },
   IC: { name: 'Informed consent', source: 'EDC', note: 'One row per subject.' },
   SV: { name: 'Visit dates', source: 'EDC', note: 'One row per visit that took place, including unscheduled visits.' },
   VS: { name: 'Vital signs', source: 'EDC', note: 'One row per visit, one column per test (wide). Units for weight and height are collected; other units are fixed on the CRF: mmHg, beats/min, °C.' },
   EX: { name: 'Study drug administration', source: 'EDC', note: 'One row per kit-dispensing interval, one tablet a day. EXSTTIM is recorded only for the first dose.' },
   DS: { name: 'End of study (disposition)', source: 'EDC', note: 'One row per subject, including screen failures. DSDECOD is the EDC label.' },
-  AE: { name: 'Adverse events', source: 'EDC', note: 'Mapped in Phase 2.' },
-  CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'Mapped in Phase 2.' },
+  AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event. The coding columns (lowest-level term to system class, with codes) come from the coding team’s export, coded with the Study Medical Dictionary (fictional, MedDRA-shaped).' },
+  CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'One row per medication. CMDECOD and the class come from the coding export (Study Drug Dictionary, fictional, WHODrug-shaped). Start dates may be partial: the EDC exports an unknown day or month by leaving it out.' },
+  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Resent results appear twice.' },
   IRT: { name: 'IRT randomisation file', source: 'IRT', note: 'External file from the randomisation system: planned arm (RANDARM) and the arm of the kits actually dispensed (KITARM). Screen failures are not in it.' },
 }
 const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
@@ -34,8 +38,9 @@ const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
   VS: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit (folder)'], ['VSPERF', 'Were vital signs measured? (Y/N)'], ['VSREASND', 'Reason not done'], ['VSDAT', 'Date of measurements'], ['VSTIM', 'Time of measurements'], ['VSPOS', 'Position for blood pressure and pulse'], ['SYSBP', 'Systolic blood pressure (mmHg)'], ['DIABP', 'Diastolic blood pressure (mmHg)'], ['PULSE', 'Pulse (beats/min)'], ['WEIGHT', 'Weight'], ['WEIGHTU', 'Weight unit'], ['HEIGHT', 'Height'], ['HEIGHTU', 'Height unit'], ['TEMP', 'Oral temperature (°C)']],
   EX: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit kit dispensed'], ['EXKIT', 'Kit number'], ['EXSTDAT', 'Start date'], ['EXSTTIM', 'Time of first dose (Day 1 only)'], ['EXENDAT', 'End date'], ['EXTABS', 'Tablets per day']],
   DS: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DSDECOD', 'Status at end of study'], ['DSTERM', 'Details'], ['DSSTDAT', 'Date of completion or discontinuation']],
-  AE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['AESPID', 'AE number'], ['AETERM', 'Adverse event'], ['AESTDAT', 'Start date'], ['AEENDAT', 'End date'], ['AEONGO', 'Ongoing'], ['AESEV', 'Severity'], ['AESER', 'Serious'], ['AEREL', 'Related to study drug'], ['AEACN', 'Action taken'], ['AEOUT', 'Outcome']],
-  CM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['CMSPID', 'Medication number'], ['CMTRT', 'Medication'], ['CMINDC', 'Indication'], ['CMDOSE', 'Dose'], ['CMDOSU', 'Unit'], ['CMDOSFRQ', 'Frequency'], ['CMROUTE', 'Route'], ['CMSTDAT', 'Start date'], ['CMENDAT', 'End date'], ['CMONGO', 'Ongoing']],
+  AE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['AESPID', 'AE number'], ['AETERM', 'Adverse event'], ['AESTDAT', 'Start date'], ['AEENDAT', 'End date'], ['AEONGO', 'Ongoing'], ['AESEV', 'Severity'], ['AESER', 'Serious'], ['AEREL', 'Related to study drug'], ['AEACN', 'Action taken'], ['AEOUT', 'Outcome'], ['AESDTH', 'Resulted in death'], ['AESHOSP', 'Hospitalisation'], ['AELLT', 'Coded: lowest-level term'], ['AELLTCD', 'LLT code'], ['AEDECOD', 'Coded: preferred term'], ['AEPTCD', 'PT code'], ['AEHLT', 'Coded: cluster (HLT)'], ['AEHLTCD', 'HLT code'], ['AEHLGT', 'Coded: group (HLGT)'], ['AEHLGTCD', 'HLGT code'], ['AESOC', 'Coded: system class (SOC)'], ['AESOCCD', 'SOC code']],
+  CM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['CMSPID', 'Medication number'], ['CMTRT', 'Medication'], ['CMINDC', 'Indication'], ['CMDOSE', 'Dose'], ['CMDOSU', 'Unit'], ['CMDOSFRQ', 'Frequency'], ['CMROUTE', 'Route'], ['CMSTDAT', 'Start date'], ['CMENDAT', 'End date'], ['CMONGO', 'Ongoing'], ['CMDECOD', 'Coded: standard name'], ['CMDRN', 'Coded: drug record number'], ['CMCLAS', 'Coded: class (level 4)'], ['CMCLASCD', 'Class code']],
+  LBC: [['SUBJID', 'Subject number'], ['VISIT', 'Visit'], ['ACCSNUM', 'Accession number'], ['COLLDATE', 'Collection date'], ['COLLTIME', 'Collection time'], ['TESTCODE', 'Vendor test code'], ['TESTNAME', 'Vendor test name'], ['RESULT', 'Result'], ['UNITS', 'Units'], ['REFLOW', 'Reference range low'], ['REFHIGH', 'Reference range high'], ['FLAG', 'Abnormal flag'], ['SPECIMEN', 'Specimen'], ['FASTING', 'Fasting'], ['COMMENT', 'Lab comment'], ['LABNAME', 'Laboratory']],
   IRT: [['SUBJID', 'Subject number'], ['RANDNO', 'Randomisation number'], ['RANDDT', 'Randomisation date'], ['RANDARM', 'Randomised arm (code)'], ['KITARM', 'Arm of kits dispensed (code)']],
 }
 export const RAW_FIELDS: Record<string, { name: string; label: string }[]> = Object.fromEntries(Object.entries(RAW_FIELD_PAIRS).map(([k, v]) => [k, v.map(([name, label]) => ({ name, label }))]))
@@ -169,12 +174,12 @@ export function generate(seed = 1230301): RawData {
         'not-dosed': ['Withdrawal by subject', 'Withdrew consent on Day 1 after randomisation, before the first dose'],
       }
       add('DS', { SUBJID: subj, SITEID: site.id, DSDECOD: ds[fate][0], DSTERM: ds[fate][1], DSSTDAT: end })
-      if (fate === 'death') add('AE', { SUBJID: subj, SITEID: site.id, AESPID: '1', AETERM: 'Acute myocardial infarction', AESTDAT: end, AEENDAT: end, AEONGO: 'N', AESEV: 'Severe', AESER: 'Y', AEREL: 'Not related', AEACN: 'Drug withdrawn', AEOUT: 'Fatal' })
+      if (fate === 'death') add('AE', { SUBJID: subj, SITEID: site.id, AESPID: '1', AETERM: 'Acute myocardial infarction', AESTDAT: end, AEENDAT: end, AEONGO: 'N', AESEV: 'Severe', AESER: 'Y', AEREL: 'Not related', AEACN: 'Drug withdrawn', AEOUT: 'Fatal', AESDTH: 'Y', AESHOSP: 'Y' })
       if (fate !== 'not-dosed') {
         const k = r.int(0, 3)
         for (let a = 1; a <= k; a++) {
           const st = addDays(d1, r.int(2, 150)); if (st > end) continue
-          const term = r.pick(['Headache', 'Nasopharyngitis', 'Diarrhoea', 'Nausea', 'Dizziness', 'Back pain', 'Urinary tract infection', 'Hypoglycaemia'])
+          const term = r.pick(['Headache', 'Nasopharyngitis', 'Diarrhoea', 'Nausea', 'Dizziness', 'Back pain', 'Fatigue', 'ALT increased'])
           const ongoing = r.chance(0.15)
           add('AE', { SUBJID: subj, SITEID: site.id, AESPID: String(a + (fate === 'death' ? 1 : 0)), AETERM: term, AESTDAT: st, AEENDAT: ongoing ? '' : addDays(st, r.int(1, 14)), AEONGO: ongoing ? 'Y' : 'N', AESEV: r.pick(['Mild', 'Mild', 'Moderate']), AESER: 'N', AEREL: r.pick(['Not related', 'Related']), AEACN: fate === 'ae' && a === k ? 'Drug withdrawn' : 'Dose not changed', AEOUT: ongoing ? 'Not recovered/not resolved' : 'Recovered/resolved' })
         }
@@ -182,8 +187,95 @@ export function generate(seed = 1230301): RawData {
       subjects.push({ subj, site: site.id, fate, scr, d1, arm: planned, kit: fate === 'not-dosed' ? undefined : kit, doseTime: fate === 'not-dosed' ? undefined : `${d1}T${hhmm(doseMin)}`, lastDose: lastDose || undefined, end })
     }
   })
+  phase2(forms, subjects, seed)
   return { forms, subjects }
 }
 
 let cache: RawData | null = null
 export const raw = () => (cache ??= generate())
+
+// ---------- Phase 2 additions (a separate random stream, so the Phase 1 data are unchanged) ----------
+const LAB_TESTS = [
+  { code: 'A1C', name: 'Hemoglobin A1c', sdtm: 'HBA1C', unit: '%', lo: 4.0, hi: 5.6, spec: 'Whole blood', mean: 8.4, sd: 0.7, dec: 1, drop: 0.9 },
+  { code: 'FPG', name: 'Glucose, fasting', sdtm: 'GLUC', unit: 'mg/dL', lo: 70, hi: 99, spec: 'Serum', mean: 172, sd: 25, dec: 0, drop: 30 },
+  { code: 'CREA', name: 'Creatinine', sdtm: 'CREAT', unit: 'mg/dL', lo: 0.6, hi: 1.2, spec: 'Serum', mean: 0.95, sd: 0.18, dec: 2, drop: 0 },
+  { code: 'ALT', name: 'ALT (SGPT)', sdtm: 'ALT', unit: 'U/L', lo: 7, hi: 56, spec: 'Serum', mean: 26, sd: 9, dec: 0, drop: 0 },
+  { code: 'AST', name: 'AST (SGOT)', sdtm: 'AST', unit: 'U/L', lo: 10, hi: 40, spec: 'Serum', mean: 24, sd: 7, dec: 0, drop: 0 },
+  { code: 'CHOL', name: 'Cholesterol, total', sdtm: 'CHOL', unit: 'mg/dL', lo: 0, hi: 200, spec: 'Serum', mean: 195, sd: 32, dec: 0, drop: 4 },
+]
+export const LAB_VISITS = ['Screening', 'Week 4', 'Week 12', 'Week 26']
+export const PLANTED_LAB = { hemolysed: '103-005', belowLloq: '105-010', unitTypo: '104', duplicates: ['101-006', '102-003', '105-004'] }
+
+function phase2(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: number) {
+  const r = rng(seed + 7)
+  // Adverse events: coding columns from the coding export.
+  for (const ae of forms.AE) {
+    const verbatim = ae.AETERM === 'Acute myocardial infarction' ? 'Myocardial infarction' : ae.AETERM
+    const llt = exactLlt(SMD_10, verbatim)
+    if (!llt) continue
+    const p = path(SMD_10, llt.code)
+    const at = (lv: string) => p.find((t) => t.level === lv)
+    Object.assign(ae, { AESDTH: ae.AESDTH ?? '', AESHOSP: ae.AESHOSP ?? '', AELLT: llt.name, AELLTCD: llt.code, AEDECOD: at('PT')!.name, AEPTCD: at('PT')!.code, AEHLT: at('HLT')!.name, AEHLTCD: at('HLT')!.code, AEHLGT: at('HLGT')!.name, AEHLGTCD: at('HLGT')!.code, AESOC: at('SOC')!.name, AESOCCD: at('SOC')!.code })
+  }
+  // One adverse event with a start date known only to the month.
+  const partialAe = forms.AE.find((x) => x.SUBJID === '102-006' || x.SUBJID === '104-003')
+  if (partialAe) partialAe.AESTDAT = partialAe.AESTDAT.slice(0, 7)
+  // Medications: trade names, partial dates, coding columns, and treatment of some AEs.
+  const code = (row: Row) => {
+    const d = exactDrug(row.CMTRT) ?? DRUGS.find((x) => x.name.toLowerCase() === row.CMTRT.toLowerCase())
+    if (!d) return
+    const generic = DRUGS.find((x) => x.drn === d.drn && x.generic)!
+    const cls = atcByCode.get(d.atc[0])
+    Object.assign(row, { CMDECOD: generic.name, CMDRN: d.id, CMCLAS: cls?.name ?? '', CMCLASCD: d.atc[0] })
+  }
+  for (const cm of forms.CM) {
+    if (r.chance(0.2)) cm.CMTRT = r.pick(['Glucofen', 'Metforal'])
+    const u = r.next()
+    if (u < 0.15) cm.CMSTDAT = cm.CMSTDAT.slice(0, 4)
+    else if (u < 0.4) cm.CMSTDAT = cm.CMSTDAT.slice(0, 7)
+    code(cm)
+  }
+  for (const ae of forms.AE.filter((x) => ['Headache', 'Back pain'].includes(x.AETERM))) {
+    if (!r.chance(0.6)) continue
+    const n = forms.CM.filter((x) => x.SUBJID === ae.SUBJID).length + 1
+    const drug = r.pick(['Paracetamol', 'Ibuprofen', 'Pyrexol'])
+    const st = /^\d{4}-\d{2}-\d{2}$/.test(ae.AESTDAT) ? ae.AESTDAT : ''
+    if (!st) continue
+    const row = { __id: `CM-${String(forms.CM.length + 1).padStart(4, '0')}`, SUBJID: ae.SUBJID, SITEID: ae.SITEID, CMSPID: String(n), CMTRT: drug, CMINDC: ae.AETERM, CMDOSE: drug === 'Ibuprofen' ? '400' : '500', CMDOSU: 'mg', CMDOSFRQ: drug === 'Ibuprofen' ? 'TID' : 'PRN', CMROUTE: 'Oral', CMSTDAT: st, CMENDAT: ae.AEENDAT || '', CMONGO: ae.AEENDAT ? 'N' : 'Y' } as Row
+    code(row); forms.CM.push(row)
+  }
+  forms.CM.sort((a, b) => a.SUBJID.localeCompare(b.SUBJID) || Number(a.CMSPID) - Number(b.CMSPID))
+  forms.CM.forEach((x, i) => { x.__id = `CM-${String(i + 1).padStart(4, '0')}` })
+  // Central laboratory transfer.
+  const lab: Row[] = []
+  let acc = 50000
+  for (const s of subjects) {
+    const sv = forms.SV.filter((x) => x.SUBJID === s.subj && LAB_VISITS.includes(x.VISIT))
+    const base = Object.fromEntries(LAB_TESTS.map((t) => [t.code, t.mean + r.normal(0, t.sd)]))
+    for (const v of sv) {
+      const wk = LAB_VISITS.indexOf(v.VISIT)
+      const effect = !s.arm || s.arm === 'PBO' || wk === 0 ? 0.15 : s.arm === 'GLV5' ? 0.8 : 1
+      const time = `${String(r.int(7, 10)).padStart(2, '0')}:${String(r.int(0, 59)).padStart(2, '0')}`
+      const accession = `ML${++acc}`
+      for (const t of LAB_TESTS) {
+        let val = base[t.code] - t.drop * effect * Math.min(1, wk / 2) + r.normal(0, t.sd * 0.25)
+        val = Math.max(t.code === 'ALT' ? 3 : 0.1, val)
+        let result = val.toFixed(t.dec)
+        let comment = ''
+        if (s.subj === PLANTED_LAB.hemolysed && v.VISIT === 'Week 4' && (t.code === 'AST' || t.code === 'ALT')) { result = ''; comment = 'Specimen hemolyzed - not reported' }
+        if (s.subj === PLANTED_LAB.belowLloq && v.VISIT === 'Week 12' && t.code === 'ALT') result = '<5'
+        const num = Number(result)
+        const flag = result === '' ? '' : result.startsWith('<') ? 'L' : num < t.lo ? 'L' : num > t.hi ? 'H' : ''
+        const units = s.site === PLANTED_LAB.unitTypo && t.unit === 'mg/dL' && v.VISIT === 'Week 12' ? 'mg/dl' : t.unit
+        lab.push({ __id: '', SUBJID: s.subj, VISIT: v.VISIT, ACCSNUM: accession, COLLDATE: v.VISDAT, COLLTIME: time, TESTCODE: t.code, TESTNAME: t.name, RESULT: result, UNITS: units, REFLOW: String(t.lo), REFHIGH: String(t.hi), FLAG: flag, SPECIMEN: t.spec, FASTING: t.code === 'FPG' ? 'Y' : '', COMMENT: comment, LABNAME: LAB_NAME } as Row)
+      }
+    }
+  }
+  // Results resent in a later transfer: exact duplicates.
+  for (const subj of PLANTED_LAB.duplicates) {
+    const first = lab.filter((x) => x.SUBJID === subj && x.VISIT === 'Week 4').slice(0, 3)
+    lab.push(...first.map((x) => ({ ...x })))
+  }
+  lab.forEach((x, i) => { x.__id = `LBC-${String(i + 1).padStart(5, '0')}` })
+  forms.LBC = lab
+}

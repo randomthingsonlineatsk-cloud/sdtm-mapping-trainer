@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { Project } from './domain/project'
 import { createProject, migrate } from './domain/project'
 import { listProjects, saveProject } from './domain/store'
+import { restoreCt } from './domain/ctload'
 
 interface Store { p: Project; tick: number; act: (fn: (p: Project) => void) => boolean; replace: (p: Project) => void; error: string; setError: (s: string) => void; saved: string }
 const Ctx = createContext<Store | null>(null)
@@ -15,7 +16,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [saved, setSaved] = useState('')
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => {
-    listProjects().then((all) => {
+    restoreCt().then(() => listProjects()).then((all) => {
       const last = all.sort((a, b) => b.updatedUtc.localeCompare(a.updatedUtc))[0]
       ref.current = last ? migrate(last) : createProject()
     }).catch(() => { ref.current = createProject() }).finally(() => { setReady(true); setTick((t) => t + 1) })

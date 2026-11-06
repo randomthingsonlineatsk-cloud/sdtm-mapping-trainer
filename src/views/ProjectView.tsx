@@ -3,8 +3,10 @@ import { useStore } from '../state'
 import { createProject, log, migrate, type Project } from '../domain/project'
 import { exportFile, importFile, deleteProject, listProjects, saveProject, download } from '../domain/store'
 import { importCdmProject } from '../domain/cdmImport'
-import { VERSION_LABEL, DRAFT_CHANGES, CT_VERSION, type Version } from '../domain/standards'
+import { VERSION_LABEL, DRAFT_CHANGES, CT_INFO, type Version } from '../domain/standards'
 import { Panel, Pill, Btn, Table, ic } from './ui'
+import { parseCt, applyCt, saveCt } from '../domain/ctload'
+import { CT } from '../domain/standards'
 
 const LINKS = [
   { name: 'CDM Query & Edit-Check Console', url: 'https://randomthingsonlineatsk-cloud.github.io/cdm-query-console/', what: 'Where the raw data comes from: edit checks, queries, coding, reconciliation and lock on HLV-204-201 and the vaccine trial ALV-3-301. Its project files import here.' },
@@ -18,7 +20,8 @@ export default function ProjectView() {
   const [all, setAll] = useState<Project[]>([])
   const [msg, setMsg] = useState('')
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
-  const file = useRef<HTMLInputElement>(null), cdm = useRef<HTMLInputElement>(null)
+  const file = useRef<HTMLInputElement>(null), cdm = useRef<HTMLInputElement>(null), ctf = useRef<HTMLInputElement>(null)
+  const [ctMsg, setCtMsg] = useState('')
   const refresh = () => listProjects().then((x) => setAll(x.sort((a, b) => b.updatedUtc.localeCompare(a.updatedUtc)))).catch(() => setAll([]))
   useEffect(() => { refresh() }, [p.id, p.updatedUtc])
   const switchTo = (np: Project) => { saveProject(p).finally(() => { replace(np); refresh() }) }
@@ -42,7 +45,7 @@ export default function ProjectView() {
         </div>
         {msg && <p className="text-xs text-lab-cdsco" role="status">{msg}</p>}
       </Panel>
-      <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_VERSION}.`}>
+      <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_INFO.label}.`}>
         <div className="flex flex-wrap gap-2">
           {(['3.4', '4.0d'] as Version[]).map((v) => <Btn key={v} tone={p.version === v ? 'solid' : 'grey'} onClick={() => setVersion(v)}>{VERSION_LABEL[v]}</Btn>)}
         </div>
@@ -50,6 +53,16 @@ export default function ProjectView() {
           ? <div className="text-xs space-y-1"><p className="text-lab-ema">Draft mode. SDTMIG v4.0 is not final: it is built here from the public-review draft and will be updated when CDISC publishes the standard. FDA requires SDTMIG v3.4.</p><ul className="list-disc pl-5 text-lab-text-muted">{DRAFT_CHANGES.map((c) => <li key={c.what}>{c.what}</li>)}</ul></div>
           : <p className="text-xs text-lab-text-muted">SDTMIG v3.4 with SDTM v2.0: required by FDA for studies starting on or after 15 March 2025.</p>}
         <p className="text-[11px] text-lab-text-muted">Switching keeps your mappings. Variables that do not exist in the other version stay in your specification but are not part of the expected structure; missions record the version they ran against.</p>
+      </Panel>
+      <Panel title="Controlled terminology" sub="The trainer bundles the codelists its study needs. Load the full quarterly SDTM terminology file to map against every codelist: download the tab-delimited SDTM Terminology .txt file from the NCI EVS CDISC terminology page, then load it here. It is kept in this browser for all projects.">
+        <p className="text-xs">In use: <b>{CT_INFO.label}</b> · {Object.keys(CT).length} codelists, {Object.values(CT).reduce((a, c) => a + c.terms.length, 0).toLocaleString()} terms.</p>
+        <div className="flex flex-wrap gap-2">
+          <Btn tone="grey" onClick={() => ctf.current?.click()}>Load an NCI EVS terminology file (.txt)</Btn>
+          {CT_INFO.loaded && <Btn tone="red" onClick={() => { applyCt(null); saveCt(null).catch(() => {}); act(() => {}); setCtMsg('Back to the bundled terminology.') }}>Use the bundled terminology</Btn>}
+          <input ref={ctf} type="file" accept=".txt,.tsv,text/plain,text/tab-separated-values" className="hidden" aria-label="Terminology file" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setCtMsg('Reading…'); readFile(f, (t) => { try { const ct = parseCt(t, f.name); applyCt(ct); saveCt(ct).catch(() => setCtMsg('Loaded, but this browser would not keep it for next time.')); act((pp) => log(pp, `Terminology loaded: ${ct.label}`)); setCtMsg(`Loaded ${ct.codelists.length} codelists.`) } catch (er) { setCtMsg((er as Error).message) } }) } e.target.value = '' }} />
+        </div>
+        {ctMsg && <p className="text-xs text-lab-cdsco" role="status">{ctMsg}</p>}
+        <p className="text-[11px] text-lab-text-muted">Missions are scored with whichever terminology is in use; the study’s values are in both. A newer release may retire or add terms: the checks then report values that are no longer in their codelist.</p>
       </Panel>
       <Panel title="Saved projects" sub="All projects in this browser.">
         <Table head={['Project', 'Study', 'Standard', 'Missions', 'Updated', '']} rows={all.map((x) => [x.name, x.study, x.version === '3.4' ? 'v3.4' : 'v4.0 draft', (x.missions ?? []).filter((m) => m.passed).length + ' passed', x.updatedUtc.slice(0, 16).replace('T', ' '),

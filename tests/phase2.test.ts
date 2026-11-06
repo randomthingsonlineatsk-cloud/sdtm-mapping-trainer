@@ -1,0 +1,184 @@
+import { describe, expect, test } from 'vitest'
+import { build } from '../src/domain/engine'
+import { referenceSpec, studyData } from '../src/domain/reference'
+import { createProject } from '../src/domain/project'
+import { MISSIONS, evaluateMission, finishMission, startMission } from '../src/domain/missions'
+import { check, RULE_SETS, severityIn } from '../src/domain/conformance'
+import { referenceDesign, designBuilt, deriveSE } from '../src/domain/design'
+import { ibm, toXpt, toDatasetJson } from '../src/domain/exports'
+import { toR, toSAS } from '../src/domain/codegen'
+import { parseCt, applyCt } from '../src/domain/ctload'
+import { specRows } from '../src/domain/spec'
+import { CT, CT_INFO, inCt } from '../src/domain/standards'
+import { PLANTED_LAB, RAW_FIELDS } from '../src/domain/seed'
+
+const data = studyData()
+const full = (v: '3.4' | '4.0d' = '3.4') => {
+  const p = createProject('u', 'c', v)
+  for (const d of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB']) p.specs[d] = referenceSpec(d, v)
+  p.design = referenceDesign(v)
+  return p
+}
+
+describe('Phase 2 missions', () => {
+  test('every mission scores 100 with the reference, in both standards and every rule set', () => {
+    for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
+      const p = full(v); p.ruleSet = rs.id
+      for (const m of MISSIONS.filter((x) => x.kind !== 'fix')) {
+        const r = evaluateMission(p, m.id)
+        expect(r.score, `${v} ${rs.id} ${m.id}: ${r.detail.join(' | ')}`).toBe(100)
+        expect(r.passed).toBe(true)
+      }
+    }
+  })
+  test('S9 loads a broken delivery that fails, and the reference fixes it', () => {
+    const p = full(); startMission(p, 'S9')
+    const bad = evaluateMission(p, 'S9')
+    expect(bad.passed).toBe(false)
+    expect(bad.domains.find((d) => d.domain === 'AE')!.findings.some((f) => f.rule === 'TRN-002' || f.variable === 'DOMAIN')).toBe(true)
+    p.specs.AE = referenceSpec('AE', '3.4'); p.specs.LB = referenceSpec('LB', '3.4')
+    const run = finishMission(p, 'S9')
+    expect(run.score).toBe(100); expect(run.passed).toBe(true)
+    expect(run.domainPass).toEqual({ AE: true, LB: true })
+  })
+  test('per-domain scores: a wrong SUPPAE only fails SUPPAE', () => {
+    const p = full()
+    p.specs.AE = { ...referenceSpec('AE', '3.4'), supp: [] }
+    const r = evaluateMission(p, 'S3')
+    expect(r.domains.find((d) => d.domain === 'AE')!.passed).toBe(true)
+    expect(r.domains.find((d) => d.domain === 'SUPPAE')!.passed).toBe(false)
+    expect(r.passed).toBe(false)
+  })
+  test('an empty trial design fails S8 with credit 0', () => {
+    const p = full(); p.design = {}
+    const r = evaluateMission(p, 'S8')
+    expect(r.score).toBeLessThan(10); expect(r.passed).toBe(false)
+  })
+})
+
+describe('domains from several sources, SUPPQUAL and LB', () => {
+  test('DS stacks the end-of-study form, consent and randomisation', () => {
+    const ds = build(referenceSpec('DS', '3.4'), data)
+    const cats = new Set(ds.rows.map((r) => r.DSCAT))
+    expect(cats).toEqual(new Set(['DISPOSITION EVENT', 'PROTOCOL MILESTONE']))
+    expect(ds.rows.filter((r) => r.DSDECOD === 'INFORMED CONSENT OBTAINED')).toHaveLength(90)
+    expect(ds.rows.filter((r) => r.DSDECOD === 'RANDOMIZED')).toHaveLength(81)
+    const seqs = ds.rows.filter((r) => r.USUBJID === ds.rows[0].USUBJID).map((r) => r.DSSEQ)
+    expect(seqs).toEqual(seqs.map((_, i) => String(i + 1)))
+  })
+  test('SUPPAE links to AESEQ, with no record for subjects never dosed', () => {
+    const ae = build(referenceSpec('AE', '3.4'), data)
+    const supp = ae.supp!
+    expect(supp.rows.length).toBeGreaterThan(0)
+    expect(supp.rows.every((r) => r.IDVAR === 'AESEQ' && ae.rows.some((a) => a.USUBJID === r.USUBJID && a.AESEQ === r.IDVARVAL))).toBe(true)
+    expect(supp.rows.some((r) => r.USUBJID.endsWith('103-007'))).toBe(false)
+  })
+  test('LB: duplicates dropped, units corrected, "<5" kept as text, haemolysed not done', () => {
+    const lb = build(referenceSpec('LB', '3.4'), data)
+    const keys = lb.rows.map((r) => `${r.USUBJID}|${r.LBTESTCD}|${r.VISITNUM}`)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(lb.rows.some((r) => r.LBORRESU === 'mg/dl')).toBe(false)
+    const lt = lb.rows.find((r) => r.USUBJID.endsWith(PLANTED_LAB.belowLloq) && r.LBORRES === '<5')!
+    expect(lt.LBSTRESC).toBe('<5'); expect(lt.LBSTRESN).toBe('')
+    expect(lb.rows.filter((r) => r.USUBJID.endsWith(PLANTED_LAB.hemolysed) && r.LBSTAT === 'NOT DONE').length).toBeGreaterThan(0)
+    expect(lb.rows.every((r) => !r.LBSTRESU || inCt('UNIT', r.LBSTRESU))).toBe(true)
+  })
+})
+
+describe('trial design', () => {
+  test('the reference design is clean under every rule set and TS has one FCNTRY per country', () => {
+    const d = referenceDesign('3.4')
+    expect(d.TS.filter((r) => r.TSPARMCD === 'FCNTRY')).toHaveLength(5)
+    const ta = designBuilt('TA', d.TA, '3.4'), tv = designBuilt('TV', d.TV, '3.4')
+    for (const rs of RULE_SETS) for (const x of ['TA', 'TE', 'TV', 'TI', 'TS']) {
+      const f = check(designBuilt(x, d[x], '3.4'), '3.4', { ta, tv, set: rs.id }).filter((y) => y.sev !== 'Warning')
+      expect(f, `${rs.id} ${x}`).toHaveLength(0)
+    }
+  })
+  test('TS without SSTDTC is a Reject for FDA', () => {
+    expect(severityIn('TRN-030', 'FDA')).toBe('Reject')
+    const d = referenceDesign('3.4')
+    const ts = designBuilt('TS', d.TS.filter((r) => r.TSPARMCD !== 'SSTDTC'), '3.4')
+    expect(check(ts, '3.4', { set: 'FDA' }).some((f) => f.rule === 'TRN-030' && f.sev === 'Reject')).toBe(true)
+  })
+  test('SE: screen failures have one element, treated subjects start treatment at RFXSTDTC', () => {
+    const se = deriveSE()
+    const by = new Map<string, string[]>()
+    for (const r of se.rows) by.set(r.USUBJID, [...(by.get(r.USUBJID) ?? []), r.ETCD])
+    expect([...by.values()].filter((x) => x.length === 1).length).toBe(10) // 9 screen failures + 1 never dosed
+    expect(se.rows.filter((r) => r.ETCD !== 'SCRN' && r.ETCD !== 'FU').every((r) => r.SESTDY === '1')).toBe(true)
+  })
+})
+
+describe('exports', () => {
+  test('IBM floating point', () => {
+    const hex = (x: number) => [...ibm(x)].map((b) => b.toString(16).padStart(2, '0')).join('')
+    expect(hex(1)).toBe('4110000000000000')
+    expect(hex(-1)).toBe('c110000000000000')
+    expect(hex(100)).toBe('4264000000000000')
+    expect(hex(0.5)).toBe('4080000000000000')
+    expect(hex(0)).toBe('0000000000000000')
+  })
+  test('XPT: 80-byte records, header and one NAMESTR per variable', () => {
+    const dm = build(referenceSpec('DM', '3.4'), data)
+    const { bytes, report } = toXpt(dm, '3.4', new Date('2026-11-06T10:00:00Z'))
+    expect(bytes.length % 80).toBe(0)
+    const text = new TextDecoder('latin1').decode(bytes.slice(0, 80))
+    expect(text.startsWith('HEADER RECORD*******LIBRARY HEADER RECORD')).toBe(true)
+    expect(new TextDecoder('latin1').decode(bytes).includes(`NAMESTR HEADER RECORD!!!!!!!000000${String(dm.vars.length).padStart(4, '0')}`)).toBe(true)
+    expect(report.warnings).toEqual([])
+  })
+  test('XPT warns on an over-long QNAM name', () => {
+    const ae = build({ ...referenceSpec('AE', '3.4'), supp: [{ qnam: 'AETREATEMERG', qlabel: 'x', expr: "'Y'", qorig: 'Derived' }] }, data)
+    expect(check(ae, '3.4').some((f) => f.rule === 'TRN-049')).toBe(true)
+  })
+  test('Dataset-JSON v1.1: columns, keys and typed rows', () => {
+    const vs = build(referenceSpec('VS', '3.4'), data)
+    const j = toDatasetJson(vs, '3.4', ['STUDYID', 'USUBJID', 'VSTESTCD', 'VISITNUM'])
+    expect(j.datasetJSONVersion).toBe('1.1.0')
+    expect(j.records).toBe(vs.rows.length); expect(j.rows).toHaveLength(vs.rows.length)
+    const i = j.columns.findIndex((c) => c.name === 'VSSTRESN')
+    expect(j.columns[i].dataType).toBe('double')
+    expect(j.columns.find((c) => c.name === 'USUBJID')!.keySequence).toBe(2)
+    expect(j.rows.every((r) => r[i] === null || typeof r[i] === 'number')).toBe(true)
+  })
+})
+
+describe('code view, specification and terminology', () => {
+  test('R and SAS views cover every source and SUPP', () => {
+    const ds = referenceSpec('DS', '3.4')
+    const r = toR(ds), sas = toSAS(ds)
+    for (const src of [ds.source, ...ds.parts!.map((x) => x.source)]) { expect(r).toContain(`raw$${src.toLowerCase()}`); expect(sas).toContain(`raw.${src.toLowerCase()}`) }
+    expect(r).toContain('row_number()'); expect(sas).toContain('first.USUBJID')
+    expect(toR(referenceSpec('AE', '3.4'))).toContain('pivot_longer')
+    expect(toSAS(referenceSpec('VS', '3.4'))).toContain('link derive')
+  })
+  test('the specification marks copied fields Collected and derivations Derived', () => {
+    const s = referenceSpec('VS', '3.4')
+    const rows = specRows(s, build(s, data), '3.4', RAW_FIELDS.VS.map((f) => f.name))
+    expect(rows.find((r) => r.variable === 'STUDYID')!.origin).toMatch(/Assigned/)
+    expect(rows.find((r) => r.variable === 'VSDY')!.origin).toMatch(/Derived/)
+  })
+  test('an NCI EVS terminology file loads and merges with the bundled codelists', () => {
+    const h = ['Code', 'Codelist Code', 'Codelist Extensible (Yes/No)', 'Codelist Name', 'CDISC Submission Value', 'CDISC Synonym(s)', 'CDISC Definition', 'NCI Preferred Term'].join('\t')
+    const rows = [
+      ['C66769', '', 'No', 'Severity/Intensity Scale for Adverse Events', 'AESEV', 'Severity', 'x', 'CDISC SDTM Severity Terminology'],
+      ['C41338', 'C66769', '', 'Severity/Intensity Scale for Adverse Events', 'MILD', 'Mild; Grade 1', 'x', 'Mild Adverse Event'],
+      ['C41339', 'C66769', '', 'Severity/Intensity Scale for Adverse Events', 'MODERATE', 'Moderate', 'x', 'Moderate Adverse Event'],
+      ['C99999', '', 'Yes', 'Made-up Test Codelist', 'ZZTEST', '', 'x', ''],
+      ['C99998', 'C99999', '', 'Made-up Test Codelist', 'ZZ1', 'Zed one', 'x', 'Zed'],
+    ].map((r) => r.join('\t'))
+    const before = Object.keys(CT).length
+    const f = parseCt([h, ...rows].join('\n'), 'SDTM Terminology 2026-09-26.txt')
+    expect(f.codelists.map((c) => c.id)).toEqual(['AESEV', 'ZZTEST'])
+    applyCt(f)
+    expect(CT.AESEV.terms.map((t) => t.value)).toEqual(['MILD', 'MODERATE'])
+    expect(CT.AESEV.terms[0].decode).toBe('Mild')
+    expect(CT.ZZTEST.extensible).toBe(true)
+    expect(Object.keys(CT).length).toBe(before + 1)
+    expect(CT_INFO.label).toContain('2026-09-26')
+    applyCt(null)
+    expect(CT.AESEV.terms).toHaveLength(3); expect(CT.ZZTEST).toBeUndefined(); expect(CT_INFO.loaded).toBe(false)
+    expect(() => parseCt('a\tb\n1\t2')).toThrow(/NCI EVS/)
+  })
+})
