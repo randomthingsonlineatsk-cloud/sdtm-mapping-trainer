@@ -1,0 +1,67 @@
+import { useEffect, useRef, useState } from 'react'
+import { useStore } from '../state'
+import { createProject, log, migrate, type Project } from '../domain/project'
+import { exportFile, importFile, deleteProject, listProjects, saveProject, download } from '../domain/store'
+import { importCdmProject } from '../domain/cdmImport'
+import { VERSION_LABEL, DRAFT_CHANGES, CT_VERSION, type Version } from '../domain/standards'
+import { Panel, Pill, Btn, Table, ic } from './ui'
+
+const LINKS = [
+  { name: 'CDM Query & Edit-Check Console', url: 'https://randomthingsonlineatsk-cloud.github.io/cdm-query-console/', what: 'Where the raw data comes from: edit checks, queries, coding, reconciliation and lock on HLV-204-201 and the vaccine trial ALV-3-301. Its project files import here.' },
+  { name: 'eCTD Dossier Builder', url: 'https://randomthingsonlineatsk-cloud.github.io/ectd-dossier-builder/', what: 'Where SDTM datasets end up: Module 5 of the submission.' },
+  { name: 'EDC Study Build Lab (planned)', url: '', what: 'Designs the eCRF and the edit checks that produce the raw data.' },
+  { name: 'TLF Programming Lab (planned)', url: '', what: 'Takes these SDTM datasets on to ADaM, tables, listings and figures.' },
+]
+
+export default function ProjectView() {
+  const { p, act, replace } = useStore()
+  const [all, setAll] = useState<Project[]>([])
+  const [msg, setMsg] = useState('')
+  const [confirmDel, setConfirmDel] = useState<string | null>(null)
+  const file = useRef<HTMLInputElement>(null), cdm = useRef<HTMLInputElement>(null)
+  const refresh = () => listProjects().then((x) => setAll(x.sort((a, b) => b.updatedUtc.localeCompare(a.updatedUtc)))).catch(() => setAll([]))
+  useEffect(() => { refresh() }, [p.id, p.updatedUtc])
+  const switchTo = (np: Project) => { saveProject(p).finally(() => { replace(np); refresh() }) }
+  const readFile = (f: File, fn: (text: string) => void) => { const r = new FileReader(); r.onload = () => { try { fn(String(r.result)) } catch (e) { setMsg((e as Error).message) } }; r.readAsText(f) }
+  const setVersion = (v: Version) => act((pp) => { pp.version = v; log(pp, `Standard switched to ${VERSION_LABEL[v]}`) })
+  return (
+    <div className="space-y-4">
+      <Panel title="This project" sub="Saved in this browser only. Export a file to keep a copy or move to another computer.">
+        <div className="grid sm:grid-cols-3 gap-2">
+          <label className="text-xs space-y-1"><span className="text-lab-text-muted">Project name</span><input className={ic('')} value={p.name} onChange={(e) => act((pp) => { pp.name = e.target.value })} /></label>
+          <label className="text-xs space-y-1"><span className="text-lab-text-muted">User ID</span><input className={ic('font-mono')} value={p.userId} onChange={(e) => act((pp) => { pp.userId = e.target.value.trim() || 'local-user' })} /></label>
+          <label className="text-xs space-y-1"><span className="text-lab-text-muted">Class ID (for classroom mode, Phase 5)</span><input className={ic('font-mono')} value={p.classId} onChange={(e) => act((pp) => { pp.classId = e.target.value.trim() || 'none' })} /></label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Btn onClick={() => download(`${p.name.replace(/[^\w-]+/g, '_')}.sdtm-trainer.json`, exportFile(p))}>Export project file</Btn>
+          <Btn tone="grey" onClick={() => file.current?.click()}>Import project file</Btn>
+          <input ref={file} type="file" accept=".json,application/json" className="hidden" aria-label="Project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const r = importFile(t); switchTo(r.project); setMsg(['Project imported.', ...r.warnings].join(' ')) }); e.target.value = '' }} />
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version))}>New GLV-12-301 project</Btn>
+          <Btn tone="grey" onClick={() => cdm.current?.click()}>Import a CDM Console study</Btn>
+          <input ref={cdm} type="file" accept=".json,application/json" className="hidden" aria-label="CDM Console project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const im = importCdmProject(t); const np = createProject(p.userId, p.classId, p.version); np.study = im.protocol; np.imported = im; np.name = `${im.protocol} (imported) SDTM mapping`; log(np, `Imported ${im.protocol} from the CDM Console: ${Object.keys(im.forms).length} forms`); switchTo(np); setMsg(`Imported ${im.protocol}: ${Object.values(im.forms).reduce((a, r) => a + r.length, 0)} rows in ${Object.keys(im.forms).length} forms. Missions stay on GLV-12-301.`) }); e.target.value = '' }} />
+        </div>
+        {msg && <p className="text-xs text-lab-cdsco" role="status">{msg}</p>}
+      </Panel>
+      <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_VERSION}.`}>
+        <div className="flex flex-wrap gap-2">
+          {(['3.4', '4.0d'] as Version[]).map((v) => <Btn key={v} tone={p.version === v ? 'solid' : 'grey'} onClick={() => setVersion(v)}>{VERSION_LABEL[v]}</Btn>)}
+        </div>
+        {p.version === '4.0d'
+          ? <div className="text-xs space-y-1"><p className="text-lab-ema">Draft mode. SDTMIG v4.0 is not final: it is built here from the public-review draft and will be updated when CDISC publishes the standard. FDA requires SDTMIG v3.4.</p><ul className="list-disc pl-5 text-lab-text-muted">{DRAFT_CHANGES.map((c) => <li key={c.what}>{c.what}</li>)}</ul></div>
+          : <p className="text-xs text-lab-text-muted">SDTMIG v3.4 with SDTM v2.0: required by FDA for studies starting on or after 15 March 2025.</p>}
+        <p className="text-[11px] text-lab-text-muted">Switching keeps your mappings. Variables that do not exist in the other version stay in your specification but are not part of the expected structure; missions record the version they ran against.</p>
+      </Panel>
+      <Panel title="Saved projects" sub="All projects in this browser.">
+        <Table head={['Project', 'Study', 'Standard', 'Missions', 'Updated', '']} rows={all.map((x) => [x.name, x.study, x.version === '3.4' ? 'v3.4' : 'v4.0 draft', (x.missions ?? []).filter((m) => m.passed).length + ' passed', x.updatedUtc.slice(0, 16).replace('T', ' '),
+          x.id === p.id ? <Pill tone="blue">Open</Pill> : <div className="flex gap-1"><Btn tone="grey" className="py-0.5" onClick={() => switchTo(migrate(x))}>Open</Btn>
+            {confirmDel === x.id ? <Btn tone="red" className="py-0.5" onClick={() => { deleteProject(x.id).then(refresh); setConfirmDel(null) }}>Confirm delete</Btn> : <Btn tone="red" className="py-0.5" onClick={() => setConfirmDel(x.id)}>Delete</Btn>}</div>])} />
+      </Panel>
+      <Panel title="Related apps">
+        <ul className="space-y-1 text-sm">{LINKS.map((l) => <li key={l.name}>{l.url ? <a className="text-lab-fda underline" href={l.url}>{l.name}</a> : <span>{l.name}</span>} <span className="text-lab-text-muted">· {l.what}</span></li>)}</ul>
+      </Panel>
+      <Panel title="Activity" sub="What you did in this project, newest first.">
+        <Table head={['UTC', 'What']} rows={[...p.log].reverse().slice(0, 40).map((l) => [<span className="font-mono text-[11px]">{l.utc.slice(0, 19).replace('T', ' ')}</span>, l.what])} />
+      </Panel>
+    </div>
+  )
+}

@@ -1,0 +1,16 @@
+SDTM Mapping Trainer
+Copyright 2026 Khan Gulrez Shagufa Fazal Ahmed
+
+Licensed under the Apache License, Version 2.0.
+
+This is a training simulator. The study GLV-12-301, the drug Glyvantra (GLV-12), the sponsor
+Glyvant Pharmaceuticals, the sites, the subjects and all data are fictional. Any resemblance
+to real studies, products, organisations or people is coincidental. The app is not a
+validated system and must not hold real patient data. Everything runs in the browser; nothing
+is sent to a server.
+
+CDISC SDTM, SDTMIG, CDASH and Controlled Terminology are standards published by CDISC
+(cdisc.org). Names, domain codes, variable names and codelist values are used as CDISC
+publishes them, for education. The SDTMIG v4.0 mode follows a public-review draft and is not
+the final standard. MedDRA and WHODrug are not included; coded values in the data are
+fictional look-alikes.
