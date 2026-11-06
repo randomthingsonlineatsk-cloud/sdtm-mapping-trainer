@@ -118,6 +118,87 @@ export const TOPICS: Topic[] = [
     quiz: [
       { q: 'Height is measured only at screening. At Week 4 the height field is empty. What goes into VS?', options: ['A HEIGHT record with VSSTAT = NOT DONE', 'Nothing for height', 'A HEIGHT record with VSORRES = 0', 'A HEIGHT record with null results and no status'], answer: 1, why: 'Not planned means no record; NOT DONE is for planned tests not performed.' },
     ] },
+  { id: 'suppqual', title: 'Supplemental qualifiers (SUPP--)',
+    body: [
+      'A collected or derived value that has no variable in the SDTMIG goes to a supplemental qualifier dataset, SUPP-- (SUPPAE for AE), as name and value pairs. New variables may not be added to a standard domain.',
+      'Each SUPP-- record names its parent: RDOMAIN, USUBJID, and IDVAR with IDVARVAL (usually --SEQ and its value). For DM, which has one record per subject, IDVAR and IDVARVAL are null.',
+      'QNAM is the qualifier’s name (up to 8 characters, starting with a letter, as for any SAS V5 variable name) and QLABEL its label (up to 40). QVAL holds the value; QORIG its origin (Collected, Derived, Assigned) and QEVAL who evaluated it when that matters (e.g. INVESTIGATOR).',
+      'Use SUPP-- only when there is no standard variable. A value with a standard home (AESER, AEOUT) goes there, never into SUPPAE.',
+    ],
+    example: { caption: 'SUPPAE for GLV-12-301 (treatment emergent flag)', head: ['RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'QNAM', 'QLABEL', 'QVAL', 'QORIG'], rows: [['AE', 'GLV-12-301-101-002', 'AESEQ', '1', 'AETRTEM', 'Treatment Emergent Flag', 'Y', 'Derived'], ['AE', 'GLV-12-301-101-002', 'AESEQ', '2', 'AETRTEM', 'Treatment Emergent Flag', 'N', 'Derived']] },
+    quiz: [
+      { q: 'What links a SUPPAE record to its AE record?', options: ['QNAM and QVAL', 'USUBJID with IDVAR = AESEQ and IDVARVAL', 'AETERM', 'The row order'], answer: 1, why: 'The parent is the AE record of that subject whose AESEQ equals IDVARVAL.' },
+      { q: 'A subject recorded two races. Where do the individual races go?', options: ['Two DM records', 'RACE = “ASIAN, WHITE”', 'RACE = MULTIPLE, with RACE1 and RACE2 in SUPPDM', 'They are not submitted'], answer: 2, why: 'DM has one record per subject. RACE is MULTIPLE and each race goes to SUPPDM (IDVAR null).' },
+    ] },
+  { id: 'lb', title: 'LB: units, conversion and reference ranges',
+    body: [
+      'A central laboratory sends its own test codes and units. The mapping follows the data transfer agreement and the sponsor’s lab standards: vendor code to LBTESTCD, the standard unit, and the factor from the conventional unit.',
+      'LBORRES, LBORRESU, LBORNRLO and LBORNRHI keep what the lab reported. LBSTRESC (text), LBSTRESN (numeric) and LBSTRESU carry the standardised result, and LBSTNRLO and LBSTNRHI the converted range. Units must be CT values: a vendor’s “mg/dl” is mg/dL.',
+      'A result such as “<5” is not a number: LBSTRESC keeps “<5” and LBSTRESN is null. A result never produced (a haemolysed sample) is a record with LBSTAT = NOT DONE and the reason in LBREASND.',
+      'LBNRIND says where the result falls against the reference range (NORMAL, LOW, HIGH, ABNORMAL). A file can arrive with records sent twice: remove the duplicates by accession number and test before mapping, and say so in the reviewer’s guide.',
+    ],
+    example: { caption: 'Glucose from mg/dL to mmol/L (factor 0.0555, 1 decimal)', head: ['LBTESTCD', 'LBORRES', 'LBORRESU', 'LBSTRESC', 'LBSTRESN', 'LBSTRESU', 'LBNRIND'], rows: [['GLUC', '162', 'mg/dL', '9.0', '9', 'mmol/L', 'HIGH'], ['ALT', '<5', 'U/L', '<5', '', 'U/L', 'NORMAL']] },
+    quiz: [
+      { q: 'The lab reports ALT as “<5”. What is LBSTRESN?', options: ['5', '4.9', '0', 'Null'], answer: 3, why: 'A qualified result is kept as text in LBSTRESC; LBSTRESN holds numbers only.' },
+      { q: 'Which variables keep the lab’s own unit?', options: ['LBSTRESU', 'LBORRESU', 'Both', 'Neither'], answer: 1, why: 'LBORRESU is the original unit (as a CT value); LBSTRESU is the standard unit.' },
+    ] },
+  { id: 'design', title: 'Trial design: TA, TE, TV, TI, TS and SE',
+    body: [
+      'Elements (TE) are the building blocks of the protocol: screening, each treatment, follow-up. Each has a start rule, an end rule and a planned duration (TEDUR, ISO 8601: P26W).',
+      'Arms (TA) list the elements of each arm in order (TAETORD) and the epoch each belongs to. TABRANCH sits on the element at whose end the subject is assigned to an arm: here, screening ends with randomisation.',
+      'Trial visits (TV) are the planned visits with VISITNUM, VISIT and VISITDY. Trial inclusion/exclusion (TI) holds every criterion; IE only the ones a subject failed.',
+      'Trial summary (TS) is one record per parameter value: phase, blinding, planned and actual subjects, ages, countries (one FCNTRY each), SDTM and IG versions. FDA rejects a study whose TS lacks the study start date (SSTDTC). SE records each subject’s actual path through the elements.',
+    ],
+    example: { caption: 'TA for one arm of GLV-12-301', head: ['ARMCD', 'TAETORD', 'ETCD', 'ELEMENT', 'TABRANCH', 'EPOCH'], rows: [['GLV5', '1', 'SCRN', 'Screening', 'Randomized to GLV-12 5 mg', 'SCREENING'], ['GLV5', '2', 'GLV5', 'GLV-12 5 mg', '', 'TREATMENT'], ['GLV5', '3', 'FU', 'Follow-up', '', 'FOLLOW-UP']] },
+    quiz: [
+      { q: 'The study has sites in five countries. How many FCNTRY records does TS have?', options: ['One, listing all five', 'Five', 'None: COUNTRY is in DM', 'One per site'], answer: 1, why: 'A TS parameter with several values has one record per value, numbered by TSSEQ.' },
+      { q: 'Which TS parameter does FDA reject a submission without?', options: ['TITLE', 'SSTDTC', 'NARMS', 'SPONSOR'], answer: 1, why: 'The FDA technical rejection criteria require the study start date in TS.' },
+    ] },
+  { id: 'ds', title: 'DS: disposition events and milestones',
+    body: [
+      'DS records how a subject left each epoch (DISPOSITION EVENT) and protocol milestones such as informed consent and randomisation (PROTOCOL MILESTONE), in DSCAT.',
+      'For a disposition event, DSDECOD comes from the Completion/Reason for Non-Completion codelist (COMPLETED, ADVERSE EVENT, DEATH…). For a milestone it comes from the Protocol Milestone codelist (INFORMED CONSENT OBTAINED, RANDOMIZED).',
+      'DSTERM is the reported text; when nothing was written, it is the CT term. DSSTDTC is the date of the event. The records come from several forms: the end-of-study form, the consent form and the IRT randomisation file.',
+    ],
+    quiz: [
+      { q: 'Which codelist does DSDECOD use for informed consent?', options: ['NCOMPLT', 'PROTMLST', 'DSCAT', 'NY'], answer: 1, why: 'Informed consent is a protocol milestone: PROTMLST.' },
+    ] },
+  { id: 'ex', title: 'EX: exposure as dosing intervals',
+    body: [
+      'EX has one record per constant-dosing interval: while dose, frequency and route stay the same, one record from its start to its end date.',
+      'EXTRT is the treatment actually taken, not the one planned. In a blinded study the CRF does not say which treatment was taken: it comes from the IRT kit numbers once the study is unblinded. Placebo is recorded as PLACEBO with EXDOSE 0.',
+      'RFXSTDTC and RFXENDTC in DM are the first and last EX dates. A subject randomised but never dosed has no EX records.',
+    ],
+    quiz: [
+      { q: 'A subject was randomised to 5 mg but received 10 mg kits. What is EXTRT and EXDOSE?', options: ['GLV-12, 5', 'GLV-12, 10', 'PLACEBO, 0', 'GLV-12 5 mg, null'], answer: 1, why: 'EX records what was actually taken. ARMCD keeps the planned arm; ACTARMCD the actual one.' },
+    ] },
+  { id: 'coding', title: 'AE and CM coding variables',
+    body: [
+      'Adverse events are coded to a medical dictionary hierarchy: lowest level term, preferred term, high level term, high level group term and system organ class. AEDECOD is the preferred term; AELLT, AEHLT, AEHLGT and AESOC with their codes (AELLTCD…) carry the rest.',
+      'AEBODSYS and AEBDSYCD are the primary system organ class used for analysis. A term can link to several system organ classes; the primary one is chosen by the dictionary.',
+      'Medications are coded to a drug dictionary. CMTRT stays as reported (trade names included); CMDECOD is the standardised drug name and CMCLAS with CMCLASCD the drug class. This study uses fictional dictionaries shaped like the industry ones.',
+    ],
+    quiz: [
+      { q: 'Which variable holds the system organ class used for analysis?', options: ['AESOC', 'AEHLGT', 'AEBODSYS', 'AEDECOD'], answer: 2, why: 'AEBODSYS is the primary system organ class; in this study it is AESOC as coded.' },
+    ] },
+  { id: 'partial', title: 'Partial dates and ongoing events',
+    body: [
+      'Dates are submitted only to the precision collected: a medication started in March 2019 is CMSTDTC = 2019-03, not 2019-03-01. Imputed dates belong in ADaM, not SDTM.',
+      'With a partial date, study day (--DY) and epoch cannot be derived reliably and stay null.',
+      'Something still going on at the end of the study has no end date. --ENRTPT says how it relates to a reference time point (ONGOING) and --ENTPT names that time point (END OF STUDY).',
+    ],
+    quiz: [
+      { q: 'A medication started “2019, month unknown”. What is CMSTDTC?', options: ['2019-01-01', '2019', '2019-UN-UN', 'Null'], answer: 1, why: 'ISO 8601 allows reduced precision: the year alone.' },
+    ] },
+  { id: 'exports', title: 'Submitting: XPT, Dataset-JSON and validation',
+    body: [
+      'FDA and PMDA receive SDTM datasets as SAS Version 5 transport files (XPT): variable names up to 8 characters, labels up to 40, character values up to 200 bytes, ASCII only. Numbers are stored in IBM floating point.',
+      'Dataset-JSON is CDISC’s JSON exchange format, with each dataset’s metadata and rows in one file. FDA has been evaluating it as a successor to XPT.',
+      'Before submission the datasets are validated. CDISC publishes conformance rules for the standard; FDA and PMDA publish their own validation and business rules, and FDA technical rejection criteria can stop a submission at the gateway. The same finding can be a warning for one and a rejection for another.',
+    ],
+    quiz: [
+      { q: 'Your SUPPAE has QNAM = AETREATEMERG. What goes wrong?', options: ['Nothing', 'It is longer than 8 characters: not a valid XPT name', 'It must start with SUPP', 'QNAM must be numeric'], answer: 1, why: 'QNAM values become variable names when SUPP-- is transposed, so they follow the 8-character rule.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

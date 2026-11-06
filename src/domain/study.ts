@@ -62,7 +62,7 @@ export const CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'AGE, AGEU', rule: 'Age in completed years at informed consent, from the full date of birth. AGEU is YEARS.' },
   { topic: 'ARM, ARMCD', rule: 'Planned arm from the IRT randomisation file. Null for screen failures, with ARMNRS = SCREEN FAILURE.' },
   { topic: 'ACTARM, ACTARMCD', rule: 'Actual arm from the treatment kits dispensed (IRT kit arm). Null for subjects randomised but never dosed, with ARMNRS = ASSIGNED, NOT TREATED. When the kit arm differs from the planned arm, ACTARMCD is the kit arm.' },
-  { topic: 'RACE', rule: 'One race recorded: the CT value. More than one race recorded: MULTIPLE (the individual races go to SUPPDM in Phase 2).' },
+  { topic: 'RACE', rule: 'One race recorded: the CT value. More than one race recorded: MULTIPLE, with the individual races in SUPPDM as RACE1, RACE2 (QORIG Collected). Mission S1 scores DM only.' },
   { topic: 'COUNTRY', rule: 'ISO 3166-1 alpha-3 code of the site’s country.' },
   { topic: 'DMDTC', rule: 'Date the demographics form was completed (DMDAT).' },
   { topic: 'VISITNUM, VISIT', rule: 'From the trial visits (TV). An unscheduled visit takes the number of the last scheduled visit before it plus .01, .02 and so on, and VISIT = UNSCHEDULED followed by that number (e.g. UNSCHEDULED 4.01).' },
@@ -73,4 +73,50 @@ export const CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'Vital signs not done', rule: 'When the vital signs form says Not done, submit one record per test planned at that visit with VSSTAT = NOT DONE and VSREASND as recorded; results and units are null.' },
   { topic: 'VSLOBXFL', rule: 'Y on the last non-missing result for each test with VSDTC on or before RFXSTDTC (compared to the minute). Day 1 vital signs are taken before dosing; if a site recorded them after the dose time, they are not the pre-treatment value.' },
   { topic: 'VSSEQ', rule: 'Sorted by USUBJID, VSTESTCD, VISITNUM, VSDTC, then numbered from 1 within each subject.' },
+  { topic: 'AE', rule: 'AETERM as reported. AELLT to AESOC and their codes from the coding export; AEBODSYS and AEBDSYCD are the primary system class (AESOC, AESOCCD). AESEV, AEACN and AEOUT as CT values (upper case); AEREL as RELATED or NOT RELATED. AESDTH and AESHOSP as ticked (Y), otherwise null. Dates as collected, partial dates truncated. Sorted by USUBJID, AEDECOD, AESTDTC.' },
+  { topic: 'EPOCH (events)', rule: 'From the start date, as for findings. Null when the start date is partial.' },
+  { topic: 'SUPPAE', rule: 'AETRTEM (Treatment Emergent Flag, origin Derived): Y when AESTDTC is on or after the first dose date (RFXSTDTC), N when before, no record for subjects never dosed or partial start dates. IDVAR = AESEQ.' },
+  { topic: 'CM', rule: 'CMTRT as reported (trade names stay as written); CMDECOD and CMCLAS from the coding export. CMROUTE as CT (ORAL). Partial start dates stay partial. Medications ongoing at the end of the study: CMENRTPT = ONGOING and CMENTPT = END OF STUDY. Sorted by USUBJID, CMTRT, CMSTDTC.' },
+  { topic: 'EX', rule: 'One record per kit interval. EXTRT is the treatment actually taken (from the IRT kit arm): GLV-12, or PLACEBO. EXDOSE is the daily dose in mg (5, 10, or 0 for placebo), EXDOSU mg, EXDOSFRM TABLET, EXDOSFRQ QD, EXROUTE ORAL. EXSTDTC with the time of the first dose on the first record. Sorted by USUBJID, EXSTDTC.' },
+  { topic: 'DS', rule: 'Three sources. The end-of-study form gives the DISPOSITION EVENT: DSDECOD as CT (upper case), DSTERM the details text, or the CT term when there are none. The consent form gives the PROTOCOL MILESTONE “INFORMED CONSENT OBTAINED” and the IRT file “RANDOMIZED”, both in EPOCH SCREENING. Sorted by USUBJID, DSSTDTC, DSCAT.' },
+  { topic: 'LB', rule: 'From the central laboratory transfer. Drop resent duplicates (same accession number and test). LBTESTCD, standard unit, factor and decimals from the lab standards table. LBORRES and range as reported; LBORRESU corrected to the CT unit (the vendor’s mg/dl is mg/dL). Standard results and ranges converted with the table’s factor and rounded to its decimals. A result reported as “<5” keeps “<5” in LBSTRESC with LBSTRESN null. Results not reported: LBSTAT = NOT DONE, LBREASND = SPECIMEN HEMOLYZED. LBNRIND from the vendor flag: H is HIGH, L is LOW, otherwise NORMAL. LBCAT CHEMISTRY. LBSPEC: Whole blood is BLOOD, Serum is SERUM. Sorted by USUBJID, LBTESTCD, VISITNUM, LBDTC.' },
+  { topic: 'SV', rule: 'One record per visit that took place. SVSTDTC and SVENDTC are the visit date; VISITDY the planned day (null for unscheduled visits).' },
+]
+
+// The study's laboratory standards table: vendor code to SDTM test code, standard unit and
+// conversion (what the central laboratory data transfer agreement and the sponsor's lab
+// standards say).
+export const LAB_STANDARDS: { vendor: string; testcd: string; stdunit: string; factor: number; decimals: number; spec: string }[] = [
+  { vendor: 'A1C', testcd: 'HBA1C', stdunit: '%', factor: 1, decimals: 1, spec: 'BLOOD' },
+  { vendor: 'FPG', testcd: 'GLUC', stdunit: 'mmol/L', factor: 0.0555, decimals: 1, spec: 'SERUM' },
+  { vendor: 'CREA', testcd: 'CREAT', stdunit: 'umol/L', factor: 88.42, decimals: 0, spec: 'SERUM' },
+  { vendor: 'ALT', testcd: 'ALT', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
+  { vendor: 'AST', testcd: 'AST', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
+  { vendor: 'CHOL', testcd: 'CHOL', stdunit: 'mmol/L', factor: 0.02586, decimals: 2, spec: 'SERUM' },
+]
+
+// Eligibility criteria (for TI), and the protocol facts behind TS.
+export const CRITERIA: { code: string; cat: 'INCLUSION' | 'EXCLUSION'; text: string }[] = [
+  { code: 'IN01', cat: 'INCLUSION', text: 'Adults aged 18 to 75 years with type 2 diabetes for at least 6 months' },
+  { code: 'IN02', cat: 'INCLUSION', text: 'HbA1c 7.0% to 10.5% at screening' },
+  { code: 'IN03', cat: 'INCLUSION', text: 'Stable metformin of at least 1500 mg a day for 12 weeks' },
+  { code: 'EX01', cat: 'EXCLUSION', text: 'eGFR below 45 mL/min/1.73 m2' },
+  { code: 'EX02', cat: 'EXCLUSION', text: 'Any other glucose-lowering drug in the last 12 weeks' },
+  { code: 'EX03', cat: 'EXCLUSION', text: 'History of diabetic ketoacidosis' },
+]
+export const PROTOCOL_FACTS: { what: string; value: string }[] = [
+  { what: 'Phase', value: 'Phase 3, interventional' },
+  { what: 'Trial type', value: 'Efficacy and safety' },
+  { what: 'Blinding and control', value: 'Double-blind, placebo-controlled, randomised' },
+  { what: 'Intent', value: 'Treatment' },
+  { what: 'Added on to existing treatment', value: 'Yes: added on to metformin' },
+  { what: 'Arms', value: '3: GLV-12 5 mg, GLV-12 10 mg, placebo' },
+  { what: 'Planned subjects', value: '90 randomised (30 per arm)' },
+  { what: 'Age and sex', value: '18 to 75 years, both sexes; patients, not healthy volunteers' },
+  { what: 'Elements', value: 'Screening (up to 21 days, from informed consent to the first dose); treatment 26 weeks (from the first dose); follow-up 4 weeks (from the day after the last dose)' },
+  { what: 'Trial length per subject', value: 'Up to 33 weeks' },
+  { what: 'Countries', value: 'United States, Japan, Germany, India, Brazil' },
+  { what: 'Investigational treatment', value: 'GLV-12, oral tablet, once daily; comparator: placebo' },
+  { what: 'Sponsor', value: 'Glyvant Pharmaceuticals (fictional)' },
+  { what: 'Study start date (FDA definition)', value: 'The earliest date of informed consent of any subject (TS SSTDTC); study end date is the last subject’s last contact (SENDTC)' },
 ]

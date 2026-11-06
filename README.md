@@ -20,13 +20,14 @@ whose studies can be imported.
 - **SDTMIG v4.0 draft mode**, built from the public-review draft (February to April 2026):
   SUBJID in every general-class domain, --BLFL retired in favour of --LOBXFL, CRACE and
   CETHNIC in DM. It will be updated when CDISC publishes the final standard.
-- **CDISC Controlled Terminology**: the codelists the study needs, bundled and version-stamped.
+- **CDISC Controlled Terminology**: the codelists the study needs, bundled and version-stamped,
+  or the full quarterly SDTM terminology file from NCI EVS, loaded in the browser.
 
 CDISC standards are used as CDISC publishes them. Conformance rules are written for this app
 from the public descriptions of the CDISC conformance rules and the FDA validator and business
 rules; no vendor rule text or tool is copied.
 
-## What Phase 1 covers
+## Phase 1
 
 - **Learn:** a map of SDTM (classes and every SDTMIG v3.4 domain), twelve short lessons with
   examples from the study and quizzes (variable roles, core status, ISO 8601, study day and
@@ -56,12 +57,35 @@ rules; no vendor rule text or tool is copied.
 - **Projects:** several in one browser (IndexedDB), with user and class IDs, export and import
   as a checksummed file.
 
+## Phase 2
+
+- **Every core domain:** AE with its dictionary coding and SUPPAE (treatment emergent flag),
+  CM with partial dates and ongoing medications, EX as dosing intervals from the IRT kit arm,
+  DS from three sources (end-of-study form, consent, IRT), LB from a central laboratory
+  transfer, and SV. Fictional medical and drug dictionaries shaped like the industry ones.
+- **A messy lab transfer:** vendor test codes, conventional units converted to SI with the
+  study's lab standards table, reference ranges and NRIND, results sent twice, one site's
+  units typed as mg/dl, a result of "<5", and a haemolysed sample not reported.
+- **Several sources per domain:** "Add a source" stacks records from more forms into one
+  domain, each with its own rules, then sorts and numbers them together.
+- **Supplemental qualifiers:** a SUPP-- builder with QNAM, QLABEL, QORIG and QEVAL, linked to
+  the parent through IDVAR and IDVARVAL.
+- **Trial design:** TA, TE, TV, TI and TS built as tables from the protocol facts (or pasted
+  from a spreadsheet), checked against each other; SE derived from DM.
+- **Rule sets:** 39 conformance rules with their severity under CDISC, FDA and PMDA, including
+  rejections (a TS without the study start date is rejected by FDA).
+- **Mapping specification:** variable-level metadata with Define-XML 2.1 origins, sources and
+  derivations, value-level metadata and supplemental qualifiers, downloadable as CSV.
+- **Your mapping as code:** a read-only R (dplyr) and SAS translation of every rule.
+- **Exports:** SAS Version 5 transport (XPT, with IBM floating point, checked against the
+  FDA limits) and CDISC Dataset-JSON v1.1, for every dataset including SUPP-- and trial design.
+- **Missions S3 to S9:** AE with SUPPAE, CM, EX, DS, LB, the trial design domains, and a
+  broken AE and LB delivery to fix. Each domain gets its own score and pass mark.
+- **Eight more lessons** (20 in all): SUPP--, LB standardisation, trial design, DS, EX,
+  coding variables, partial dates, and submission formats and validation.
+
 ## Coming next
 
-- **Phase 2:** AE, CM, LB, EX, DS, SUPPQUAL, value-level mapping, the trial design domains
-  (TA, TE, TV, TI, TS) with SE and SV, a mapping specification, CDISC, FDA and PMDA rule sets,
-  a read-only R and SAS view of each rule, loading a full NCI EVS CT file, XPT v5 and
-  Dataset-JSON v1.1 export.
 - **Phase 3:** aCRF editor and acrf.pdf, define.xml v2.1 with a preview, the reviewer's guide,
   RELREC and custom domains, and a pharmacokinetics study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,

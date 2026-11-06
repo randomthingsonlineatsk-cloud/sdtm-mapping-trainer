@@ -6,7 +6,7 @@
 
 import { parse, evaluate, validate, fmt, isBlank, toNum, type Node, type Val } from './expr'
 import { CT, decode } from './standards'
-import { SITES, ARMS, VISITS, type Visit } from './study'
+import { SITES, ARMS, VISITS, LAB_STANDARDS, type Visit } from './study'
 import type { Row } from './seed'
 
 export type Rule =
@@ -20,10 +20,14 @@ export const RULE_LABEL: Record<Rule['kind'], string> = { copy: 'Copy a raw fiel
 
 export interface TestMap { code: string; field: string; unit?: string; unitField?: string }
 export interface Transpose { tests: TestMap[]; drop: string }
-export interface DomainSpec { domain: string; source: string; filter?: string; transpose?: Transpose; vars: string[]; rules: Record<string, Rule>; sort: string[] }
+export interface SuppQual { qnam: string; qlabel: string; expr: string; qorig: 'Collected' | 'Derived' | 'Assigned'; qeval?: string }
+// Further raw sources stacked into the same domain (DS from the disposition form, the consent
+// form and the IRT file), each with its own rules for the same variables.
+export interface Part { source: string; filter?: string; transpose?: Transpose; rules: Record<string, Rule>; supp?: SuppQual[] }
+export interface DomainSpec { domain: string; source: string; filter?: string; transpose?: Transpose; vars: string[]; rules: Record<string, Rule>; sort: string[]; parts?: Part[]; supp?: SuppQual[] }
 
 export type OutRow = Record<string, string> & { __trace: string; __subj: string }
-export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[] }
+export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[]; supp?: Built }
 
 // ---------- the study context the functions read ----------
 export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[] }
@@ -89,7 +93,7 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     dm,
     studyday: (dtc, ref) => studyDay(S(dtc), ref === undefined ? dm('RFSTDTC') : S(ref)),
     epoch: (dtc) => {
-      const d = S(dtc); if (!d) return ''
+      const d = S(dtc); if (!fullDate(d)) return ''
       const st = dm('RFXSTDTC'), en = dm('RFXENDTC')
       if (!st) return 'SCREENING'
       if (cmpDtc(d, st) < 0) return 'SCREENING'
@@ -109,6 +113,7 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     },
     stdunit: (testcd) => STD_UNIT[S(testcd)] ?? '',
     ctdecode: (list, value) => decode(S(list), S(value)),
+    lab: (code, what) => { const t = LAB_STANDARDS.find((x) => x.vendor === S(code)); if (!t) return ''; const w = S(what) || 'testcd'; return w === 'factor' ? t.factor : w === 'decimals' ? t.decimals : w === 'stdunit' ? t.stdunit : w === 'spec' ? t.spec : t.testcd },
     inct: (list, value) => !!CT[S(list)]?.terms.some((t) => t.value === S(value)),
   }
 }
@@ -132,8 +137,10 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: 'convert(value, fromUnit, toUnit, decimals)', what: "Unit conversion (LB to kg, in to cm). Same unit returns the number unchanged." },
   { sig: 'stdunit(testcd), ctdecode(codelist, value), inct(codelist, value)', what: 'Standard unit of a vital sign; CT decode (ctdecode(\'VSTESTCD\', \'SYSBP\') is Systolic Blood Pressure); is a value in a codelist' },
   { sig: 'num(x), str(x), round(x, d), min(…), max(…)', what: 'Numbers and conversions' },
+  { sig: 'isdup(a, b, …)', what: 'True when an earlier row of this raw form had the same values: use in a filter to drop resent records, e.g. not isdup(ACCSNUM, TESTCODE)' },
+  { sig: 'lab(code, what)', what: "Lab test facts for a vendor test code: lab('FPG', 'testcd') is GLUC; what = 'testcd', 'stdunit', 'factor', 'decimals'" },
 ]
-export const STUDY_FN_NAMES = Object.keys(studyFns({ forms: {}, studyId: '' }, {}, ''))
+export const STUDY_FN_NAMES = [...Object.keys(studyFns({ forms: {}, studyId: '' }, {}, '')), 'isdup']
 export const PSEUDO = ['__TESTCD', '__RESULT', '__UNIT', '__FIELD']
 
 // ---------- building ----------
@@ -150,38 +157,52 @@ export function build(spec: DomainSpec, data: StudyData): Built {
   const errors: Built['errors'] = {}
   const warnings: string[] = []
   const fail = (v: string, msg: string) => { const e = (errors[v] ??= { count: 0, first: msg }); e.count++ }
-  const src = data.forms[spec.source] ?? []
-  if (!src.length) warnings.push(`The raw form ${spec.source} has no rows.`)
-  const order = evalOrder(spec, new Set([...Object.keys(src[0] ?? {}), ...(spec.transpose ? PSEUDO : [])]))
   const rows: OutRow[] = []
-  for (const r of src) {
-    const subj = r.SUBJID ?? ''
-    const fns = studyFns(data, r, subj)
-    const evalIn = (src: string, values: Record<string, string>, out: Record<string, string>) => evaluate(ast(src), { get: (n) => (Object.hasOwn(values, n) ? values[n] : out[n] ?? ''), fn: fns })
-    if (spec.filter?.trim()) { try { if (evalIn(spec.filter, r, {}) !== true) continue } catch (e) { fail('(filter)', (e as Error).message); continue } }
-    const variants: { values: Record<string, string>; trace: string }[] = []
-    if (spec.transpose) {
-      for (const t of spec.transpose.tests) {
-        const values = { ...r, __TESTCD: t.code, __FIELD: t.field, __RESULT: r[t.field] ?? '', __UNIT: t.unitField ? r[t.unitField] ?? '' : t.unit ?? '' }
-        try { if (spec.transpose.drop.trim() && evalIn(spec.transpose.drop, values, {}) === true) continue } catch (e) { fail('(drop)', (e as Error).message); continue }
-        variants.push({ values, trace: `${spec.source}:${r.__id}:${t.field}` })
+  const supp: { row: OutRow; q: SuppQual; value: string }[] = []
+  const parts: Part[] = [{ source: spec.source, filter: spec.filter, transpose: spec.transpose, rules: spec.rules }, ...(spec.parts ?? [])]
+  for (const [pi, part] of parts.entries()) {
+    const label = pi === 0 ? '' : `part ${pi + 1}: `
+    const pfail = (v: string, msg: string) => fail(v, label + msg)
+    const src = data.forms[part.source] ?? []
+    if (!src.length) warnings.push(`The raw form ${part.source} has no rows.`)
+    const pspec: DomainSpec = { ...spec, rules: part.rules, transpose: part.transpose }
+    const order = evalOrder(pspec, new Set([...Object.keys(src[0] ?? {}), ...(part.transpose ? PSEUDO : [])]))
+    const firstOf = new Map<string, string>()
+    for (const r of src) {
+      const subj = r.SUBJID ?? ''
+      const fns = studyFns(data, r, subj)
+      // isdup(a, b, …): true when an earlier row of this form had the same values (a resent record).
+      fns.isdup = (...xs) => { const k = xs.map((x) => fmt(x)).join('\u0001'); const id = firstOf.get(k); if (id === undefined) { firstOf.set(k, r.__id); return false } return id !== r.__id }
+      const evalIn = (expr: string, values: Record<string, string>, out: Record<string, string>) => evaluate(ast(expr), { get: (n) => (Object.hasOwn(values, n) ? values[n] : out[n] ?? ''), fn: fns })
+      if (part.filter?.trim()) { try { if (evalIn(part.filter, r, {}) !== true) continue } catch (e) { pfail('(filter)', (e as Error).message); continue } }
+      const variants: { values: Record<string, string>; trace: string }[] = []
+      if (part.transpose) {
+        for (const t of part.transpose.tests) {
+          const values = { ...r, __TESTCD: t.code, __FIELD: t.field, __RESULT: r[t.field] ?? '', __UNIT: t.unitField ? r[t.unitField] ?? '' : t.unit ?? '' }
+          try { if (part.transpose.drop.trim() && evalIn(part.transpose.drop, values, {}) === true) continue } catch (e) { pfail('(drop)', (e as Error).message); continue }
+          variants.push({ values, trace: `${part.source}:${r.__id}:${t.field}` })
+        }
+      } else variants.push({ values: r, trace: `${part.source}:${r.__id}` })
+      for (const { values, trace } of variants) {
+        const out: OutRow = { __trace: trace, __subj: subj } as OutRow
+        for (const v of order) {
+          const rule = part.rules[v]
+          if (!rule || rule.kind === 'seq' || rule.kind === 'lobxfl' || (rule.kind === 'expr' && !rule.expr.trim()) || (rule.kind === 'copy' && !rule.field)) { out[v] = ''; continue }
+          try {
+            let val: Val = ''
+            if (rule.kind === 'copy') val = values[rule.field] ?? ''
+            else if (rule.kind === 'const') val = rule.value
+            else if (rule.kind === 'recode') { const raw = values[rule.field] ?? ''; val = raw === '' ? '' : rule.table[raw] ?? raw; if (raw !== '' && rule.table[raw] === undefined) pfail(v, `No recode for "${raw}"`) }
+            else val = evalIn(rule.expr, values, out)
+            out[v] = typeof val === 'boolean' ? (val ? 'Y' : '') : fmt(val)
+          } catch (e) { out[v] = ''; pfail(v, (e as Error).message) }
+        }
+        for (const q of (pi === 0 ? spec.supp ?? [] : part.supp ?? [])) {
+          if (!q.expr.trim()) continue
+          try { const x = evalIn(q.expr, values, out); const val = typeof x === 'boolean' ? (x ? 'Y' : '') : fmt(x); if (val !== '') supp.push({ row: out, q, value: val }) } catch (e) { fail(`SUPP ${q.qnam}`, (e as Error).message) }
+        }
+        rows.push(out)
       }
-    } else variants.push({ values: r, trace: `${spec.source}:${r.__id}` })
-    for (const { values, trace } of variants) {
-      const out: OutRow = { __trace: trace, __subj: subj } as OutRow
-      for (const v of order) {
-        const rule = spec.rules[v]
-        if (!rule || rule.kind === 'seq' || rule.kind === 'lobxfl' || (rule.kind === 'expr' && !rule.expr.trim()) || (rule.kind === 'copy' && !rule.field)) { out[v] = ''; continue }
-        try {
-          let val: Val = ''
-          if (rule.kind === 'copy') val = values[rule.field] ?? ''
-          else if (rule.kind === 'const') val = rule.value
-          else if (rule.kind === 'recode') { const raw = values[rule.field] ?? ''; val = raw === '' ? '' : rule.table[raw] ?? raw; if (raw !== '' && rule.table[raw] === undefined) fail(v, `No recode for "${raw}"`) }
-          else val = evalIn(rule.expr, values, out)
-          out[v] = typeof val === 'boolean' ? (val ? 'Y' : '') : fmt(val)
-        } catch (e) { out[v] = ''; fail(v, (e as Error).message) }
-      }
-      rows.push(out)
     }
   }
   // Sort, then sequence numbers and the pre-exposure flag.
@@ -208,7 +229,20 @@ export function build(spec: DomainSpec, data: StudyData): Built {
       for (const r of rows) r[v] = flagged.has(r) ? 'Y' : ''
     }
   }
-  return { domain: spec.domain, vars: spec.vars, rows, errors, warnings }
+  const out: Built = { domain: spec.domain, vars: spec.vars, rows, errors, warnings }
+  if (spec.supp?.length || spec.parts?.some((p) => p.supp?.length)) out.supp = suppDataset(spec, supp)
+  return out
+}
+
+// Supplemental qualifiers: one SUPP-- record per parent record and qualifier that has a value.
+// Subject-level domains (DM) have no --SEQ, so IDVAR and IDVARVAL are null.
+export const SUPP_VARS = ['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'QNAM', 'QLABEL', 'QVAL', 'QORIG', 'QEVAL']
+function suppDataset(spec: DomainSpec, items: { row: OutRow; q: SuppQual; value: string }[]): Built {
+  const seq = `${spec.domain}SEQ`
+  const idvar = spec.vars.includes(seq) ? seq : ''
+  const rows = items.map(({ row, q, value }, i) => ({ __trace: `${row.__trace}#${q.qnam}`, __subj: row.__subj, __i: String(i), STUDYID: row.STUDYID ?? '', RDOMAIN: spec.domain, USUBJID: row.USUBJID ?? '', IDVAR: idvar, IDVARVAL: idvar ? row[seq] ?? '' : '', QNAM: q.qnam, QLABEL: q.qlabel, QVAL: value, QORIG: q.qorig, QEVAL: q.qeval ?? '' } as OutRow))
+  rows.sort((a, b) => a.USUBJID.localeCompare(b.USUBJID) || numericSort(a.IDVARVAL, b.IDVARVAL) || a.QNAM.localeCompare(b.QNAM))
+  return { domain: `SUPP${spec.domain}`, vars: SUPP_VARS, rows, errors: {}, warnings: [] }
 }
 
 // Rules run in an order where a variable is derived before any expression that uses it

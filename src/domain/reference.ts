@@ -2,7 +2,7 @@
 // (study.ts). Missions compare the learner's datasets with these, record by record. They are
 // also how the study functions get the reference DM (reference dates for study day and epoch).
 
-import { build, type DomainSpec, type OutRow, type StudyData, type Rule } from './engine'
+import { build, type DomainSpec, type OutRow, type StudyData, type Rule, type Part, type SuppQual } from './engine'
 import { varsOf, type Version } from './standards'
 import { raw } from './seed'
 import { STUDY } from './study'
@@ -44,15 +44,73 @@ const VS_TRANSPOSE = {
   ],
   drop: "isblank(__RESULT) and not (VSPERF = 'N' and planned(__TESTCD))",
 }
-export const SORT: Record<string, string[]> = { DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'] }
+const AE_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('AE'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), AESEQ: { kind: 'seq' }, AESPID: cp('AESPID'),
+  AETERM: cp('AETERM'), AELLT: cp('AELLT'), AELLTCD: cp('AELLTCD'), AEDECOD: cp('AEDECOD'), AEPTCD: cp('AEPTCD'), AEHLT: cp('AEHLT'), AEHLTCD: cp('AEHLTCD'),
+  AEHLGT: cp('AEHLGT'), AEHLGTCD: cp('AEHLGTCD'), AEBODSYS: cp('AESOC'), AEBDSYCD: cp('AESOCCD'), AESOC: cp('AESOC'), AESOCCD: cp('AESOCCD'),
+  AESEV: e('upper(AESEV)'), AESER: cp('AESER'), AEACN: e('upper(AEACN)'), AEREL: e('upper(AEREL)'), AEOUT: e('upper(AEOUT)'), AESDTH: cp('AESDTH'), AESHOSP: cp('AESHOSP'),
+  EPOCH: e('epoch(AESTDTC)'), AESTDTC: cp('AESTDAT'), AEENDTC: cp('AEENDAT'), AESTDY: e('studyday(AESTDTC)'), AEENDY: e('studyday(AEENDTC)'),
+}
+export const AETRTEM: SuppQual = { qnam: 'AETRTEM', qlabel: 'Treatment Emergent Flag', qorig: 'Derived', expr: "if(isblank(dm('RFXSTDTC')) or isblank(studyday(AESTDTC, dm('RFXSTDTC'))), '', if(studyday(AESTDTC, dm('RFXSTDTC')) >= 1, 'Y', 'N'))" }
+const CM_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('CM'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), CMSEQ: { kind: 'seq' }, CMSPID: cp('CMSPID'),
+  CMTRT: cp('CMTRT'), CMDECOD: cp('CMDECOD'), CMINDC: cp('CMINDC'), CMCLAS: cp('CMCLAS'), CMDOSE: e('num(CMDOSE)'), CMDOSU: cp('CMDOSU'), CMDOSFRQ: cp('CMDOSFRQ'), CMROUTE: e('upper(CMROUTE)'),
+  EPOCH: e('epoch(CMSTDTC)'), CMSTDTC: cp('CMSTDAT'), CMENDTC: cp('CMENDAT'), CMSTDY: e('studyday(CMSTDTC)'), CMENDY: e('studyday(CMENDTC)'),
+  CMENRTPT: e("if(CMONGO = 'Y', 'ONGOING', '')"), CMENTPT: e("if(CMONGO = 'Y', 'END OF STUDY', '')"),
+}
+const EX_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('EX'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), EXSEQ: { kind: 'seq' },
+  EXTRT: e("if(irt('KITARM') = 'PBO', 'PLACEBO', 'GLV-12')"), EXDOSE: e("if(irt('KITARM') = 'GLV10', 10, if(irt('KITARM') = 'GLV5', 5, 0))"),
+  EXDOSU: c('mg'), EXDOSFRM: c('TABLET'), EXDOSFRQ: c('QD'), EXROUTE: c('ORAL'),
+  EPOCH: e('epoch(EXSTDTC)'), EXSTDTC: e('iso(EXSTDAT, EXSTTIM)'), EXENDTC: cp('EXENDAT'), EXSTDY: e('studyday(EXSTDTC)'), EXENDY: e('studyday(EXENDTC)'),
+}
+const DS_COMMON: Record<string, Rule> = { STUDYID: c(STUDY.id), DOMAIN: c('DS'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), DSSEQ: { kind: 'seq' }, DSSTDY: e('studyday(DSSTDTC)') }
+const DS_RULES: Record<string, Rule> = { ...DS_COMMON, DSTERM: e('coalesce(DSTERM, upper(DSDECOD))'), DSDECOD: e('upper(DSDECOD)'), DSCAT: c('DISPOSITION EVENT'), EPOCH: e('epoch(DSSTDTC)'), DSSTDTC: cp('DSSTDAT') }
+const DS_IC: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: cp('DSSTDAT') }
+const DS_IRT: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('RANDOMIZED'), DSDECOD: c('RANDOMIZED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: cp('RANDDT') }
+const SI = (x: string) => `round(num(${x}) * lab(TESTCODE, 'factor'), lab(TESTCODE, 'decimals'))`
+const LB_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('LB'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), LBSEQ: { kind: 'seq' }, LBREFID: cp('ACCSNUM'),
+  LBTESTCD: e("lab(TESTCODE, 'testcd')"), LBTEST: e("ctdecode('LBTESTCD', LBTESTCD)"), LBCAT: c('CHEMISTRY'),
+  LBORRES: cp('RESULT'), LBORRESU: e("if(present(RESULT), replace(UNITS, 'mg/dl', 'mg/dL'), '')"), LBORNRLO: cp('REFLOW'), LBORNRHI: cp('REFHIGH'),
+  LBSTRESC: e(`if(isblank(RESULT), '', if(substr(RESULT, 1, 1) = '<', RESULT, str(${SI('RESULT')})))`), LBSTRESN: e('num(LBSTRESC)'),
+  LBSTRESU: e("if(present(RESULT), lab(TESTCODE, 'stdunit'), '')"), LBSTNRLO: e(SI('REFLOW')), LBSTNRHI: e(SI('REFHIGH')),
+  LBNRIND: e("if(isblank(RESULT), '', if(FLAG = 'H', 'HIGH', if(FLAG = 'L', 'LOW', 'NORMAL')))"),
+  LBSTAT: e("if(isblank(RESULT), 'NOT DONE', '')"), LBREASND: e("if(isblank(RESULT), 'SPECIMEN HEMOLYZED', '')"),
+  LBNAM: cp('LABNAME'), LBSPEC: e("lab(TESTCODE, 'spec')"), LBLOBXFL: { kind: 'lobxfl', result: 'LBSTRESC', dtc: 'LBDTC', by: 'LBTESTCD' }, LBFAST: cp('FASTING'),
+  VISITNUM: e('visitnum(VISIT, COLLDATE)'), VISIT: e('visitname(VISIT, COLLDATE)'), EPOCH: e('epoch(LBDTC)'), LBDTC: e('iso(COLLDATE, COLLTIME)'), LBDY: e('studyday(LBDTC)'),
+}
+const SV_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('SV'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), VISITNUM: e('visitnum(VISIT, VISDAT)'), VISIT: e('visitname(VISIT, VISDAT)'), VISITDY: e('visitdy(VISIT)'),
+  EPOCH: e('epoch(SVSTDTC)'), SVSTDTC: e('iso(VISDAT)'), SVENDTC: e('iso(VISDAT)'), SVSTDY: e('studyday(SVSTDTC)'), SVENDY: e('studyday(SVENDTC)'),
+}
+export const SORT: Record<string, string[]> = {
+  DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'], AE: ['USUBJID', 'AEDECOD', 'AESTDTC'], CM: ['USUBJID', 'CMTRT', 'CMSTDTC'],
+  EX: ['USUBJID', 'EXSTDTC'], DS: ['USUBJID', 'DSSTDTC', 'DSCAT'], LB: ['USUBJID', 'LBTESTCD', 'VISITNUM', 'LBDTC'], SV: ['USUBJID', 'VISITNUM'],
+}
 
-// Which IG variables the reference includes: every Required and Expected variable, plus the
-// permissible ones the study collects.
-const PERM_USED: Record<string, string[]> = { DM: ['BRTHDTC', 'ETHNIC', 'DMDTC', 'DMDY'], VS: ['VSPOS', 'VSSTAT', 'VSREASND', 'VISIT', 'EPOCH', 'VSDY', 'SUBJID'] }
-export function referenceSpec(domain: 'DM' | 'VS', ver: Version): DomainSpec {
-  const rules = domain === 'DM' ? DM_RULES : VS_RULES
-  const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || PERM_USED[domain].includes(m.name)) && rules[m.name]).map((m) => m.name)
-  return { domain, source: domain, vars, rules: Object.fromEntries(vars.map((v) => [v, rules[v]])), sort: SORT[domain], ...(domain === 'VS' ? { transpose: VS_TRANSPOSE } : {}) }
+// Which IG variables each reference includes: every Required and Expected variable, plus the
+// permissible ones the study collects or derives.
+const REF: Record<string, { rules: Record<string, Rule>; perm: string[]; transpose?: DomainSpec['transpose']; filter?: string; source?: string; parts?: Part[]; supp?: SuppQual[] }> = {
+  DM: { rules: DM_RULES, perm: ['BRTHDTC', 'ETHNIC', 'DMDTC', 'DMDY'] },
+  VS: { rules: VS_RULES, perm: ['VSPOS', 'VSSTAT', 'VSREASND', 'VISIT', 'EPOCH', 'VSDY', 'SUBJID'], transpose: VS_TRANSPOSE },
+  AE: { rules: AE_RULES, perm: ['AESPID', 'AESEV', 'AEOUT', 'AESDTH', 'AESHOSP', 'EPOCH', 'AESTDY', 'AEENDY', 'SUBJID'], supp: [AETRTEM] },
+  CM: { rules: CM_RULES, perm: ['CMSPID', 'CMDECOD', 'CMINDC', 'CMCLAS', 'CMDOSE', 'CMDOSU', 'CMDOSFRQ', 'CMROUTE', 'EPOCH', 'CMSTDTC', 'CMENDTC', 'CMSTDY', 'CMENDY', 'CMENRTPT', 'CMENTPT', 'SUBJID'] },
+  EX: { rules: EX_RULES, perm: ['EXDOSFRQ', 'EXROUTE', 'EPOCH', 'EXSTDY', 'EXENDY', 'SUBJID'] },
+  DS: { rules: DS_RULES, perm: ['EPOCH', 'DSSTDY', 'SUBJID'], parts: [{ source: 'IC', rules: DS_IC }, { source: 'IRT', rules: DS_IRT }] },
+  LB: { rules: LB_RULES, perm: ['LBREFID', 'LBSTAT', 'LBREASND', 'LBNAM', 'LBSPEC', 'LBFAST', 'VISIT', 'EPOCH', 'LBDY', 'SUBJID'], source: 'LBC', filter: 'not isdup(ACCSNUM, TESTCODE)' },
+  SV: { rules: SV_RULES, perm: ['VISIT', 'VISITDY', 'EPOCH', 'SVSTDY', 'SVENDY'] },
+}
+export const REF_DOMAINS = Object.keys(REF)
+export function referenceSpec(domain: string, ver: Version): DomainSpec {
+  const r = REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain}`)
+  const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name)) && r.rules[m.name]).map((m) => m.name)
+  const pick = (rules: Record<string, Rule>) => Object.fromEntries(vars.filter((v) => rules[v]).map((v) => [v, rules[v]]))
+  return {
+    domain, source: r.source ?? domain, vars, rules: pick(r.rules), sort: SORT[domain],
+    ...(r.transpose ? { transpose: r.transpose } : {}), ...(r.filter ? { filter: r.filter } : {}),
+    ...(r.parts ? { parts: r.parts.map((p) => ({ ...p, rules: pick(p.rules) })) } : {}), ...(r.supp ? { supp: r.supp } : {}),
+  }
 }
 
 let dmCache: Map<string, OutRow> | null = null

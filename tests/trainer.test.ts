@@ -81,7 +81,7 @@ describe('missions and checks', () => {
     for (const v of ['3.4', '4.0d'] as const) for (const [id, d] of [['S1', 'DM'], ['S2', 'VS']] as const) {
       const p = createProject('u', 'c', v); p.specs[d] = referenceSpec(d, v)
       const r = evaluateMission(p, id)
-      expect(r.score, `${v} ${id}`).toBe(100); expect(r.passed).toBe(true); expect(r.findings).toHaveLength(0)
+      expect(r.score, `${v} ${id}`).toBe(100); expect(r.passed).toBe(true); expect(r.domains[0].findings).toHaveLength(0)
     }
   })
   test('a partial DM loses credit, and the arm rule is enforced', () => {
@@ -101,7 +101,7 @@ describe('missions and checks', () => {
     const p = createProject(); const s: DomainSpec = { ...referenceSpec('VS', '3.4') }
     s.vars = s.vars.filter((v) => v !== 'VSTEST'); p.specs.VS = s
     const r = evaluateMission(p, 'S2')
-    expect(r.passed).toBe(false); expect(r.findings.some((x) => x.rule === 'TRN-001')).toBe(true)
+    expect(r.passed).toBe(false); expect(r.domains[0].findings.some((x) => x.rule === 'TRN-001')).toBe(true)
   })
   test('ISO 8601 checker', () => {
     expect(['2026', '2026-03', '2026-03-10', '2026-03-10T09:00', '2026-03-10T09:00:15'].every(isIso8601)).toBe(true)

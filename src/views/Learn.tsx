@@ -100,7 +100,7 @@ function Reference() {
       <Panel title={`${d.code} · ${d.name}`} sub={`${d.cls}${d.structure ? ` · ${d.structure}` : ''} · ${VERSION_LABEL[p.version]}`} right={<select aria-label="Domain" className="rounded border border-lab-line bg-lab-panel-strong px-2 py-1 text-xs" value={code} onChange={(e) => setCode(e.target.value)}>{DOMAINS.map((x) => <option key={x.code} value={x.code}>{x.code} · {x.name}</option>)}</select>}>
         {vars.length ? (
           <Table head={['Variable', 'Label', 'Type', 'Role', 'Core', 'Codelist', '']} rows={vars.map((v) => [<span className="font-mono">{v.name}</span>, v.label, v.type, v.role, <Pill tone={v.core === 'Req' ? 'red' : v.core === 'Exp' ? 'amber' : 'grey'}>{v.core}</Pill>, v.ct ?? '', v.draft ? <Pill tone="purple">v4.0 draft</Pill> : ''])} />
-        ) : <p className="text-sm text-lab-text-muted">Variable metadata for {d.code} is not bundled in Phase 1; the trainer details the domains it maps (DM, SV, VS, EX, AE, CM, DS). See the SDTMIG for the rest.</p>}
+        ) : <p className="text-sm text-lab-text-muted">Variable metadata for {d.code} is not bundled; the trainer details the domains it maps (DM, SV, VS, EX, AE, CM, DS, LB, SE, the trial design domains and SUPP--). See the SDTMIG for the rest.</p>}
         {vars.length > 0 && code !== 'DM' && code !== 'SV' && <p className="text-[11px] text-lab-text-muted">Shown: the variables this study can use, in IG order. Some rarely used permissible variables are left out.</p>}
       </Panel>
       {p.version === '4.0d' && <Panel title="SDTMIG v4.0 draft changes in this mode"><ul className="list-disc pl-5 text-sm">{DRAFT_CHANGES.map((c) => <li key={c.what}>{c.what} <span className="text-lab-text-muted">({c.where})</span></li>)}</ul></Panel>}
