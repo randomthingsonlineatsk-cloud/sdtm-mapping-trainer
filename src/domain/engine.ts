@@ -1,0 +1,247 @@
+// The mapping engine. A domain specification says which raw form drives the records, how a wide
+// findings form is turned tall (one record per test), and how each SDTM variable is filled. The
+// engine builds the dataset, keeps a trace from every output record back to its raw row, sorts
+// it, numbers --SEQ and sets --LOBXFL. The same engine builds the hidden reference mappings, so
+// learner and reference datasets line up record by record.
+
+import { parse, evaluate, validate, fmt, isBlank, toNum, type Node, type Val } from './expr'
+import { CT, decode } from './standards'
+import { SITES, ARMS, VISITS, type Visit } from './study'
+import type { Row } from './seed'
+
+export type Rule =
+  | { kind: 'copy'; field: string }
+  | { kind: 'const'; value: string }
+  | { kind: 'recode'; field: string; table: Record<string, string> }
+  | { kind: 'expr'; expr: string }
+  | { kind: 'seq' }
+  | { kind: 'lobxfl'; result: string; dtc: string; by: string }
+export const RULE_LABEL: Record<Rule['kind'], string> = { copy: 'Copy a raw field', const: 'Assign a constant', recode: 'Recode raw values to CT', expr: 'Derive with an expression', seq: 'Sequence number (--SEQ)', lobxfl: 'Last observation before exposure flag' }
+
+export interface TestMap { code: string; field: string; unit?: string; unitField?: string }
+export interface Transpose { tests: TestMap[]; drop: string }
+export interface DomainSpec { domain: string; source: string; filter?: string; transpose?: Transpose; vars: string[]; rules: Record<string, Rule>; sort: string[] }
+
+export type OutRow = Record<string, string> & { __trace: string; __subj: string }
+export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[] }
+
+// ---------- the study context the functions read ----------
+export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[] }
+const UNSCHEDULED = new Set(['Unscheduled', 'UNS'])
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+export const fullDate = (s: string) => DATE.test(s.slice(0, 10)) ? s.slice(0, 10) : ''
+// Compare two ISO 8601 values: to the minute when both carry a time, otherwise by date.
+export function cmpDtc(a: string, b: string): number {
+  if (a.length > 10 && b.length > 10) return a.slice(0, 16) < b.slice(0, 16) ? -1 : a.slice(0, 16) > b.slice(0, 16) ? 1 : 0
+  const x = a.slice(0, 10), y = b.slice(0, 10)
+  return x < y ? -1 : x > y ? 1 : 0
+}
+export function studyDay(dtc: string, ref: string): number | '' {
+  const d = fullDate(dtc), r = fullDate(ref)
+  if (!d || !r) return ''
+  const diff = Math.round((Date.parse(d + 'T00:00:00Z') - Date.parse(r + 'T00:00:00Z')) / 86400000)
+  return diff >= 0 ? diff + 1 : diff
+}
+const FACTOR: Record<string, Record<string, number>> = { LB: { kg: 0.45359237 }, lb: { kg: 0.45359237 }, in: { cm: 2.54 }, kg: { LB: 1 / 0.45359237 }, cm: { in: 1 / 2.54 } }
+export const STD_UNIT: Record<string, string> = { SYSBP: 'mmHg', DIABP: 'mmHg', PULSE: 'beats/min', WEIGHT: 'kg', HEIGHT: 'cm', TEMP: 'C', BMI: 'kg/m2' }
+
+export function studyFns(data: StudyData, row: Record<string, string>, subj: string): Record<string, (...a: Val[]) => Val> {
+  const S = (x: Val) => (isBlank(x) ? '' : fmt(x))
+  const mine = (form: string) => (data.forms[form] ?? []).filter((r) => r.SUBJID === subj)
+  const agg = (vals: string[], how: string) => {
+    const v = vals.filter((x) => x !== '')
+    if (!v.length) return ''
+    if (how === 'last') return v[v.length - 1]
+    if (how === 'min' || how === 'max') { const nums = v.every((x) => toNum(x) !== null); const s = nums ? [...v].sort((a, b) => Number(a) - Number(b)) : [...v].sort(); return how === 'min' ? s[0] : s[s.length - 1] }
+    if (how === 'count') return String(v.length)
+    return v[0]
+  }
+  const dm = (v: Val) => data.refDm?.get(subj)?.[S(v)] ?? ''
+  const visitByRaw = (x: string) => (data.visits ?? VISITS).find((v) => v.raw === x)
+  const visitInfo = (visit: string, date: string): { num: number | ''; name: string } => {
+    const v = visitByRaw(visit)
+    if (v) return { num: v.num, name: v.name }
+    if (!UNSCHEDULED.has(visit) || !DATE.test(date)) return { num: '', name: '' }
+    const sv = mine('SV').filter((r) => DATE.test(r.VISDAT)).sort((a, b) => a.VISDAT.localeCompare(b.VISDAT) || a.__id.localeCompare(b.__id))
+    let base = 0, k = 0
+    for (const r of sv) {
+      if (r.VISDAT > date) break
+      const sch = visitByRaw(r.VISIT)
+      if (sch) { base = sch.num; k = 0 } else if (UNSCHEDULED.has(r.VISIT)) k++
+    }
+    const num = Math.round((base + k / 100) * 100) / 100
+    return { num, name: `UNSCHEDULED ${num.toFixed(2)}` }
+  }
+  return {
+    iso: (d, t) => { const ds = S(d), ts = S(t); if (!ds) return ''; return DATE.test(ds) && /^\d{2}:\d{2}(:\d{2})?$/.test(ts) ? `${ds}T${ts}` : ds },
+    subj: (form, field, how) => agg(mine(S(form)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
+    subjwhere: (form, field, wf, wv, how) => agg(mine(S(form)).filter((r) => (r[S(wf)] ?? '') === S(wv)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
+    irt: (field) => mine('IRT')[0]?.[S(field)] ?? '',
+    country: (site) => SITES.find((s) => s.id === S(site))?.iso ?? '',
+    armname: (code) => ARMS.find((a) => a.code === S(code))?.name ?? '',
+    age: (birth, ref) => {
+      const b = fullDate(S(birth)), r = fullDate(S(ref)); if (!b || !r) return ''
+      let a = Number(r.slice(0, 4)) - Number(b.slice(0, 4))
+      if (r.slice(5) < b.slice(5)) a--
+      return a
+    },
+    dm,
+    studyday: (dtc, ref) => studyDay(S(dtc), ref === undefined ? dm('RFSTDTC') : S(ref)),
+    epoch: (dtc) => {
+      const d = S(dtc); if (!d) return ''
+      const st = dm('RFXSTDTC'), en = dm('RFXENDTC')
+      if (!st) return 'SCREENING'
+      if (cmpDtc(d, st) < 0) return 'SCREENING'
+      return !en || d.slice(0, 10) <= en.slice(0, 10) ? 'TREATMENT' : 'FOLLOW-UP'
+    },
+    visitnum: (visit, date) => visitInfo(S(visit), S(date)).num,
+    visitname: (visit, date) => visitInfo(S(visit), S(date)).name,
+    visitdy: (visit) => visitByRaw(S(visit))?.day ?? '',
+    planned: (testcd) => !!visitByRaw(row.VISIT ?? '')?.vs.includes(S(testcd)),
+    convert: (value, from, to, dec) => {
+      const n = toNum(value); if (n === null) return ''
+      const f = S(from), t = S(to)
+      if (f === t) return n
+      const k = FACTOR[f]?.[t]; if (k === undefined) throw new Error(`No conversion from ${f || '(blank)'} to ${t || '(blank)'}`)
+      const d = toNum(dec) ?? 1
+      return Math.round(n * k * 10 ** d) / 10 ** d
+    },
+    stdunit: (testcd) => STD_UNIT[S(testcd)] ?? '',
+    ctdecode: (list, value) => decode(S(list), S(value)),
+    inct: (list, value) => !!CT[S(list)]?.terms.some((t) => t.value === S(value)),
+  }
+}
+export const FN_HELP: { sig: string; what: string }[] = [
+  { sig: "concat(a, b, …)", what: 'Joins text: concat(\'GLV-12-301-\', SUBJID)' },
+  { sig: 'iso(date, time)', what: 'ISO 8601 from a date and an optional time: 2026-03-10T09:00. Partial dates pass through.' },
+  { sig: "upper(x), lower(x), trim(x), substr(x, start, n), replace(x, a, b)", what: 'Text functions' },
+  { sig: "if(condition, a, b)", what: 'a when the condition is true, otherwise b' },
+  { sig: 'coalesce(a, b, …)', what: 'The first value that is not blank' },
+  { sig: "contains(x, 'text'), present(x), isblank(x), x in ('A', 'B')", what: 'Tests' },
+  { sig: "subj(form, field, how)", what: "One value per subject from another raw form; how = 'first', 'last', 'min', 'max' or 'count'. subj('EX', 'EXSTDAT', 'min')" },
+  { sig: "subjwhere(form, field, whereField, whereValue, how)", what: "As subj, only rows where whereField equals whereValue. subjwhere('DS', 'DSSTDAT', 'DSDECOD', 'Death', 'first')" },
+  { sig: "irt(field)", what: "The subject's value in the IRT randomisation file: irt('RANDARM')" },
+  { sig: 'armname(code), country(siteid)', what: 'Arm description from TA; ISO 3166 alpha-3 country of a site' },
+  { sig: 'age(birthdate, refdate)', what: 'Completed years between two full dates' },
+  { sig: "dm(var)", what: "A variable of this subject's record in the study's reference DM: dm('RFSTDTC')" },
+  { sig: 'studyday(dtc, ref)', what: 'Study day of dtc relative to ref (default: RFSTDTC). No day 0; blank for partial dates.' },
+  { sig: 'epoch(dtc)', what: 'SCREENING, TREATMENT or FOLLOW-UP from RFXSTDTC and RFXENDTC, as the conventions define' },
+  { sig: 'visitnum(VISIT, date), visitname(VISIT, date), visitdy(VISIT)', what: 'TV visit number and name; unscheduled visits get the last scheduled number + .01' },
+  { sig: 'planned(testcd)', what: 'Is this test planned at the row’s visit?' },
+  { sig: 'convert(value, fromUnit, toUnit, decimals)', what: "Unit conversion (LB to kg, in to cm). Same unit returns the number unchanged." },
+  { sig: 'stdunit(testcd), ctdecode(codelist, value), inct(codelist, value)', what: 'Standard unit of a vital sign; CT decode (ctdecode(\'VSTESTCD\', \'SYSBP\') is Systolic Blood Pressure); is a value in a codelist' },
+  { sig: 'num(x), str(x), round(x, d), min(…), max(…)', what: 'Numbers and conversions' },
+]
+export const STUDY_FN_NAMES = Object.keys(studyFns({ forms: {}, studyId: '' }, {}, ''))
+export const PSEUDO = ['__TESTCD', '__RESULT', '__UNIT', '__FIELD']
+
+// ---------- building ----------
+const parsed = new Map<string, Node>()
+const ast = (src: string) => { let n = parsed.get(src); if (!n) { n = parse(src); parsed.set(src, n) } return n }
+export function ruleError(rule: Rule, fields: string[]): string {
+  if (rule.kind === 'expr') return rule.expr.trim() ? validate(rule.expr, fields, STUDY_FN_NAMES) : 'Write an expression.'
+  if ((rule.kind === 'copy' || rule.kind === 'recode') && !fields.includes(rule.field)) return `Unknown field ${rule.field || '(none)'}`
+  return ''
+}
+const numericSort = (a: string, b: string) => { const x = Number(a), y = Number(b); return a !== '' && b !== '' && !Number.isNaN(x) && !Number.isNaN(y) ? x - y : a.localeCompare(b) }
+
+export function build(spec: DomainSpec, data: StudyData): Built {
+  const errors: Built['errors'] = {}
+  const warnings: string[] = []
+  const fail = (v: string, msg: string) => { const e = (errors[v] ??= { count: 0, first: msg }); e.count++ }
+  const src = data.forms[spec.source] ?? []
+  if (!src.length) warnings.push(`The raw form ${spec.source} has no rows.`)
+  const order = evalOrder(spec, new Set([...Object.keys(src[0] ?? {}), ...(spec.transpose ? PSEUDO : [])]))
+  const rows: OutRow[] = []
+  for (const r of src) {
+    const subj = r.SUBJID ?? ''
+    const fns = studyFns(data, r, subj)
+    const evalIn = (src: string, values: Record<string, string>, out: Record<string, string>) => evaluate(ast(src), { get: (n) => (Object.hasOwn(values, n) ? values[n] : out[n] ?? ''), fn: fns })
+    if (spec.filter?.trim()) { try { if (evalIn(spec.filter, r, {}) !== true) continue } catch (e) { fail('(filter)', (e as Error).message); continue } }
+    const variants: { values: Record<string, string>; trace: string }[] = []
+    if (spec.transpose) {
+      for (const t of spec.transpose.tests) {
+        const values = { ...r, __TESTCD: t.code, __FIELD: t.field, __RESULT: r[t.field] ?? '', __UNIT: t.unitField ? r[t.unitField] ?? '' : t.unit ?? '' }
+        try { if (spec.transpose.drop.trim() && evalIn(spec.transpose.drop, values, {}) === true) continue } catch (e) { fail('(drop)', (e as Error).message); continue }
+        variants.push({ values, trace: `${spec.source}:${r.__id}:${t.field}` })
+      }
+    } else variants.push({ values: r, trace: `${spec.source}:${r.__id}` })
+    for (const { values, trace } of variants) {
+      const out: OutRow = { __trace: trace, __subj: subj } as OutRow
+      for (const v of order) {
+        const rule = spec.rules[v]
+        if (!rule || rule.kind === 'seq' || rule.kind === 'lobxfl' || (rule.kind === 'expr' && !rule.expr.trim()) || (rule.kind === 'copy' && !rule.field)) { out[v] = ''; continue }
+        try {
+          let val: Val = ''
+          if (rule.kind === 'copy') val = values[rule.field] ?? ''
+          else if (rule.kind === 'const') val = rule.value
+          else if (rule.kind === 'recode') { const raw = values[rule.field] ?? ''; val = raw === '' ? '' : rule.table[raw] ?? raw; if (raw !== '' && rule.table[raw] === undefined) fail(v, `No recode for "${raw}"`) }
+          else val = evalIn(rule.expr, values, out)
+          out[v] = typeof val === 'boolean' ? (val ? 'Y' : '') : fmt(val)
+        } catch (e) { out[v] = ''; fail(v, (e as Error).message) }
+      }
+      rows.push(out)
+    }
+  }
+  // Sort, then sequence numbers and the pre-exposure flag.
+  const keys = spec.sort.filter((k) => spec.vars.includes(k))
+  rows.sort((a, b) => { for (const k of keys) { const c = numericSort(a[k] ?? '', b[k] ?? ''); if (c) return c } return a.__trace.localeCompare(b.__trace) })
+  for (const v of spec.vars) {
+    const rule = spec.rules[v]
+    if (rule?.kind === 'seq') {
+      const n = new Map<string, number>()
+      for (const r of rows) { const k = r.USUBJID ?? r.__subj; const i = (n.get(k) ?? 0) + 1; n.set(k, i); r[v] = String(i) }
+    }
+    if (rule?.kind === 'lobxfl') {
+      if (!spec.vars.includes(rule.result) || !spec.vars.includes(rule.dtc)) { fail(v, `Needs ${rule.result} and ${rule.dtc} in the dataset`); continue }
+      const best = new Map<string, OutRow>()
+      for (const r of rows) {
+        const st = data.refDm?.get(r.__subj)?.RFXSTDTC ?? ''
+        const res = r[rule.result] ?? '', dtc = r[rule.dtc] ?? ''
+        if (!st || res === '' || !dtc || cmpDtc(dtc, st) > 0) continue
+        const k = `${r.__subj}|${rule.by ? r[rule.by] ?? '' : ''}`
+        const cur = best.get(k)
+        if (!cur || cmpDtc(dtc, cur[rule.dtc]) >= 0) best.set(k, r)
+      }
+      const flagged = new Set(best.values())
+      for (const r of rows) r[v] = flagged.has(r) ? 'Y' : ''
+    }
+  }
+  return { domain: spec.domain, vars: spec.vars, rows, errors, warnings }
+}
+
+// Rules run in an order where a variable is derived before any expression that uses it
+// (EPOCH = epoch(VSDTC) comes before VSDTC in the IG order). A cycle keeps the IG order.
+function refsOf(n: Node, out: Set<string>) {
+  if (n.k === 'var') out.add(n.name)
+  else if (n.k === 'call') n.args.forEach((a) => refsOf(a, out))
+  else if (n.k === 'un') refsOf(n.a, out)
+  else if (n.k === 'bin') { refsOf(n.a, out); refsOf(n.b, out) }
+}
+export function evalOrder(spec: DomainSpec, rawFields: Set<string>): string[] {
+  const deps = new Map<string, string[]>()
+  for (const v of spec.vars) {
+    const r = spec.rules[v]; const set = new Set<string>()
+    if (r?.kind === 'expr') { try { refsOf(ast(r.expr), set) } catch { /* reported when evaluated */ } }
+    deps.set(v, [...set].filter((x) => x !== v && spec.vars.includes(x) && !rawFields.has(x)))
+  }
+  const done: string[] = [], state = new Map<string, 1 | 2>()
+  const visit = (v: string): boolean => {
+    if (state.get(v) === 2) return true
+    if (state.get(v) === 1) return false
+    state.set(v, 1)
+    for (const d of deps.get(v) ?? []) if (!visit(d)) return false
+    state.set(v, 2); done.push(v); return true
+  }
+  for (const v of spec.vars) if (!visit(v)) return spec.vars
+  return done
+}
+
+// Fields an expression may use in a spec: the raw form's fields, the transposition's
+// pseudo-fields, and the target variables (an expression may use a variable derived above it).
+export function fieldsFor(spec: DomainSpec, rawFields: string[]): string[] {
+  return [...rawFields, ...(spec.transpose ? PSEUDO : []), ...spec.vars]
+}
+export const visitList = VISITS
+export const csv = (b: Built) => [b.vars.join(','), ...b.rows.map((r) => b.vars.map((v) => { const x = r[v] ?? ''; return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x }).join(','))].join('\n')
