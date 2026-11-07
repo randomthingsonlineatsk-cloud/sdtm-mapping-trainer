@@ -35,7 +35,7 @@ describe('Phase 2 missions', () => {
   test('every mission scores 100 with the reference, in both standards and every rule set', () => {
     for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
       const p = full(v); p.ruleSet = rs.id
-      for (const m of MISSIONS.filter((x) => !x.study && !['fix', 'qc', 'spec', 'package'].includes(x.kind))) {
+      for (const m of MISSIONS.filter((x) => !x.study && !['fix', 'qc', 'spec', 'package', 'capstone'].includes(x.kind))) {
         const r = evaluateMission(p, m.id)
         expect(r.score, `${v} ${rs.id} ${m.id}: ${r.detail.join(' | ')}`).toBe(100)
         expect(r.passed).toBe(true)
@@ -659,5 +659,63 @@ describe('Phase 3e: the submission package and mission S18', () => {
     delete p.explain; record()
     expect(evaluateMission(p, 'S18').passed).toBe(false)
     registerCustom([])
+  })
+})
+
+describe('Phase 4a: levels', () => {
+  test('a run keeps its level; expert doubles the finding penalty', async () => {
+    const { finishMission, levelOf } = await import('../src/domain/missions')
+    for (const [level, want] of [['guided', 97], ['standard', 97], ['expert', 94]] as const) {
+      const p = full(); delete p.explain; p.missionLevel = level
+      startMission(p, 'S3'); p.missionLevel = 'guided'
+      expect(levelOf(p, 'S3')).toBe(level)
+      const run = finishMission(p, 'S3')
+      expect(run.level).toBe(level); expect(run.domainScores!.AE).toBe(want)
+      expect(run.detail!.at(-1)).toBe(`Level: ${level}`)
+    }
+  })
+})
+
+describe('Phase 4b: capstone S22', () => {
+  test('the reference package scores 100; a failing dataset or an unexplained issue fails it', async () => {
+    const { packageFindings, toIssues, runSummary } = await import('../src/domain/validation')
+    const { suggestNotes } = await import('../src/domain/csdrg')
+    const { allDatasets } = await import('../src/domain/datasets')
+    const { registerCustom } = await import('../src/domain/standards')
+    const p = full(); registerCustom(p.custom)
+    startMission(p, 'S22'); expect(p.transfer).toBe(2); expect(p.ruleSet).toBe('FDA')
+    const d2 = studyData(2)
+    const record = () => (p.validation ??= []).push(runSummary(p, toIssues(packageFindings(p, d2))))
+    p.csdrg = { domains: suggestNotes(p, allDatasets(p, d2)), author: 'Learner' }
+    record()
+    let r = evaluateMission(p, 'S22')
+    expect(r.score, r.detail.slice(0, 6).join(' | ')).toBe(100); expect(r.passed).toBe(true)
+    expect(r.domains.length).toBe(23)
+    const vs = structuredClone(p.specs.VS)
+    p.specs.VS.filter = "VSTESTCD = 'NONE'"; record()
+    r = evaluateMission(p, 'S22'); expect(r.passed).toBe(false); expect(r.detail[0]).toMatch(/must pass/)
+    p.specs.VS = vs; delete p.explain; record()
+    r = evaluateMission(p, 'S22'); expect(r.passed).toBe(false)
+    registerCustom([])
+  })
+})
+
+describe('Phase 4c: certificate', () => {
+  test('12 passes including S22, across projects of the same user; the code changes with the name', async () => {
+    const { certificate } = await import('../src/domain/certificate')
+    const { certificatePdf } = await import('../src/domain/certificatePdf')
+    const run = (id: string, score = 90) => ({ id, startedUtc: '2026-11-01T00:00:00Z', endedUtc: '2026-11-01T01:00:00Z', version: '3.4' as const, score, passed: score >= 70, level: 'standard' as const })
+    const a = createProject('u1'); a.missions = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10'].map((id) => run(id))
+    const b = createProject('u1', 'none', '3.4', 'PKX-07-101'); b.missions = [run('S19'), run('S20', 60)]
+    const other = createProject('u2'); other.missions = [run('S22')]
+    let c = certificate([a, b, other], 'u1', 'A Learner')
+    expect(c.passed.length).toBe(11); expect(c.eligible).toBe(false)
+    a.missions.push(run('S22', 80))
+    c = certificate([a, b, other], 'u1', 'A Learner')
+    expect(c.passed.length).toBe(12); expect(c.capstone).toBe(true); expect(c.eligible).toBe(true)
+    expect(c.studies).toEqual(['GLV-12-301', 'PKX-07-101'])
+    expect(c.code).toMatch(/^SDTM-[0-9A-F]{5}-[0-9A-F]{5}$/)
+    expect(certificate([a, b], 'u1', 'B Learner').code).not.toBe(c.code)
+    expect(new TextDecoder().decode(certificatePdf(c, 'A Learner', 'u1', '2026-11-08').slice(0, 5))).toBe('%PDF-')
   })
 })
