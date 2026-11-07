@@ -38,6 +38,7 @@ function MissionCard({ id }: { id: string }) {
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
     : m.kind === 'acrf' ? <Btn onClick={() => go('acrf')}>Open the aCRF</Btn>
+    : m.kind === 'package' ? <><Btn onClick={() => go('validation')}>Open Validation</Btn><Btn onClick={() => go('csdrg')}>Reviewer’s guide</Btn><Btn onClick={() => go('submission')}>Submission</Btn></>
     : m.kind === 'relrec' ? <Btn onClick={() => go('relations')}>Open Relationships</Btn>
     : m.kind === 'custom' ? <><Btn onClick={() => go('raw')}>The EDU form</Btn><Btn onClick={() => go('mapping', m.domains[0])}>Define and map {m.domains[0]}</Btn></>
     : m.kind === 'spec' ? <><Btn onClick={() => go('plan')}>Write the specification</Btn><Btn onClick={() => go('mapping', m.domains[0])}>Program {m.domains[0]}</Btn></>
@@ -45,7 +46,7 @@ function MissionCard({ id }: { id: string }) {
     : m.kind === 'qc' ? <><Btn onClick={() => go('mapping', `qc:${m.domains[0]}`)}>Write your QC {m.domains[0]}</Btn><Btn onClick={() => go('qc')}>Open QC compare</Btn></>
     : m.domains.filter((d) => !isRel(d)).map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d} in the workspace</Btn>)
   return (
-    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : m.kind === 'qc' ? 'Independent QC' : m.kind === 'rerun' ? 'New data transfer' : m.kind === 'spec' ? 'Specification first' : m.kind === 'relrec' ? 'Relationships' : m.kind === 'acrf' ? 'Annotated CRF' : m.kind === 'custom' ? 'Custom domain' : 'Map from raw'} · Pass: {m.pass}</>}
+    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : m.kind === 'qc' ? 'Independent QC' : m.kind === 'rerun' ? 'New data transfer' : m.kind === 'spec' ? 'Specification first' : m.kind === 'relrec' ? 'Relationships' : m.kind === 'acrf' ? 'Annotated CRF' : m.kind === 'custom' ? 'Custom domain' : m.kind === 'package' ? 'Submission package (switches to transfer 2 and the FDA rule set)' : 'Map from raw'} · Pass: {m.pass}</>}
       right={run ? <Pill tone="blue">In progress</Pill> : best ? <Pill tone={best.passed ? 'green' : 'red'}>best {best.score}%</Pill> : null}>
       <p className="text-sm">{m.brief}</p>
       <details className="text-xs"><summary className="cursor-pointer text-lab-text-muted">What to watch for</summary><ul className="list-disc pl-5 mt-1">{m.watch.map((w) => <li key={w}>{w}</li>)}</ul></details>

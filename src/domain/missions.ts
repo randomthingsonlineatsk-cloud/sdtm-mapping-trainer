@@ -13,7 +13,8 @@ import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM, REF_DO
 import { buildRelrec, checkRelrec } from './relrec'
 import { crfPages, suggest, checkAcrf, domainsOf, namedVars, NOT_SUBMITTED } from './acrf'
 import { compareDatasets } from './qc'
-import { canExplain, explanationOf, issueKey, findingKey } from './validation'
+import { canExplain, explanationOf, issueKey, findingKey, packageFindings, toIssues, statusOf } from './validation'
+import { planPackage } from './package'
 import { currentVersion, mismatches } from './plan'
 import { RAW_FIELDS } from './seed'
 import { designBuilt, referenceDesign, TEXT_VARS, TS_TEXT_PARAMS } from './design'
@@ -21,7 +22,7 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
@@ -76,6 +77,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S17', domains: ['aCRF'], kind: 'acrf', phase: 3, title: 'Annotate the CRF', pass: '90% of fields annotated with the variables the study’s mapping puts them in, and no aCRF errors against your own mapping',
     brief: 'On the aCRF tab, annotate every unique CRF page: the variable each field is submitted in, in the standard syntax, or [NOT SUBMITTED]. The suggestions come from your own mapping, so map the domains first; the score compares your annotations with what the study’s reference mapping implies.',
     watch: ['Findings: VSORRES when VSTESTCD = SYSBP, and the unit field too', 'Supplemental qualifiers: QVAL when QNAM = RACE1 in SUPPDM', 'A field another domain looks up (the consent date for RFICDTC) carries that domain’s variable as DM.RFICDTC', 'Link fields (CMAENO, AELBACC) are annotated RELREC', 'Derived variables are not annotated'] },
+  { id: 'S18', domains: ['Package'], kind: 'package', phase: 3, title: 'Validate and explain: the FDA package', pass: '70% or more, with nothing left to fix, every Error explained, no mapping finding explained away, and the data issue left as collected',
+    brief: 'The database is locked (transfer 2) and the package goes to the FDA. Run validation under the FDA rule set; fix what the mapping causes; explain, in the words a reviewer needs, what is true of the data; complete the reviewer’s guide; then build the submission folder on the Submission tab. Map the core domains (DM, AE, CM, DS, EX, LB, VS) and the trial design first.',
+    watch: ['Reject findings stop the package at the gateway: fix them', 'Some findings come from the data, not the mapping: read the site’s comments (CO) before explaining', 'Never change data in the mapping to make a finding go away', 'An explanation says what the records show, why, and what was done', 'Run validation again after the last change'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -115,6 +119,7 @@ export function startMission(p: Project, id: string): MissionRun {
   const run: MissionRun = { id, startedUtc: new Date().toISOString(), version: p.version, ruleSet: p.ruleSet }
   if (def.kind === 'fix') { p.specs.AE = brokenSpec('AE', p.version); p.specs.LB = brokenSpec('LB', p.version) }
   if (def.kind === 'rerun') p.transfer = 2
+  if (def.kind === 'package') { p.transfer = 2; p.ruleSet = 'FDA'; run.ruleSet = 'FDA' }
   if (def.kind === 'spec') for (const d of def.domains) { delete p.specs[d]; if (p.plan) delete p.plan[d] }
   if (def.kind === 'qc') { p.specs.VS = brokenSpec('VS', p.version); if (p.qc) delete p.qc.VS; if (p.qcLog) delete p.qcLog.VS; if (p.qcSignoff) delete p.qcSignoff.VS }
   p.missions.push(run)
@@ -131,6 +136,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const data = studyData(p.transfer ?? 1)
   const ver = p.version
   if (def.kind === 'acrf') return evaluateAcrf(p, data)
+  if (def.kind === 'package') return evaluatePackage(p, data)
   const refDesign = referenceDesign(ver, p.transfer ?? 1)
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
   const results: DomainResult[] = []
@@ -279,4 +285,59 @@ function evaluateAcrf(p: Project, data: ReturnType<typeof studyData>) {
   const passed = score >= 90 && errors.length === 0
   const comparison = { perVar, matched: ok, refRows: total, learnerRows: total, extra: 0 }
   return { score, passed, domains: [{ domain: 'aCRF', score, passed, comparison, findings: [] }], detail: [`aCRF: ${ok} of ${total} fields annotated as the reference mapping implies`, `${errors.length} aCRF error${errors.length === 1 ? '' : 's'} against your own mapping${errors.length ? `: ${errors.slice(0, 3).map((e) => `${e.form}.${e.field} (${e.msg})`).join('; ')}` : ''}`] }
+}
+
+// S18: the package as a whole. 30 points for nothing left to fix, 30 for explaining exactly the
+// issues that come from the data, 15 for what the explanation of the AE date issue says, 15 for
+// a complete reviewer's guide, 10 for a validation run that matches the package (FDA, transfer 2).
+const CORE = ['DM', 'AE', 'CM', 'DS', 'EX', 'LB', 'VS']
+export const EXPLAIN_WORDS: [string, RegExp][] = [
+  ['who confirmed it (the site, the investigator, a query)', /\b(site|investigator|query|queried)\b/i],
+  ['against what (the source document)', /\b(source|medical record|confirm(ed)?|verif(ied|y))\b/i],
+  ['what was done (left or submitted as collected)', /\b(as collected|as recorded|as reported|not changed|unchanged|left|no change)\b/i],
+]
+function evaluatePackage(p: Project, data: ReturnType<typeof studyData>) {
+  for (const d of CORE) if (!p.specs[d]?.vars.length) throw new Error(`Map ${d} first: the package needs the core domains.`)
+  if (!p.design.TS?.length) throw new Error('Build TS first (Trial design tab): the FDA gateway checks it.')
+  const ver = p.version
+  const plan = planPackage(p, data)
+  const issues = plan.issues
+  // What the reference mapping raises on the same data: the issues that are true of the data.
+  const ref: Project = { ...p, specs: Object.fromEntries(Object.keys(p.specs).filter((d) => REF_DOMAINS.includes(d) || REF_CUSTOM.code === d).map((d) => [d, referenceSpec(d, ver)])), design: referenceDesign(ver, p.transfer ?? 1), relrec: p.relrec?.length ? REF_RELREC : undefined }
+  const refKeys = new Set(toIssues(packageFindings(ref, data)).filter((i) => !i.rule.startsWith('DEF-')).map((i) => i.key))
+  const must = issues.filter((i) => statusOf(i, p) === 'Must fix')
+  const explainable = issues.filter((i) => canExplain(i))
+  const legit = explainable.filter((i) => explanationOf(p, i.key) && refKeys.has(i.key))
+  const wrong = explainable.filter((i) => explanationOf(p, i.key) && !refKeys.has(i.key))
+  const missingData = [...refKeys].filter((k) => !issues.some((i) => i.key === k))
+  const need = new Set([...explainable.map((i) => i.key), ...missingData])
+  const a = Math.max(0, 30 - 10 * must.length)
+  const b = need.size ? Math.max(0, Math.round((30 * legit.length) / need.size) - 10 * wrong.length) : 30
+  const planted = issueKey('AE', 'TRN-041', 'AESTDTC')
+  const txt = explanationOf(p, planted)?.text ?? ''
+  const words = EXPLAIN_WORDS.filter(([, re]) => re.test(txt))
+  const c = issues.some((i) => i.key === planted) ? words.length * 5 : 0
+  const guide = plan.findings.filter((f) => f.rule === 'PKG-006')
+  const d = Math.max(0, 15 - 5 * guide.filter((f) => f.sev === 'Error').length - 2 * guide.filter((f) => f.sev === 'Warning').length)
+  const last = (p.validation ?? []).at(-1)
+  const e = plan.findings.some((f) => f.rule === 'PKG-007') || last?.ruleSet !== 'FDA' ? 0 : 10
+  const score = a + b + c + d + e
+  const openErrors = issues.filter((i) => statusOf(i, p) === 'Open' && i.sev !== 'Warning')
+  const passed = score >= 70 && !must.length && !openErrors.length && !wrong.length && !missingData.length
+  const perVar = [
+    { v: 'Nothing left to fix', credit: a / 30, core: '', examples: must.slice(0, 3).map((i) => `${i.dataset} ${i.rule} ${i.variable}`) },
+    { v: 'Data issues explained, mapping issues fixed', credit: b / 30, core: '', examples: [...wrong.map((i) => `${i.dataset} ${i.rule} ${i.variable}: explained, but the mapping causes it`), ...missingData.map((k) => `${k.replace(/\|/g, ' ')}: the data raise this finding, but your datasets do not; data must not be changed to remove it`)].slice(0, 3) },
+    { v: 'Explanation of the AE date issue', credit: c / 15, core: '', examples: EXPLAIN_WORDS.filter(([, re]) => !re.test(txt)).map(([w]) => `Missing: ${w}`) },
+    { v: 'Reviewer’s guide complete', credit: d / 15, core: '', examples: guide.slice(0, 3).map((f) => `${f.where}: ${f.msg}`) },
+    { v: 'Validation run current (FDA)', credit: e / 10, core: '', examples: e ? [] : ['Run validation under FDA after the last change'] },
+  ]
+  const detail = [
+    `Nothing left to fix: ${a}/30${must.length ? ` (${must.length} must-fix issue${must.length === 1 ? '' : 's'})` : ''}`,
+    `Data issues explained: ${b}/30 (${legit.length} of ${need.size} explained${wrong.length ? `; ${wrong.length} mapping finding${wrong.length === 1 ? '' : 's'} explained instead of fixed` : ''}${missingData.length ? `; ${missingData.length} data finding${missingData.length === 1 ? '' : 's'} missing from your datasets` : ''})`,
+    `AE date issue explanation: ${c}/15${words.length < 3 ? ` (missing: ${EXPLAIN_WORDS.filter(([, re]) => !re.test(txt)).map(([w]) => w).join('; ')})` : ''}`,
+    `Reviewer’s guide: ${d}/15${guide.length ? ` (${guide.length} finding${guide.length === 1 ? '' : 's'})` : ''}`,
+    `Validation run: ${e}/10`,
+  ]
+  const comparison = { perVar, matched: legit.length, refRows: need.size, learnerRows: issues.length, extra: wrong.length }
+  return { score, passed, domains: [{ domain: 'Package', score, passed, comparison, findings: [] }], detail }
 }
