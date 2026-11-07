@@ -312,6 +312,8 @@ function phase2(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
 
 // ---------- Eligibility, medical history, deviations and comments ----------
 // A separate random stream again, so everything generated before stays as it was.
+// The AE whose end date precedes its start date (filled when the data are generated).
+export const PLANTED_DATE: { subj?: string; spid?: string; start?: string; end?: string } = {}
 export const PLANTED_DV = { lateReconsent: '103-002', outOfWindow: '105-003' }
 export const LONG_COMMENT = 'Subject reported that the morning dose was taken with breakfast on most days during the first two weeks because of mild nausea on an empty stomach; site re-educated the subject at the Week 2 visit and dosing before breakfast was confirmed at every visit after that.'
 function phase3(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: number) {
@@ -360,6 +362,16 @@ function phase3(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
   labPhase3(forms)
   c(dosed[8], 'LB', 'Week 26', svDate(dosed[8].subj, 'Week 26') || dosed[8].end, 'Sample collected 30 minutes later than planned because of a delayed courier.')
   linkFields(forms)
+  // A data issue that stays in the locked database: one adverse event whose end date is before
+  // its start date. The query was answered by the site (the dates match the source document), so
+  // the data are left as collected and the validation finding is explained in the reviewer's guide.
+  const linked = new Set(forms.CM.filter((x) => x.CMAENO).map((x) => `${x.SUBJID}|${x.CMAENO}`))
+  const bad = forms.AE.find((a) => a.AEENDAT && a.AEONGO === 'N' && a.AESER === 'N' && !a.AELBACC && a.AESTDAT.length === 10 && !linked.has(`${a.SUBJID}|${a.AESPID}`) && S(a.SUBJID)?.fate === 'completed' && Number(a.AESTDAT.slice(8)) > 10)
+  if (bad) {
+    bad.AEENDAT = addDays(bad.AEENDAT, -31)
+    Object.assign(PLANTED_DATE, { subj: bad.SUBJID, spid: bad.AESPID, start: bad.AESTDAT, end: bad.AEENDAT })
+    c(S(bad.SUBJID), 'AE', '', bad.AESTDAT, `Query on AE ${bad.AESPID}: end date is before the start date. Site response: both dates are as recorded in the source document; the correct end date cannot be established. Data left as collected.`)
+  }
   // Diabetes education sessions: no standard domain holds them, so they go to a custom domain.
   for (const s of subjects.filter((x) => x.d1)) {
     const sessions: [string, string][] = [['Day 1', s.d1!]]

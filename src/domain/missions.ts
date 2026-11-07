@@ -2,7 +2,9 @@
 // record by record (records are matched through their trace back to the raw row, or by the
 // natural key for trial design tables, so a wrong VISITNUM costs credit on VISITNUM only).
 // Score per domain (decision D9): credit per reference variable, averaged, minus 3 points for
-// each kind of Error or Reject finding left in the dataset under the project's rule set (at
+// each kind of Error or Reject finding left in the dataset under the project's rule set and
+// not explained (an explanation counts only for a finding the reference mapping raises too:
+// a data issue, not a mapping bug) (at
 // most 30); a pass or fail mark per domain. The mission score is the mean of its domains.
 
 import { build, type Built, type DomainSpec } from './engine'
@@ -11,6 +13,7 @@ import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM, REF_DO
 import { buildRelrec, checkRelrec } from './relrec'
 import { crfPages, suggest, checkAcrf, domainsOf, namedVars, NOT_SUBMITTED } from './acrf'
 import { compareDatasets } from './qc'
+import { canExplain, explanationOf, issueKey, findingKey } from './validation'
 import { currentVersion, mismatches } from './plan'
 import { RAW_FIELDS } from './seed'
 import { designBuilt, referenceDesign, TEXT_VARS, TS_TEXT_PARAMS } from './design'
@@ -121,7 +124,7 @@ export function startMission(p: Project, id: string): MissionRun {
 export const activeRun = (p: Project, id: string) => [...p.missions].reverse().find((m) => m.id === id && m.score === undefined)
 export const bestRun = (p: Project, id: string) => p.missions.filter((m) => m.id === id && m.score !== undefined).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
 
-export interface DomainResult { domain: string; score: number; passed: boolean; comparison: Comparison; findings: Finding[] }
+export interface DomainResult { domain: string; score: number; passed: boolean; comparison: Comparison; findings: Finding[]; counted?: number }
 export function evaluateMission(p: Project, id: string): { score: number; passed: boolean; domains: DomainResult[]; detail: string[] } {
   const def = MISSIONS.find((m) => m.id === id)!
   if (p.imported) throw new Error('Missions run on GLV-12-301. Open or start a GLV-12-301 project.')
@@ -132,9 +135,11 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
   const results: DomainResult[] = []
   const errs: string[] = []
+  const explainedOk: string[] = [], explainedWrongly: string[] = []
   const tracks: { d: string; qc: boolean }[] = def.domains.flatMap((d) => (def.kind === 'qc' ? [{ d, qc: false }, { d, qc: true }] : [{ d, qc: false }]))
   for (const { d, qc } of tracks) {
     let mine: Built, ref: Built, relFindings: Finding[] | null = null
+    let refKeys = new Set<string>()
     if (def.kind === 'design') {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
     } else if (d === 'RELREC') {
@@ -154,16 +159,22 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
       const spec = qc ? p.qc?.[d] : p.specs[d]
       if (!spec?.vars.length) throw new Error(qc ? `Write your QC ${d} first: switch the Mapping workspace to QC.` : `Map ${d} first: the workspace has no ${d} variables yet.`)
       mine = build(spec, data, ver); ref = build(referenceSpec(d, ver), data, ver)
+      refKeys = new Set(check(ref, ver, d === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).map(findingKey))
       for (const [v, e] of Object.entries(mine.errors)) errs.push(`${d}.${v} (${e.count}×: ${e.first})`)
     }
     // The parent's checks cover its SUPP--/NS-- dataset (TRN-049); score each on its own findings.
     const findings = relFindings ?? (isRel(d) ? (() => { const spec = p.specs[relParent(d)]; return spec?.vars.length ? check(build(spec, data, ver), ver, relParent(d) === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).filter((f) => f.domain === mine.domain) : [] })() : check(mine, ver, d === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).filter((f) => !isRel(f.domain)))
     const comparison = compare(mine, ref, ver, TEXT_VARS[d] ?? [])
-    const kinds = summarise(findings).filter((s) => s.sev !== 'Warning')
+    const all = summarise(findings).filter((s) => s.sev !== 'Warning')
+    const keyOf = (k: (typeof all)[number]) => issueKey(k.first.domain, k.rule, k.variable)
+    const explained = all.filter((k) => canExplain(k) && explanationOf(p, keyOf(k)) && refKeys.has(keyOf(k)))
+    const kinds = all.filter((k) => !explained.includes(k))
+    for (const k of all) if (!explained.includes(k) && explanationOf(p, keyOf(k))) explainedWrongly.push(`${k.first.domain} ${k.rule} ${k.variable}`)
+    for (const k of explained) explainedOk.push(`${k.first.domain} ${k.rule} ${k.variable}`)
     const raw = comparison.perVar.length ? (comparison.perVar.reduce((a, x) => a + x.credit, 0) / comparison.perVar.length) * 100 : 0
     const score = Math.max(0, Math.round(raw - Math.min(30, 3 * kinds.length)))
     const blocking = kinds.filter((k) => BLOCKING.has(k.rule) || k.sev === 'Reject')
-    results.push({ domain: `${dsName(d, ver)}${qc ? ' (QC)' : ''}`, score, passed: score >= 70 && !blocking.length, comparison, findings })
+    results.push({ domain: `${dsName(d, ver)}${qc ? ' (QC)' : ''}`, score, passed: score >= 70 && !blocking.length, comparison, findings, counted: kinds.length })
   }
   const score = Math.round(results.reduce((a, r) => a + r.score, 0) / results.length)
   let passed = results.every((r) => r.passed)
@@ -195,7 +206,9 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   }
   const detail = [
     ...qcNotes,
-    ...results.map((r) => { const k = summarise(r.findings).filter((s) => s.sev !== 'Warning'); return `${r.domain}: ${r.score}% (${r.passed ? 'pass' : 'fail'}) · ${r.comparison.matched} of ${r.comparison.refRows} reference records matched, ${r.comparison.extra} extra · ${k.length} kind${k.length === 1 ? '' : 's'} of Error/Reject finding${k.length ? `: ${k.map((x) => `${x.rule} ${x.variable}`).join(', ')}` : ''}` }),
+    ...results.map((r) => { const k = summarise(r.findings).filter((s) => s.sev !== 'Warning'); return `${r.domain}: ${r.score}% (${r.passed ? 'pass' : 'fail'}) · ${r.comparison.matched} of ${r.comparison.refRows} reference records matched, ${r.comparison.extra} extra · ${k.length} kind${k.length === 1 ? '' : 's'} of Error/Reject finding${k.length ? `: ${k.map((x) => `${x.rule} ${x.variable}`).join(', ')}` : ''}${k.length !== (r.counted ?? k.length) ? ` (${k.length - (r.counted ?? 0)} explained)` : ''}` }),
+    ...(explainedOk.length ? [`Explained data issues (not deducted): ${explainedOk.join('; ')}`] : []),
+    ...(explainedWrongly.length ? [`Explained, but the reference mapping does not raise them, so they come from the mapping and still count: ${explainedWrongly.join('; ')}. Fix the mapping instead.`] : []),
     ...(errs.length ? [`Rules that failed while building: ${errs.join('; ')}`] : []),
   ]
   return { score, passed, domains: results, detail }

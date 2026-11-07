@@ -253,6 +253,17 @@ export const TOPICS: Topic[] = [
       { q: 'What is the origin of AEDECOD from the coding team’s export?', options: ['Collected', 'Derived', 'Assigned', 'Protocol'], answer: 2, why: 'Dictionary coding is assigned by the sponsor, not collected on the CRF.' },
       { q: 'Where does define.xml say how VSORRES is collected for systolic blood pressure?', options: ['In the codelist', 'In value-level metadata, with a where clause VSTESTCD = SYSBP', 'In a comment', 'Nowhere'], answer: 1, why: 'Value-level metadata gives metadata per test.' },
     ] },
+  { id: 'csdrg', title: 'Validation and the reviewer’s guide',
+    body: [
+      'Before a package goes out, the datasets and define.xml are validated under the rules of the agency that will receive them. A validator groups its findings into issues: one per check, dataset and variable, with the number of records and subjects. The run report is kept with the delivery.',
+      'Each issue is fixed or explained. Reject findings must be fixed: the agency’s gateway refuses the package. Findings that mean the mapping is wrong (a Required variable null, duplicate --SEQ) are fixed in the program, and define.xml findings are fixed in the metadata. An Error or Warning that is true of the data, such as an end date before a start date that the site confirmed in a query, is left as collected and explained.',
+      'The explanation goes into the Clinical Study Data Reviewer’s Guide (cSDRG), written in the PHUSE template’s sections: introduction (purpose, acronyms, standards and dictionaries with versions, source data), protocol description, subject data description (the aCRF and a note for each domain that needs one), data conformance summary (the validation inputs and every issue not fixed, with its explanation) and an appendix with the inclusion and exclusion criteria.',
+      'A good explanation says what the records show, why, and what was done: “AE end date precedes the start date for one event; the site confirmed both dates against the source in a query; the data are submitted as collected.” “Data issue” or “as per sponsor” tells a reviewer nothing. Explaining a finding that the mapping causes hides an error; in missions it still costs points.',
+    ],
+    quiz: [
+      { q: 'A Reject finding remains in a dataset for an FDA submission. What do you do?', options: ['Explain it in the cSDRG', 'Fix it before the package goes out', 'Ignore it if fewer than 5 records', 'Move it to SUPP--'], answer: 1, why: 'Reject findings stop the package at the gateway; they cannot be explained.' },
+      { q: 'One AE ends before it starts; the site confirmed both dates against the source. What goes into the cSDRG?', options: ['Nothing: change the end date', 'An explanation in the issues summary of the data conformance section', 'A note in define.xml only', 'A protocol deviation'], answer: 1, why: 'The data stay as collected, and the issue is explained in section 4 of the reviewer’s guide.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

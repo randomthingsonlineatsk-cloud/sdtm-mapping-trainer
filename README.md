@@ -154,11 +154,25 @@ rules; no vendor rule text or tool is copied.
   leaf links. A readable preview with working links, the app's own stylesheet for opening the
   file in a browser, and define checks (origins against the aCRF, codelists against the data,
   methods, labels, keys).
+- **Validation and explain-or-fix:** one validation run over the whole package (datasets,
+  RELREC, trial design and define.xml) under the CDISC, FDA or PMDA rule set, with findings
+  grouped into issues (records and subjects per check, dataset and variable), a run history
+  that shows what was fixed since the last run, and a run report and a details file (CSV).
+  Each issue is fixed or explained; Reject findings, mapping errors and define.xml findings
+  cannot be explained. The locked data keep one real data issue (an adverse event that ends
+  before it starts, confirmed by the site in a query). Mission scores deduct only findings
+  that are not explained, and an explanation counts only for a finding the reference mapping
+  raises too.
+- **Reviewer's guide (cSDRG):** the PHUSE template's sections, filled from the project
+  (standards and dictionary versions, source data, design, trial design datasets, aCRF,
+  subject domains, conformance inputs, the issues summary with your explanations, and the
+  inclusion and exclusion criteria), with your own purpose, source and domain notes; guide
+  checks; csdrg.pdf with linked contents, bookmarks and page numbers.
 
 ## Coming next
 
-- **Rest of Phase 3:** the reviewer's guide, a submission-style zip, and a pharmacokinetics
-  study (PC and PP).
+- **Rest of Phase 3:** a submission-style zip with a validate-and-explain mission, and a
+  pharmacokinetics study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study

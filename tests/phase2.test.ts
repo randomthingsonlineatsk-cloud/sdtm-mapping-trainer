@@ -17,6 +17,9 @@ import { toIso, toIsoTime, anyDate, toEdc } from '../src/domain/rawdate'
 import { raw } from '../src/domain/seed'
 
 const data = studyData()
+// The one data issue the locked database keeps (an AE ending before it starts, confirmed by the
+// site): explained, as it would be in the reviewer's guide.
+const EXPLAIN = { 'AE|TRN-041|AESTDTC': { text: 'AE end date precedes the start date for one event; the site confirmed both dates against the source in a query, so the data are submitted as collected.', by: 'u', utc: '2026-10-21T00:00:00Z' } }
 const full = (v: '3.4' | '4.0d' = '3.4') => {
   const p = createProject('u', 'c', v)
   for (const d of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'IE', 'MH', 'EC', 'DV', 'CO']) p.specs[d] = referenceSpec(d, v)
@@ -24,6 +27,7 @@ const full = (v: '3.4' | '4.0d' = '3.4') => {
   p.specs.XE = referenceSpec('XE', v); p.custom = [REF_CUSTOM]; p.relrec = REF_RELREC.map((x) => ({ ...x }))
   p.specs.SV = referenceSpec('SV', v)
   p.acrf = Object.fromEntries(crfPages(raw().forms).map((pg) => [pg.form, suggest(pg.form, p.specs, p.relrec!, v)]))
+  p.explain = structuredClone(EXPLAIN)
   return p
 }
 
@@ -321,7 +325,7 @@ describe('data transfer 2 (mission S11)', () => {
     for (const k of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'SV']) expect(build(referenceSpec(k, '3.4'), d2).errors, k).toEqual({})
     const p = createProject()
     for (const d of ['DM', 'AE', 'LB']) p.specs[d] = referenceSpec(d, '3.4')
-    p.specs.AE.supp = undefined
+    p.specs.AE.supp = undefined; p.explain = structuredClone(EXPLAIN)
     startMission(p, 'S11'); expect(p.transfer).toBe(2)
     expect(evaluateMission(p, 'S11').score).toBe(100)
     p.specs.LB.rules.LBSTRESC = { kind: 'expr', expr: "if(isblank(RESULT), '', if(substr(RESULT, 1, 1) = '<', RESULT, str(round(num(RESULT) * lab(TESTCODE, 'factor'), lab(TESTCODE, 'decimals')))))" }
@@ -543,6 +547,72 @@ describe('Phase 3c: define.xml', () => {
     const p2 = full(); delete p2.acrf!.DM.BRTHDAT
     const m2 = buildDefine({ builts: all, specs: p2.specs, version: '3.4', laid: layoutAcrf(crfPages(raw().forms), p2.acrf!), designDomains: TRIAL_DESIGN })
     expect(checkDefine(m2, all).some((f) => f.rule === 'DEF-001' && f.where === 'DM.BRTHDTC')).toBe(true)
+    registerCustom([])
+  })
+})
+
+describe('Phase 3d: validation, explanations and the reviewer\'s guide', () => {
+  test('the locked data keep one explainable issue; an explanation waives it only when the reference raises it too', async () => {
+    const { packageFindings, toIssues, statusOf } = await import('../src/domain/validation')
+    const { PLANTED_DATE } = await import('../src/domain/seed')
+    const { registerCustom } = await import('../src/domain/standards')
+    raw(); expect(PLANTED_DATE.subj).toBeTruthy()
+    for (const rs of RULE_SETS) {
+      const p = full(); p.ruleSet = rs.id; registerCustom(p.custom)
+      const issues = toIssues(packageFindings(p, data))
+      expect(issues.map((i) => i.key), rs.id).toEqual(['AE|TRN-041|AESTDTC'])
+      expect(issues[0].count).toBe(1); expect(issues[0].subjects).toBe(1)
+      expect(statusOf(issues[0], p)).toBe('Explained')
+      delete p.explain; expect(statusOf(issues[0], p)).toBe('Open')
+      registerCustom([])
+    }
+    // The comment log carries the site's query answer.
+    expect(raw().forms.CO.some((c) => c.SUBJID === PLANTED_DATE.subj && /source document/.test(c.COMMENT))).toBe(true)
+    // Unexplained: 3 points off AE in S3; explained: no deduction.
+    const p = full(); delete p.explain
+    expect(evaluateMission(p, 'S3').domains.find((d) => d.domain === 'AE')!.score).toBe(97)
+    p.explain = structuredClone(EXPLAIN)
+    expect(evaluateMission(p, 'S3').domains.find((d) => d.domain === 'AE')!.score).toBe(100)
+    // Explaining a finding the mapping causes does not help.
+    p.specs.VS.rules.VSDTC = { kind: 'expr', expr: 'VSDAT' } as never
+    p.explain['VS|TRN-005|VSDTC'] = { text: 'Dates are as the site recorded them in the EDC system.', by: 'u', utc: '2026-10-21T00:00:00Z' }
+    const r = evaluateMission(p, 'S2')
+    expect(r.detail.join(' ')).toMatch(/reference mapping does not raise them.*VS TRN-005 VSDTC/)
+  })
+  test('Reject and mapping-error findings cannot be explained', async () => {
+    const { canExplain } = await import('../src/domain/validation')
+    expect(canExplain({ rule: 'TRN-030', sev: 'Reject' })).toBe(false)
+    expect(canExplain({ rule: 'TRN-002', sev: 'Error' })).toBe(false)
+    expect(canExplain({ rule: 'TRN-041', sev: 'Error' })).toBe(true)
+  })
+  test('the run report, the guide and csdrg.pdf', async () => {
+    const { packageFindings, toIssues, runSummary, reportCsv, detailsCsv } = await import('../src/domain/validation')
+    const { buildCsdrg, suggestNotes } = await import('../src/domain/csdrg')
+    const { csdrgPdf } = await import('../src/domain/csdrgPdf')
+    const { allDatasets } = await import('../src/domain/datasets')
+    const { registerCustom } = await import('../src/domain/standards')
+    const p = full(); registerCustom(p.custom)
+    const all = allDatasets(p, data)
+    const issues = toIssues(packageFindings(p, data, all))
+    const run = runSummary(p, issues)
+    const csv = reportCsv(p, issues, run)
+    expect(csv.split('\r\n')[1]).toMatch(/^GLV-12-301,.*,CDISC,1,3\.4,AE,TRN-041,Error,AESTDTC,1,1,.*,Explained,/)
+    expect(detailsCsv(issues).split('\r\n').length).toBe(3)
+    // Without a run or notes the guide says what is missing.
+    let g = buildCsdrg(p, data, all, issues)
+    expect(g.findings.map((f) => `${f.rule} ${f.where}`)).toEqual(['CSD-004 4.1', 'CSD-005 3.3 AE', 'CSD-005 3.3 DM', 'CSD-005 3.3 XE'])
+    p.csdrg = { domains: suggestNotes(p, all), author: 'Learner' }
+    g = buildCsdrg(p, data, all, issues, run)
+    expect(g.findings).toEqual([])
+    expect(g.sections.map((s) => s.num)).toEqual(expect.arrayContaining(['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '2.3', '3.1', '3.2', '3.3', '3.3.XE', '4.1', '4.2', '5.1']))
+    const s42 = g.sections.find((s) => s.num === '4.2')!
+    expect(s42.table!.rows[0][5]).toMatch(/site confirmed/)
+    expect(g.sections.find((s) => s.num === '5.1')!.table!.rows.length).toBe(p.design.TI.length)
+    delete p.explain
+    expect(buildCsdrg(p, data, all, issues, run).findings.map((f) => f.rule)).toEqual(['CSD-002'])
+    const bytes = csdrgPdf('GLV-12-301', g, { author: 'Learner', date: '2026-10-21', title: 'Training study' })
+    const head = new TextDecoder().decode(bytes.slice(0, 8))
+    expect(head).toBe('%PDF-1.3')
     registerCustom([])
   })
 })
