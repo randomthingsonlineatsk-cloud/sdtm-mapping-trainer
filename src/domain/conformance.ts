@@ -6,7 +6,7 @@
 // rule files are the authority. Phase 3 adds explaining findings in the reviewer's guide.
 
 import type { Built } from './engine'
-import { varsOf, CT, metaOf, type Version } from './standards'
+import { varsOf, CT, metaOf, customDomains, customCodeProblem, type Version } from './standards'
 import { studyDay, cmpDtc } from './engine'
 
 export type Severity = 'Reject' | 'Error' | 'Warning'
@@ -52,6 +52,9 @@ export const RULES: Rule[] = [
   { id: 'TRN-037', sev: 'Error', text: 'TS: TSVALNF must be populated exactly when TSVAL is null', basis: 'SDTMIG TS assumptions: null flavors (ISO 21090)' },
   { id: 'TRN-038', sev: 'Error', text: 'TS value in the wrong format: SSTDTC, SENDTC and DCUTDTC must be ISO 8601; NARMS, PLANSUB and ACTSUB numbers', basis: 'SDTMIG TS; FDA validator rules' },
   { id: 'TRN-039', sev: 'Warning', text: 'TS: an add-on study (ADDON = Y) has no current treatment (CURTRT)', basis: 'FDA validator rules: CURTRT when ADDON is Y', sets: { FDA: 'Error' } },
+  { id: 'TRN-054', sev: 'Error', text: 'RELREC record points to a record that does not exist (RDOMAIN, IDVAR, IDVARVAL)', basis: 'SDTMIG relationship datasets: RELREC' },
+  { id: 'TRN-055', sev: 'Error', text: 'RELREC: a RELID relates fewer than two records', basis: 'SDTMIG relationship datasets: RELREC' },
+  { id: 'TRN-056', sev: 'Warning', text: 'Custom domain where a standard domain may fit, or a custom domain code not starting with X, Y or Z', basis: 'SDTMIG: custom domains only when no published domain fits; codes beginning X, Y, Z are reserved for sponsor domains' },
   { id: 'TRN-032', sev: 'Error', text: 'ARMCD or ACTARMCD in DM is not an arm in TA', basis: 'SDTMIG: arms in DM come from TA' },
   { id: 'TRN-033', sev: 'Warning', text: 'A planned VISITNUM is not in TV', basis: 'SDTMIG: scheduled visits are defined in TV' },
   { id: 'TRN-034', sev: 'Error', text: 'EPOCH value is not an epoch in TA', basis: 'SDTMIG: EPOCH values come from TA' },
@@ -154,6 +157,12 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
   if (d === 'DS' && has('DSCAT') && has('EPOCH')) {
     const seen = new Set<string>()
     b.rows.forEach((r, i) => { if (r.DSCAT !== 'DISPOSITION EVENT') return; const k = `${r.USUBJID}|${r.EPOCH}`; if (seen.has(k)) add('TRN-047', 'DSDECOD', `Second disposition event for ${r.USUBJID} in ${r.EPOCH || 'null epoch'}`, i); seen.add(k) })
+  }
+  const custom = customDomains().find((c) => c.code === d)
+  if (custom) {
+    const problem = customCodeProblem(d)
+    if (problem) add('TRN-056', 'DOMAIN', problem)
+    if (custom.reason.trim().length < 20) add('TRN-056', 'DOMAIN', `${d}: no reason recorded for why no standard domain fits`)
   }
   if (d === 'TS') {
     if (!b.rows.some((r) => r.TSPARMCD === 'SSTDTC' && r.TSVAL)) add('TRN-030', 'TSPARMCD', 'No TSPARMCD = SSTDTC with a value')

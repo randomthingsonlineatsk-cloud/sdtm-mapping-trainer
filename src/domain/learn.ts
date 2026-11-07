@@ -222,6 +222,17 @@ export const TOPICS: Topic[] = [
     quiz: [
       { q: 'Your SUPPAE has QNAM = AETREATEMERG. What goes wrong?', options: ['Nothing', 'It is longer than 8 characters: not a valid XPT name', 'It must start with SUPP', 'QNAM must be numeric'], answer: 1, why: 'QNAM values become variable names when SUPP-- is transposed, so they follow the 8-character rule.' },
     ] },
+  { id: 'relrec', title: 'RELREC and custom domains',
+    body: [
+      'RELREC says which records of different domains belong together: an adverse event and the medication given for it, or an abnormal-lab adverse event and the result behind it. Each record of a related group is one RELREC row (RDOMAIN, USUBJID, IDVAR = --SEQ, IDVARVAL) and the group shares a RELID. RELTYPE is used only for dataset-level relationships (ONE, MANY).',
+      'The link usually comes from fields the CRF collects only to tie records together, such as the AE number on a medication form. They are not submitted as variables; RELREC carries the relationship.',
+      'A custom (sponsor-defined) domain is allowed only when no published domain fits the data. Its code starts with X, Y or Z, which CDISC reserves for sponsors; it follows one of the general observation classes (interventions, events, findings) with the domain prefix on every variable, and define.xml and the reviewer’s guide say why it was needed.',
+    ],
+    example: { caption: 'RELREC for an adverse event treated with one medication', head: ['RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'RELID'], rows: [['AE', 'GLV-12-301-101-002', 'AESEQ', '2', 'AECM1'], ['CM', 'GLV-12-301-101-002', 'CMSEQ', '3', 'AECM1']] },
+    quiz: [
+      { q: 'What links a RELREC row to its record?', options: ['RELID alone', 'RDOMAIN, USUBJID and IDVAR/IDVARVAL', 'The row order', 'QNAM'], answer: 1, why: 'RDOMAIN names the domain; IDVAR (--SEQ) and IDVARVAL find the record of that subject.' },
+      { q: 'Which code can a sponsor use for a custom domain?', options: ['ED', 'XE', 'EX', 'QS'], answer: 1, why: 'Codes beginning with X, Y or Z are reserved for sponsor-defined domains; EX and QS are standard.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

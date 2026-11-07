@@ -129,10 +129,22 @@ rules; no vendor rule text or tool is copied.
   lower upper limit from Week 12, so LBNRIND has to follow the range on each record. The
   baseline lesson explains why reviewers rely on --LOBXFL rather than --BLFL.
 
+## Phase 3
+
+- **RELREC:** a Relationships tab where rules link records of two domains by a key: an
+  adverse event to the medications given for it (the AE number collected on the medication
+  form) and an abnormal-lab adverse event to the ALT result behind it (the lab accession
+  number). RELREC is built with RELIDs and --SEQ links and checked for broken links.
+  Mission S15.
+- **Custom domains:** a builder that asks what the data are, lists the standard domains that
+  might already hold them, requires a reason why none fits and a code starting with X, Y or Z,
+  and creates the domain from the general observation class variables. The diabetes education
+  form goes to the sponsor domain XE. Mission S16.
+
 ## Coming next
 
-- **Phase 3:** aCRF editor and acrf.pdf, define.xml v2.1 with a preview, the reviewer's guide,
-  RELREC and custom domains, and a pharmacokinetics study (PC and PP).
+- **Rest of Phase 3:** aCRF editor and acrf.pdf, define.xml v2.1 with a preview, the
+  reviewer's guide, a submission-style zip, and a pharmacokinetics study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
