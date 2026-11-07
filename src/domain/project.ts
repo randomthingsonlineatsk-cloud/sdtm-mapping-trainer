@@ -20,7 +20,8 @@ import type { Explanation, ValidationRun } from './validation'
 import type { CsdrgNotes } from './csdrg'
 
 export interface ImportedStudy { protocol: string; title: string; source: string; importedUtc: string; forms: Record<string, Row[]>; visits: Visit[]; notes: string[] }
-export interface MissionRun { id: string; startedUtc: string; version: Version; ruleSet?: RuleSet; domainScores?: Record<string, number>; endedUtc?: string; score?: number; passed?: boolean; detail?: string[]; perVar?: { v: string; credit: number; core: string; examples: string[] }[]; domainPass?: Record<string, boolean>; findings?: number }
+export type Level = 'guided' | 'standard' | 'expert'
+export interface MissionRun { id: string; startedUtc: string; version: Version; ruleSet?: RuleSet; level?: Level; domainScores?: Record<string, number>; endedUtc?: string; score?: number; passed?: boolean; detail?: string[]; perVar?: { v: string; credit: number; core: string; examples: string[] }[]; domainPass?: Record<string, boolean>; findings?: number }
 export interface LogEntry { utc: string; what: string }
 export interface QcResolution { status: 'Open' | 'Production corrected' | 'QC corrected' | 'Explained'; note: string; utc: string }
 export interface Project {
@@ -32,6 +33,7 @@ export interface Project {
   design: Record<string, DesignRow[]> // TA, TE, TV, TI, TS as tables
   ruleSet: RuleSet
   missions: MissionRun[]
+  missionLevel?: Level // the level new mission runs start at
   quiz: Record<string, Record<string, number>>
   log: LogEntry[]
   acrf?: Record<string, Record<string, string>> // annotations per CRF page and field

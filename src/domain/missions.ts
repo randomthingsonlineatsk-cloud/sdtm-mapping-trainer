@@ -13,9 +13,10 @@ import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM, REF_DO
 import { buildRelrec, checkRelrec } from './relrec'
 import { crfPages, suggest, checkAcrf, domainsOf, namedVars, NOT_SUBMITTED } from './acrf'
 import { compareDatasets } from './qc'
-import { refSpecFor, studyIdOf, isPk } from './project'
+import { refSpecFor, studyIdOf, isPk, type Level } from './project'
 import { pkData, PK_RELREC } from './pk'
 import { STUDY } from './study'
+import { TRIAL_DESIGN } from './standards'
 import { canExplain, explanationOf, issueKey, findingKey, packageFindings, toIssues, statusOf } from './validation'
 import { planPackage } from './package'
 import { currentVersion, mismatches } from './plan'
@@ -25,7 +26,7 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package' | 'capstone'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string; study?: string }
 // The missions of the project's study (GLV-12-301 unless a mission names another).
 export const missionsFor = (p: Project) => MISSIONS.filter((m) => (m.study ?? STUDY.id) === studyIdOf(p))
@@ -85,6 +86,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S18', domains: ['Package'], kind: 'package', phase: 3, title: 'Validate and explain: the FDA package', pass: '70% or more, with nothing left to fix, every Error explained, no mapping finding explained away, and the data issue left as collected',
     brief: 'The database is locked (transfer 2) and the package goes to the FDA. Run validation under the FDA rule set; fix what the mapping causes; explain, in the words a reviewer needs, what is true of the data; complete the reviewer’s guide; then build the submission folder on the Submission tab. Map the core domains (DM, AE, CM, DS, EX, LB, VS) and the trial design first.',
     watch: ['Reject findings stop the package at the gateway: fix them', 'Some findings come from the data, not the mapping: read the site’s comments (CO) before explaining', 'Never change data in the mapping to make a finding go away', 'An explanation says what the records show, why, and what was done', 'Run validation again after the last change'] },
+  { id: 'S22', domains: ['DM', 'SUPPDM', 'VS', 'AE', 'SUPPAE', 'CM', 'EX', 'DS', 'LB', 'IE', 'MH', 'EC', 'DV', 'CO', 'SV', 'XE', 'RELREC', 'TA', 'TE', 'TV', 'TI', 'TS'], kind: 'capstone', phase: 4, title: 'Capstone: the full submission package', pass: '70% or more, with every dataset passing, mission S18’s conditions met and no package check that stops the package',
+    brief: 'The whole job, as a study programmer does it at database lock: every domain of GLV-12-301 from transfer 2 (with SUPPDM, SUPPAE, the custom XE and RELREC), the trial design, the annotated CRF, define.xml, a clean FDA validation run with every data issue explained, and the reviewer’s guide; then the package on the Submission tab. Datasets count 60%, the package 40%.',
+    watch: ['Start from the mappings you built in the earlier missions; transfer 2 changes the data, not the conventions', 'Every dataset is scored as in its own mission', 'Annotate every CRF page again if the mapping changed', 'Fix, then explain, then run validation last', 'The Submission tab lists anything that would stop the package'] },
   { id: 'S19', study: 'PKX-07-101', domains: ['DM', 'EX'], kind: 'map', phase: 3, title: 'PK study: DM and EX with exact dose times', pass: PASS,
     brief: 'PKX-07-101 is a first-in-human study: every concentration is timed from a dose, so the dose times matter. Map DM (reference dates to the minute, arms from the IRT, screen failures) and EX (one record per dose, unblinded from the IRT kit arm, with the clock time from the dosing log).',
     watch: ['RFSTDTC and RFXSTDTC carry the time of the first dose; RFENDTC the last dose', 'Part A doses once (EXDOSFRQ ONCE), Part B daily for 7 days (QD)', 'Placebo: EXTRT PLACEBO, EXDOSE 0', 'The dosing log time is 24-hour HH:MM'] },
@@ -130,10 +134,10 @@ export function compare(mine: Built, ref: Built, ver: Version, textVars: string[
 
 export function startMission(p: Project, id: string): MissionRun {
   const def = MISSIONS.find((m) => m.id === id)!
-  const run: MissionRun = { id, startedUtc: new Date().toISOString(), version: p.version, ruleSet: p.ruleSet }
+  const run: MissionRun = { id, startedUtc: new Date().toISOString(), version: p.version, ruleSet: p.ruleSet, level: p.missionLevel ?? 'standard' }
   if (def.kind === 'fix') { p.specs.AE = brokenSpec('AE', p.version); p.specs.LB = brokenSpec('LB', p.version) }
   if (def.kind === 'rerun') p.transfer = 2
-  if (def.kind === 'package') { p.transfer = 2; p.ruleSet = 'FDA'; run.ruleSet = 'FDA' }
+  if (def.kind === 'package' || def.kind === 'capstone') { p.transfer = 2; p.ruleSet = 'FDA'; run.ruleSet = 'FDA' }
   if (def.kind === 'spec') for (const d of def.domains) { delete p.specs[d]; if (p.plan) delete p.plan[d] }
   if (def.kind === 'qc') { p.specs.VS = brokenSpec('VS', p.version); if (p.qc) delete p.qc.VS; if (p.qcLog) delete p.qcLog.VS; if (p.qcSignoff) delete p.qcSignoff.VS }
   p.missions.push(run)
@@ -149,6 +153,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   if (p.imported) throw new Error('Missions run on the trainer’s studies. Open or start a GLV-12-301 or PKX-07-101 project.')
   if ((def.study ?? STUDY.id) !== studyIdOf(p)) throw new Error(`Mission ${id} runs on ${def.study ?? STUDY.id}: open a project on that study.`)
   const data = isPk(p) ? pkData() : studyData(p.transfer ?? 1)
+  const cost = levelOf(p, id) === 'expert' ? 2 : 1
   const referenceSpec = (d: string, _v: Version) => refSpecFor(p, d)
   const ver = p.version
   if (def.kind === 'acrf') return evaluateAcrf(p, data)
@@ -162,7 +167,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   for (const { d, qc } of tracks) {
     let mine: Built, ref: Built, relFindings: Finding[] | null = null
     let refKeys = new Set<string>()
-    if (def.kind === 'design') {
+    if (def.kind === 'design' || (def.kind === 'capstone' && TRIAL_DESIGN.includes(d))) {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
     } else if (d === 'RELREC') {
       const need = isPk(p) ? ['PC', 'PP'] : ['AE', 'CM', 'LB']
@@ -194,7 +199,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
     for (const k of all) if (!explained.includes(k) && explanationOf(p, keyOf(k))) explainedWrongly.push(`${k.first.domain} ${k.rule} ${k.variable}`)
     for (const k of explained) explainedOk.push(`${k.first.domain} ${k.rule} ${k.variable}`)
     const raw = comparison.perVar.length ? (comparison.perVar.reduce((a, x) => a + x.credit, 0) / comparison.perVar.length) * 100 : 0
-    const score = Math.max(0, Math.round(raw - Math.min(30, 3 * kinds.length)))
+    const score = Math.max(0, Math.round(raw - Math.min(30 * cost, 3 * cost * kinds.length)))
     const blocking = kinds.filter((k) => BLOCKING.has(k.rule) || k.sev === 'Reject')
     results.push({ domain: `${dsName(d, ver)}${qc ? ' (QC)' : ''}`, score, passed: score >= 70 && !blocking.length, comparison, findings, counted: kinds.length })
   }
@@ -233,13 +238,35 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
     ...(explainedWrongly.length ? [`Explained, but the reference mapping does not raise them, so they come from the mapping and still count: ${explainedWrongly.join('; ')}. Fix the mapping instead.`] : []),
     ...(errs.length ? [`Rules that failed while building: ${errs.join('; ')}`] : []),
   ]
+  if (def.kind === 'capstone') {
+    // The datasets count 60%, the package (fixed, explained, guide, current run) 40%; it passes
+    // only when every dataset passes, the package mission passes and nothing stops the package.
+    const pkg = evaluatePackage(p, data)
+    const stops = planPackage(p, data).findings.filter((f) => f.sev === 'Error')
+    const total = Math.round(0.6 * score + 0.4 * pkg.score)
+    const ok = passed && pkg.passed && !stops.length
+    return { score: total, passed: total >= 70 && ok, domains: [...results, ...pkg.domains], detail: [
+      `Datasets: ${score}% (60% of the score); every dataset ${passed ? 'passes' : 'must pass'}`,
+      `Package: ${pkg.score}% (40% of the score)${pkg.passed ? '' : ', not passed'}`,
+      ...(stops.length ? [`The package is not ready: ${stops.map((f) => `${f.rule} ${f.where}: ${f.msg}`).join('; ')}`] : ['Package checks: nothing stops the package']),
+      ...pkg.detail, ...detail,
+    ] }
+  }
   return { score, passed, domains: results, detail }
 }
+// Levels, as in the CDM Console. The pass mark is the same at every level.
+export const LEVEL_TEXT: Record<Level, string> = {
+  guided: 'Guided: tips, and progress checks that show which variables still differ from the reference.',
+  standard: 'Standard: tips, and progress checks that show the score only.',
+  expert: 'Expert: no tips and no progress checks; each kind of Error or Reject finding costs 6 points instead of 3 (at most 60).',
+}
+export const levelOf = (p: Project, id: string): Level => activeRun(p, id)?.level ?? p.missionLevel ?? 'standard'
+
 export function finishMission(p: Project, id: string) {
   const run = activeRun(p, id) ?? startMission(p, id)
   const r = evaluateMission(p, id)
   Object.assign(run, {
-    endedUtc: new Date().toISOString(), score: r.score, passed: r.passed, detail: r.detail, ruleSet: p.ruleSet,
+    endedUtc: new Date().toISOString(), score: r.score, passed: r.passed, detail: [...r.detail, `Level: ${run.level ?? 'standard'}`], ruleSet: p.ruleSet,
     perVar: r.domains.flatMap((d) => d.comparison.perVar.map((x) => ({ ...x, v: r.domains.length > 1 ? `${d.domain}.${x.v}` : x.v, credit: Math.round(x.credit * 1000) / 1000 }))),
     domainPass: Object.fromEntries(r.domains.map((d) => [d.domain, d.passed])), domainScores: Object.fromEntries(r.domains.map((d) => [d.domain, d.score])),
     findings: r.domains.reduce((a, d) => a + d.findings.length, 0),

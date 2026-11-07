@@ -186,8 +186,20 @@ rules; no vendor rule text or tool is copied.
   group IDs). New checks: a pre-dose sample drawn after the dose, a time point reference without
   its date/time, and results below the LLOQ given as numbers. Start one from the Project tab.
 
+## Phase 4
+
+- **Levels:** guided (tips, and progress checks that show which variables still differ), standard
+  (tips, score-only progress checks) and expert (no tips or progress checks; each kind of Error or
+  Reject finding costs double). A run keeps the level it started at; the pass mark is the same.
+- **Capstone S22, the full submission package:** every GLV-12-301 domain from the locked
+  transfer (with SUPPDM, SUPPAE, the custom XE and RELREC), the trial design, the aCRF,
+  define.xml, a clean FDA run with every data issue explained and the reviewer's guide.
+  Datasets count 60% and the package 40%.
+- **Certificate:** pass 12 of the 22 missions, including the capstone, in any of your projects in
+  this browser; a verification code from your name, scores, levels and user ID; a PDF.
+
 ## Coming next
-- **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
+- **Rest of Phase 4:** a hand-off file for the TLF Programming Lab, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
   (RE, QS) and the vaccine study's CE, FACE and IS domains.
