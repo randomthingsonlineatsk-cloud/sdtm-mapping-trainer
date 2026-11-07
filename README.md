@@ -175,10 +175,18 @@ rules; no vendor rule text or tool is copied.
   validation run). Mission S18 (Validate and explain) prepares the FDA package on the locked
   database: fix what the mapping causes, explain what is true of the data, never change data
   to make a finding go away, and complete the guide.
+- **A second study, PKX-07-101 (phase 1 pharmacokinetics):** a fictional first-in-human single
+  and multiple ascending dose study in healthy volunteers (5 cohorts, 46 screened, 40 dosed), with
+  its own raw data, conventions, reference mapping and missions. A dosing log with exact clock
+  times; a bioanalytical file with nominal day and time, actual collection times, BLQ results,
+  an LLOQ, a reassayed sample, a haemolysed sample and a sample never received; and NCA output
+  whose parameters are calculated from those concentrations and actual times (one parameter not
+  calculable). Missions S19 (DM and EX with dose times), S20 (PC with PCTPT, PCTPTNUM, PCELTM,
+  PCTPTREF and PCRFTDTC) and S21 (PP with PK codelists and units, related to PC in RELREC by
+  group IDs). New checks: a pre-dose sample drawn after the dose, a time point reference without
+  its date/time, and results below the LLOQ given as numbers. Start one from the Project tab.
 
 ## Coming next
-
-- **Rest of Phase 3:** a pharmacokinetics study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study

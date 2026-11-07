@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useStore } from '../state'
+import { isGlv } from '../domain/project'
 import { useNav } from '../App'
 import { buildDefine, toDefineXml, checkDefine, DEFINE_RULES, STYLESHEET, type DefineModel } from '../domain/define'
 import { DEFINE_XSL } from '../domain/defineXsl'
@@ -27,7 +28,7 @@ export default function Define() {
   const items = new Map(m.items.map((i) => [i.oid, i]))
   const methods = new Map(m.methods.map((x) => [x.oid, x]))
   const comments = new Map(m.comments.map((x) => [x.oid, x]))
-  if (p.imported) return <Panel title="define.xml" sub="Built for GLV-12-301."><p className="text-sm">Open a GLV-12-301 project to generate define.xml.</p></Panel>
+  if (!isGlv(p)) return <Panel title="define.xml" sub="Built for GLV-12-301."><p className="text-sm">Open a GLV-12-301 project to generate define.xml.</p></Panel>
   if (!m.datasets.length) return <Panel title="define.xml" sub="Nothing to describe yet."><p className="text-sm">Map a domain first.</p></Panel>
   const origin = (oid: string) => {
     const o = items.get(oid)!.origin

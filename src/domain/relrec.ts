@@ -9,7 +9,9 @@ import type { Built, OutRow, StudyData } from './engine'
 import type { Finding } from './conformance'
 
 export interface RelSide { domain: string; key: string; filter?: string }
-export interface RelDef { id: string; label: string; a: RelSide; b: RelSide }
+// group: the keys are --GRPID variables and whole groups are related: one RELREC record per
+// group on each side, with IDVAR the group ID variable (as SDTMIG relates PP to PC).
+export interface RelDef { id: string; label: string; a: RelSide; b: RelSide; group?: boolean }
 export const RELREC_VARS = ['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'RELTYPE', 'RELID']
 
 // A value of a record: its SDTM variable, else the raw field of the row it came from.
@@ -33,6 +35,19 @@ export function buildRelrec(defs: RelDef[], builts: Record<string, Built>, data:
     const bBySubj = new Map<string, OutRow[]>()
     for (const r of B.rows) if (passes(r, d.b.filter, data)) (bBySubj.get(r.USUBJID) ?? bBySubj.set(r.USUBJID, []).get(r.USUBJID)!).push(r)
     const n = new Map<string, number>()
+    if (d.group) {
+      const seen = new Set<string>()
+      for (const a of A.rows) {
+        if (!passes(a, d.a.filter, data)) continue
+        const ka = a[d.a.key] ?? ''; if (!ka || seen.has(`${a.USUBJID}|${ka}`)) continue
+        const mb = (bBySubj.get(a.USUBJID) ?? []).find((b) => (b[d.b.key] ?? '') === ka); if (!mb) continue
+        seen.add(`${a.USUBJID}|${ka}`)
+        const k = (n.get(a.USUBJID) ?? 0) + 1; n.set(a.USUBJID, k)
+        const g = (r: OutRow, dom: string, idvar: string): OutRow => ({ __trace: `${d.id}|${r.__trace}`, __subj: r.__subj, STUDYID: r.STUDYID ?? '', RDOMAIN: dom, USUBJID: r.USUBJID, IDVAR: idvar, IDVARVAL: r[idvar] ?? '', RELTYPE: '', RELID: `${d.id}${k}` })
+        rows.push(g(a, d.a.domain, d.a.key), g(mb, d.b.domain, d.b.key))
+      }
+      continue
+    }
     for (const a of A.rows) {
       if (!passes(a, d.a.filter, data)) continue
       const ka = valueOf(a, d.a.key, data); if (!ka) continue

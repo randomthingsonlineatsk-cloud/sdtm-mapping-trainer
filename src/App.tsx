@@ -2,6 +2,8 @@ import { createContext, useContext, useState } from 'react'
 import { StoreProvider, useStore } from './state'
 import { VERSION_LABEL } from './domain/standards'
 import { STUDY } from './domain/study'
+import { PK_STUDY } from './domain/pk'
+import { isPk, isGlv } from './domain/project'
 import { Pill } from './views/ui'
 import Learn from './views/Learn'
 import StudyView from './views/Study'
@@ -25,6 +27,8 @@ interface Nav { view: View; arg?: string; go: (v: View, arg?: string) => void }
 const NavCtx = createContext<Nav>({ view: 'learn', go: () => {} })
 export const useNav = () => useContext(NavCtx)
 
+// Tabs that work on GLV-12-301 only (its trial design, CRF and submission package).
+const GLV_ONLY = new Set<View>(['design', 'acrf', 'define', 'csdrg', 'submission'])
 const VIEWS: { id: View; label: string }[] = [
   { id: 'learn', label: 'Learn' }, { id: 'study', label: 'Study' }, { id: 'raw', label: 'Raw data' }, { id: 'plan', label: 'Specification' }, { id: 'mapping', label: 'Mapping' }, { id: 'design', label: 'Trial design' }, { id: 'relations', label: 'Relationships' }, { id: 'acrf', label: 'aCRF' }, { id: 'define', label: 'define.xml' }, { id: 'qc', label: 'QC compare' },
   { id: 'datasets', label: 'Datasets & checks' }, { id: 'validation', label: 'Validation' }, { id: 'csdrg', label: 'Reviewer’s guide' }, { id: 'submission', label: 'Submission' }, { id: 'missions', label: 'Missions' }, { id: 'project', label: 'Project' },
@@ -42,16 +46,16 @@ function Shell() {
           <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h1 className="font-mono text-sm text-lab-fda">SDTM Mapping Trainer</h1>
-              <p className="text-[11px] text-lab-text-muted">{p.imported ? `${p.imported.protocol} · imported from the CDM Console` : `${STUDY.id} · ${STUDY.short}`} · fictional study for training</p>
+              <p className="text-[11px] text-lab-text-muted">{p.imported ? `${p.imported.protocol} · imported from the CDM Console` : isPk(p) ? `${PK_STUDY.id} · ${PK_STUDY.short}` : `${STUDY.id} · ${STUDY.short}`} · fictional study for training</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Pill tone={p.version === '3.4' ? 'blue' : 'purple'}>{VERSION_LABEL[p.version]}</Pill>
-              {!p.imported && (p.transfer ?? 1) === 2 && <Pill tone="amber">Transfer 2</Pill>}
+              {isGlv(p) && (p.transfer ?? 1) === 2 && <Pill tone="amber">Transfer 2</Pill>}
               <span className="text-[11px] text-lab-text-muted font-mono">{p.name}{saved ? ` · saved ${saved}` : ''}</span>
             </div>
           </div>
           <nav className="max-w-7xl mx-auto px-4 flex flex-wrap gap-1" aria-label="Main">
-            {VIEWS.map((v) => (
+            {VIEWS.filter((v) => isGlv(p) || !GLV_ONLY.has(v.id)).map((v) => (
               <button key={v.id} onClick={() => go(v.id)} aria-current={nav.view === v.id ? 'page' : undefined}
                 className={`px-3 py-1.5 font-mono text-xs border-b-2 ${nav.view === v.id ? 'border-lab-fda text-lab-fda' : 'border-transparent text-lab-text-muted hover:text-lab-text'}`}>{v.label}</button>
             ))}

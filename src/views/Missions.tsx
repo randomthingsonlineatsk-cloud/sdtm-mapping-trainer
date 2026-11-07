@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../state'
 import { useNav } from '../App'
-import { MISSIONS, activeRun, bestRun, startMission, finishMission, evaluateMission } from '../domain/missions'
+import { MISSIONS, missionsFor, activeRun, bestRun, startMission, finishMission, evaluateMission } from '../domain/missions'
 import { emptySpec } from '../domain/project'
 import { DEFAULT_SOURCE } from '../domain/reference'
 import { VERSION_LABEL, isRel, dsName } from '../domain/standards'
@@ -10,15 +10,16 @@ import { Panel, Pill, Btn, Table, Stat } from './ui'
 
 export default function Missions() {
   const { p } = useStore()
-  if (p.imported) return <Panel title="Missions" sub="Missions run on GLV-12-301."><p className="text-sm">This project holds an imported CDM Console study, which has no reference mapping. Start or open a GLV-12-301 project on the Project tab to run the missions.</p></Panel>
-  const passed = MISSIONS.filter((m) => bestRun(p, m.id)?.passed).length
+  if (p.imported) return <Panel title="Missions" sub="Missions run on the trainer’s studies."><p className="text-sm">This project holds an imported CDM Console study, which has no reference mapping. Start or open a GLV-12-301 project on the Project tab to run the missions.</p></Panel>
+  const list = missionsFor(p)
+  const passed = list.filter((m) => bestRun(p, m.id)?.passed).length
   return (
     <div className="space-y-4">
       <Panel title="Missions" sub="Each mission scores your datasets against the study’s hidden reference mapping, variable by variable, and runs the conformance checks under your project’s rule set.">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-xl"><Stat label="Passed" value={passed} tone="green" /><Stat label="Missions" value={MISSIONS.length} tone="blue" /><Stat label="Standard" value={p.version === '3.4' ? 'v3.4' : 'v4.0 draft'} /><Stat label="Rule set" value={p.ruleSet} /></div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-xl"><Stat label="Passed" value={passed} tone="green" /><Stat label="Missions" value={list.length} tone="blue" /><Stat label="Standard" value={p.version === '3.4' ? 'v3.4' : 'v4.0 draft'} /><Stat label="Rule set" value={p.ruleSet} /></div>
         <p className="text-xs text-lab-text-muted">Scoring, per domain: for each variable in the reference, the share of records where your value matches, averaged, minus 3 points for each kind of Error or Reject finding left (at most 30). A domain passes at 70% with no blocking finding (a missing Required variable, a wrong DOMAIN, a duplicate subject or --SEQ, an empty Required value, or anything the rule set rejects). A mission passes when all its domains pass, and its score is their mean. Records are matched to the raw row they came from (trial design tables by their key), so one wrong variable costs credit on that variable only.</p>
       </Panel>
-      {MISSIONS.map((m) => <MissionCard key={m.id} id={m.id} />)}
+      {list.map((m) => <MissionCard key={m.id} id={m.id} />)}
     </div>
   )
 }
@@ -34,7 +35,7 @@ function MissionCard({ id }: { id: string }) {
   const [confirm, setConfirm] = useState(false)
   const start = () => act((pp) => {
     startMission(pp, id)
-    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d)) pp.specs[d] ??= emptySpec(d, DEFAULT_SOURCE[d] ?? d)
+    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d) && d !== 'RELREC') pp.specs[d] ??= emptySpec(d, DEFAULT_SOURCE[d] ?? d)
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
     : m.kind === 'acrf' ? <Btn onClick={() => go('acrf')}>Open the aCRF</Btn>

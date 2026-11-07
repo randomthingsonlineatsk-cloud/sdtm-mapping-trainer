@@ -114,7 +114,7 @@ export function toR(spec: DomainSpec, ver: Version = '3.4'): string {
   const fr = flag ? spec.rules[flag] as Extract<Rule, { kind: 'lobxfl' }> : undefined
   const quals = allQuals(spec)
   const out = [
-    `# ${STUDY.id} · ${spec.domain} — generated from your mapping rules (read-only sketch).`,
+    `# ${(spec.rules.STUDYID as { value?: string } | undefined)?.value ?? STUDY.id} · ${spec.domain} — generated from your mapping rules (read-only sketch).`,
     `# raw$<form> are the raw datasets; iso8601(), study_day(), epoch_of(), subj_value() and the other`,
     `# helpers are the study's shared functions, doing what the trainer's functions of the same purpose do.`,
     'library(dplyr)', ...(quals.length && ver === '3.4' ? ['library(tidyr)'] : []), '',
@@ -135,7 +135,7 @@ export function toSAS(spec: DomainSpec, ver: Version = '3.4'): string {
   const seq = spec.vars.find((v) => spec.rules[v]?.kind === 'seq')
   const flag = spec.vars.find((v) => spec.rules[v]?.kind === 'lobxfl')
   const out = [
-    `/* ${STUDY.id} · ${spec.domain} — generated from your mapping rules (read-only sketch).          */`,
+    `/* ${(spec.rules.STUDYID as { value?: string } | undefined)?.value ?? STUDY.id} · ${spec.domain} — generated from your mapping rules (read-only sketch).          */`,
     `/* iso8601(), study_day(), epoch_of(), subj_value() and the other helpers are the study's      */`,
     `/* macro library (PROC FCMP functions and hash look-ups); raw.<form> are the raw datasets.    */`, '',
   ]

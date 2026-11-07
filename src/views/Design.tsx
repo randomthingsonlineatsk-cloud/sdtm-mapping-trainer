@@ -4,7 +4,7 @@ import { useNav } from '../App'
 import { designBuilt, deriveSE, type DesignRow } from '../domain/design'
 import { check, summarise } from '../domain/conformance'
 import { varsOf, domainInfo, CT, TRIAL_DESIGN } from '../domain/standards'
-import { log } from '../domain/project'
+import { log, isGlv } from '../domain/project'
 import { STUDY } from '../domain/study'
 import { Panel, Pill, Btn, Table, Tabs, TextArea, ic } from './ui'
 import { RuleHelp } from './RuleHelp'
@@ -25,7 +25,7 @@ export default function Design() {
   const [text, setText] = useState('')
   const [msg, setMsg] = useState('')
   const [explain, setExplain] = useState<string | null>(null)
-  if (p.imported) return <Panel title="Trial design" sub="Trial design is built for GLV-12-301."><p className="text-sm">This project holds an imported CDM Console study. Open a GLV-12-301 project to build the trial design domains.</p></Panel>
+  if (!isGlv(p)) return <Panel title="Trial design" sub="Trial design is built for GLV-12-301."><p className="text-sm">This project works on another study; open a GLV-12-301 project to build the trial design domains.</p></Panel>
   const rows = p.design[d] ?? []
   const vars = varsOf(d, p.version)
   const upd = (fn: (r: DesignRow[]) => void, what?: string) => act((pp) => { const r = (pp.design[d] ??= []); fn(r); if (what) log(pp, `${d}: ${what}`) })

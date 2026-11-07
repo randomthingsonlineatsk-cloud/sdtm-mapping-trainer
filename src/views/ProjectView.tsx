@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
-import { createProject, log, migrate, type Project } from '../domain/project'
+import { PK_STUDY } from '../domain/pk'
+import { createProject, log, migrate, isGlv, type Project } from '../domain/project'
 import { exportFile, importFile, deleteProject, listProjects, saveProject, download } from '../domain/store'
 import { importCdmProject } from '../domain/cdmImport'
 import { VERSION_LABEL, DRAFT_CHANGES, CT_INFO, type Version } from '../domain/standards'
@@ -40,13 +41,14 @@ export default function ProjectView() {
           <Btn onClick={() => download(`${p.name.replace(/[^\w-]+/g, '_')}.sdtm-trainer.json`, exportFile(p))}>Export project file</Btn>
           <Btn tone="grey" onClick={() => file.current?.click()}>Import project file</Btn>
           <input ref={file} type="file" accept=".json,application/json" className="hidden" aria-label="Project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const r = importFile(t); switchTo(r.project); setMsg(['Project imported.', ...r.warnings].join(' ')) }); e.target.value = '' }} />
-          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version))}>New GLV-12-301 project</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version))}>New GLV-12-301 project (phase 3)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, PK_STUDY.id))}>New PKX-07-101 project (phase 1 PK)</Btn>
           <Btn tone="grey" onClick={() => cdm.current?.click()}>Import a CDM Console study</Btn>
           <input ref={cdm} type="file" accept=".json,application/json" className="hidden" aria-label="CDM Console project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const im = importCdmProject(t); const np = createProject(p.userId, p.classId, p.version); np.study = im.protocol; np.imported = im; np.name = `${im.protocol} (imported) SDTM mapping`; log(np, `Imported ${im.protocol} from the CDM Console: ${Object.keys(im.forms).length} forms`); switchTo(np); setMsg(`Imported ${im.protocol}: ${Object.values(im.forms).reduce((a, r) => a + r.length, 0)} rows in ${Object.keys(im.forms).length} forms. Missions stay on GLV-12-301.`) }); e.target.value = '' }} />
         </div>
         {msg && <p className="text-xs text-lab-cdsco" role="status">{msg}</p>}
       </Panel>
-      {!p.imported && <Panel title="Data transfer" sub="The study data arrive more than once. Your mappings stay as they are when you switch: re-run them on the new transfer and account for every change (Raw data and Datasets show what changed).">
+      {isGlv(p) && <Panel title="Data transfer" sub="The study data arrive more than once. Your mappings stay as they are when you switch: re-run them on the new transfer and account for every change (Raw data and Datasets show what changed).">
         <TransferSwitch />
       </Panel>}
       <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_INFO.label}.`}>

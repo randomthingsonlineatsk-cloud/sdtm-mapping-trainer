@@ -5,10 +5,50 @@ import { decode } from '../domain/standards'
 import { CT_INFO, VERSION_LABEL } from '../domain/standards'
 import { raw } from '../domain/seed'
 import { Panel, Table, Stat, Pill } from './ui'
+import { isPk } from '../domain/project'
+import { PK_STUDY, PK_ARMS, PK_SITES, PK_VISITS, PK_FACTS, PK_CONVENTIONS, PK_SCHEDULE, PK_LAB, PK_LLOQ, pkRaw } from '../domain/pk'
+
+function PkStudy() {
+  const { p } = useStore()
+  const { forms, subjects } = pkRaw()
+  const rand = subjects.filter((s) => s.arm)
+  return (
+    <div className="space-y-4">
+      <Panel title={PK_STUDY.title} sub={`Protocol ${PK_STUDY.id} · ${PK_STUDY.sponsor} · ${PK_STUDY.phase} · ${PK_STUDY.indication}`} right={<Pill tone="blue">Fictional</Pill>}>
+        <p className="text-sm">{PK_STUDY.design}.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <Stat label="Screened" value={subjects.length} /><Stat label="Screen failures" value={subjects.length - rand.length} tone="amber" />
+          <Stat label="Randomised" value={rand.length} tone="blue" /><Stat label="Plasma samples" value={new Set(forms.PCL.map((r) => r.ACCSNUM)).size} /><Stat label="PK parameters" value={forms.PKP.length} tone="green" />
+        </div>
+        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Site: {PK_SITES.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}.</p>
+      </Panel>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Panel title="Arms" sub="Planned arms, as they appear in DM. Each cohort of 8: 6 active, 2 placebo.">
+          <Table head={['ARMCD', 'ARM', 'Part', 'Dose']} rows={PK_ARMS.map((a) => [<span className="font-mono">{a.code}</span>, a.name, a.part === 'A' ? 'A (SAD)' : 'B (MAD)', a.dose ? `${a.dose} mg` : 'placebo'])} />
+        </Panel>
+        <Panel title="PK sampling" sub={`Nominal hours after the reference dose. Plasma PKX-07 by ${PK_LAB}, LLOQ ${PK_LLOQ.toFixed(2)} ng/mL.`}>
+          <Table head={['Profile', 'Reference dose', 'Nominal times (h)']} rows={[
+            ['Part A', 'Day 1', PK_SCHEDULE.SAD.join(', ')], ['Part B, Day 1', 'Day 1', PK_SCHEDULE.MAD1.join(', ')],
+            ['Part B, troughs', 'Days 3 to 6', PK_SCHEDULE.TROUGH.join(', ')], ['Part B, Day 7', 'Day 7', PK_SCHEDULE.MAD7.join(', ')],
+          ]} />
+          <p className="text-[11px] text-lab-text-muted">−0.25 is the pre-dose sample, drawn within 15 minutes before the dose. 24 h and 48 h samples are drawn on the following days but are timed from the reference dose.</p>
+        </Panel>
+      </div>
+      <Panel title="Schedule (visits)" sub="Visit names in the EDC and the lab file, with the SDTM visit number and name.">
+        <Table head={['Visit (raw)', 'VISITNUM', 'VISIT', 'Planned day']} rows={PK_VISITS.map((v) => [v.raw, v.num, <span className="font-mono">{v.name}</span>, v.day])} />
+      </Panel>
+      <Panel title="Protocol facts"><Table head={['Item', 'Protocol']} rows={PK_FACTS.map((f) => [<span className="whitespace-nowrap">{f.what}</span>, f.value])} /></Panel>
+      <Panel title="SDTM conventions for this study" sub="The sponsor’s rules for what the SDTMIG leaves to the sponsor. The reference mappings that score the missions follow them exactly.">
+        <Table head={['Topic', 'Convention']} rows={PK_CONVENTIONS.map((c) => [<span className="font-mono whitespace-nowrap">{c.topic}</span>, c.rule])} />
+      </Panel>
+    </div>
+  )
+}
 
 export default function StudyView() {
   const { p } = useStore()
   if (p.imported) return <Imported />
+  if (isPk(p)) return <PkStudy />
   const subs = raw().subjects
   return (
     <div className="space-y-4">
