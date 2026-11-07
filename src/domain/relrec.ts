@@ -11,7 +11,9 @@ import type { Finding } from './conformance'
 export interface RelSide { domain: string; key: string; filter?: string }
 // group: the keys are --GRPID variables and whole groups are related: one RELREC record per
 // group on each side, with IDVAR the group ID variable (as SDTMIG relates PP to PC).
-export interface RelDef { id: string; label: string; a: RelSide; b: RelSide; group?: boolean }
+// dataset: relates the two datasets as a whole through their --LNKID or --LNKGRP variables: two
+// RELREC records with USUBJID and IDVARVAL null and RELTYPE ONE or MANY (SDTMIG, TU/TR/RS).
+export interface RelDef { id: string; label: string; a: RelSide; b: RelSide; group?: boolean; dataset?: { a: 'ONE' | 'MANY'; b: 'ONE' | 'MANY' } }
 export const RELREC_VARS = ['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'RELTYPE', 'RELID']
 
 // A value of a record: its SDTM variable, else the raw field of the row it came from.
@@ -35,6 +37,13 @@ export function buildRelrec(defs: RelDef[], builts: Record<string, Built>, data:
     const bBySubj = new Map<string, OutRow[]>()
     for (const r of B.rows) if (passes(r, d.b.filter, data)) (bBySubj.get(r.USUBJID) ?? bBySubj.set(r.USUBJID, []).get(r.USUBJID)!).push(r)
     const n = new Map<string, number>()
+    if (d.dataset) {
+      const st = A.rows[0]?.STUDYID ?? B.rows[0]?.STUDYID ?? ''
+      if (!A.vars.includes(d.a.key) || !B.vars.includes(d.b.key)) { errors[d.id] = { count: 1, first: `${!A.vars.includes(d.a.key) ? d.a.key : d.b.key} is not in its dataset` }; continue }
+      const g = (dom: string, idvar: string, t: string): OutRow => ({ __trace: `ds|${dom}|${idvar}`, __subj: '', STUDYID: st, RDOMAIN: dom, USUBJID: '', IDVAR: idvar, IDVARVAL: '', RELTYPE: t, RELID: d.id })
+      rows.push(g(d.a.domain, d.a.key, d.dataset.a), g(d.b.domain, d.b.key, d.dataset.b))
+      continue
+    }
     if (d.group) {
       const seen = new Set<string>()
       for (const a of A.rows) {
@@ -70,6 +79,7 @@ export function checkRelrec(rel: Built, builts: Record<string, Built>): Finding[
   rel.rows.forEach((r, i) => {
     const k = `${r.USUBJID}|${r.RELID}`; groups.set(k, (groups.get(k) ?? 0) + 1)
     const parent = builts[r.RDOMAIN]
+    if (!r.USUBJID) { if (!r.RELTYPE) out.push({ rule: 'TRN-055', sev: 'Error', domain: 'RELREC', variable: 'RELTYPE', row: i, msg: `Dataset-level relationship ${r.RELID} without RELTYPE` }); else if (parent && !parent.vars.includes(r.IDVAR)) out.push({ rule: 'TRN-054', sev: 'Error', domain: 'RELREC', variable: 'IDVAR', row: i, msg: `${r.IDVAR} is not in ${r.RDOMAIN}` }); return }
     if (!parent) out.push({ rule: 'TRN-054', sev: 'Error', domain: 'RELREC', variable: 'RDOMAIN', row: i, usubjid: r.USUBJID, msg: `No ${r.RDOMAIN} dataset` })
     else if (!parent.rows.some((p) => p.USUBJID === r.USUBJID && (p[r.IDVAR] ?? '') === r.IDVARVAL)) out.push({ rule: 'TRN-054', sev: 'Error', domain: 'RELREC', variable: 'IDVARVAL', row: i, usubjid: r.USUBJID, msg: `${r.RDOMAIN} has no record with ${r.IDVAR} = ${r.IDVARVAL}` })
   })

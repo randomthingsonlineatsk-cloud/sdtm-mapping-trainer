@@ -38,7 +38,7 @@ export const explanationOf = (p: Project, key: string) => { const e = p.explain?
 // Every finding of the package under the project's rule set.
 export function packageFindings(p: Project, data: StudyData, all: Map<string, Built> = allDatasets(p, data)): Finding[] {
   const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(refSpecFor(p, 'DM'), data, p.version)
-  const ctx = { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), set: p.ruleSet }
+  const ctx = { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), tu: all.get('TU'), set: p.ruleSet }
   const out: Finding[] = []
   for (const [name, b] of all) {
     if (isRel(name)) continue // checked with its parent (TRN-049)
