@@ -78,7 +78,7 @@ describe('domains from several sources, SUPPQUAL and LB', () => {
   })
   test('LB: duplicates dropped, units corrected, "<5" kept as text, haemolysed not done', () => {
     const lb = build(referenceSpec('LB', '3.4'), data)
-    const keys = lb.rows.map((r) => `${r.USUBJID}|${r.LBTESTCD}|${r.VISITNUM}`)
+    const keys = lb.rows.map((r) => `${r.USUBJID}|${r.LBTESTCD}|${r.VISITNUM}|${r.LBTPTNUM}`)
     expect(new Set(keys).size).toBe(keys.length)
     expect(lb.rows.some((r) => r.LBORRESU === 'mg/dl')).toBe(false)
     const lt = lb.rows.find((r) => r.USUBJID.endsWith(PLANTED_LAB.belowLloq) && r.LBORRES === '<5')!
@@ -426,5 +426,27 @@ describe('specification first (mission S14)', () => {
     const r = evaluateMission(p, 'S14'); expect(r.passed).toBe(true); expect(r.score).toBe(100)
     pl.versions[0].approver = 'author1'
     expect(evaluateMission(p, 'S14').passed).toBe(false)
+  })
+})
+
+describe('rule help, lab time points and range changes', () => {
+  test('every rule says why it matters and how to fix it', async () => {
+    const { RULES } = await import('../src/domain/conformance')
+    const { FIX } = await import('../src/domain/ruleHelp')
+    for (const r of RULES) { expect(FIX[r.id], r.id).toBeDefined(); expect(FIX[r.id].fix.length).toBeGreaterThan(10) }
+  })
+  test('Week 12 glucose before and after the dose, told apart by the time point', () => {
+    const lb = build(referenceSpec('LB', '3.4'), data)
+    const g = lb.rows.filter((r) => r.LBTESTCD === 'GLUC' && r.VISIT === 'WEEK 12' && r.USUBJID === lb.rows.find((x) => x.LBTPT === '2 H POST-DOSE')!.USUBJID)
+    expect(g.map((r) => [r.LBTPT, r.LBTPTNUM, r.LBELTM, r.LBFAST])).toEqual([['PRE-DOSE', '1', '-PT30M', 'Y'], ['2 H POST-DOSE', '2', 'PT2H', 'N']])
+    expect(check(lb, '3.4').filter((f) => f.rule === 'TRN-050')).toHaveLength(0)
+  })
+  test('the ALT range changes at Week 12, and LBNRIND follows each record’s range', () => {
+    const lb = build(referenceSpec('LB', '3.4'), data).rows.filter((r) => r.LBTESTCD === 'ALT' && r.LBSTRESN)
+    expect(new Set(lb.filter((r) => r.VISIT === 'WEEK 4').map((r) => r.LBSTNRHI))).toEqual(new Set(['56']))
+    expect(new Set(lb.filter((r) => r.VISIT === 'WEEK 12').map((r) => r.LBSTNRHI))).toEqual(new Set(['45']))
+    const between = lb.filter((r) => r.VISIT === 'WEEK 12' && Number(r.LBSTRESN) > 45 && Number(r.LBSTRESN) <= 56)
+    expect(between.every((r) => r.LBNRIND === 'HIGH')).toBe(true)
+    expect(check(build(referenceSpec('LB', '3.4'), data), '3.4').filter((f) => f.rule === 'TRN-043')).toHaveLength(0)
   })
 })

@@ -111,6 +111,8 @@ const LB_RULES: Record<string, Rule> = {
   LBSTAT: e("if(isblank(RESULT), 'NOT DONE', '')"), LBREASND: e("if(isblank(RESULT), 'SPECIMEN HEMOLYZED', '')"),
   LBNAM: cp('LABNAME'), LBSPEC: e("lab(TESTCODE, 'spec')"), LBLOBXFL: { kind: 'lobxfl', result: 'LBSTRESC', dtc: 'LBDTC', by: 'LBTESTCD' }, LBFAST: cp('FASTING'),
   VISITNUM: e('visitnum(VISIT, COLLDATE)'), VISIT: e('visitname(VISIT, COLLDATE)'), EPOCH: e('epoch(LBDTC)'), LBDTC: e("dtc(COLLDATE, 'YYYYMMDD', COLLTIME)"), LBDY: e('studyday(LBDTC)'),
+  LBTPT: e('upper(TIMEPOINT)'), LBTPTNUM: e("if(TIMEPOINT = 'Pre-dose', 1, if(present(TIMEPOINT), 2, ''))"),
+  LBELTM: e("if(TIMEPOINT = 'Pre-dose', '-PT30M', if(present(TIMEPOINT), 'PT2H', ''))"), LBTPTREF: e("if(present(TIMEPOINT), 'WEEK 12 DOSE', '')"),
 }
 const SV_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('SV'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), VISITNUM: e('visitnum(VISIT, VISDAT)'), VISIT: e('visitname(VISIT, VISDAT)'), VISITDY: e('visitdy(VISIT)'),
@@ -131,7 +133,7 @@ const REF: Record<string, { rules: Record<string, Rule>; perm: string[]; transpo
   CM: { rules: CM_RULES, perm: ['CMSPID', 'CMDECOD', 'CMINDC', 'CMCLAS', 'CMDOSE', 'CMDOSU', 'CMDOSFRQ', 'CMROUTE', 'EPOCH', 'CMSTDTC', 'CMENDTC', 'CMSTDY', 'CMENDY', 'CMENRTPT', 'CMENTPT', 'SUBJID'] },
   EX: { rules: EX_RULES, perm: ['EXDOSFRQ', 'EXROUTE', 'EPOCH', 'EXSTDY', 'EXENDY', 'SUBJID'] },
   DS: { rules: DS_RULES, perm: ['EPOCH', 'DSSTDY', 'SUBJID'], parts: [{ source: 'IC', rules: DS_IC }, { source: 'IRT', rules: DS_IRT }] },
-  LB: { rules: LB_RULES, perm: ['LBREFID', 'LBSTAT', 'LBREASND', 'LBNAM', 'LBSPEC', 'LBFAST', 'VISIT', 'EPOCH', 'LBDY', 'SUBJID'], source: 'LBC', filter: 'not isdup(ACCSNUM, TESTCODE)' },
+  LB: { rules: LB_RULES, perm: ['LBREFID', 'LBSTAT', 'LBREASND', 'LBNAM', 'LBSPEC', 'LBFAST', 'VISIT', 'EPOCH', 'LBDY', 'LBTPT', 'LBTPTNUM', 'LBELTM', 'LBTPTREF', 'SUBJID'], source: 'LBC', filter: 'not isdup(ACCSNUM, TESTCODE)' },
   SV: { rules: SV_RULES, perm: ['VISIT', 'VISITDY', 'EPOCH', 'SVSTDY', 'SVENDY'] },
   IE: { rules: IE_RULES, perm: ['VISITNUM', 'VISIT', 'EPOCH', 'IEDTC', 'IEDY', 'SUBJID'], filter: "IEYN = 'N'" },
   MH: { rules: MH_RULES, perm: ['MHSPID', 'MHDECOD', 'MHCAT', 'MHBODSYS', 'MHSTDTC', 'MHENDTC', 'MHENRTPT', 'MHENTPT', 'SUBJID'] },

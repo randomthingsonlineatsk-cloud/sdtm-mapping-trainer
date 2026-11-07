@@ -14,6 +14,7 @@ import { download } from '../domain/store'
 import { Panel, Pill, Btn, Select, Table, Stat, Tabs, ic } from './ui'
 import { useData, fieldsOf } from './shared'
 import { compareDatasets } from '../domain/qc'
+import { RuleHelp } from './RuleHelp'
 import { studyData } from '../domain/reference'
 
 const SEV_TONE = { Reject: 'purple', Error: 'red', Warning: 'amber' } as const
@@ -76,6 +77,7 @@ function DataTab({ built, findings }: { built: Built; findings: ReturnType<typeo
   const [page, setPage] = useState(0)
   const [row, setRow] = useState<number | null>(null)
   const [report, setReport] = useState<string[] | null>(null)
+  const [explain, setExplain] = useState<string | null>(null)
   const domain = built.domain
   const rows = built.rows.map((r, i) => ({ r, i })).filter((x) => !subj || x.r.USUBJID?.includes(subj))
   const per = 50, pages = Math.max(1, Math.ceil(rows.length / per))
@@ -102,12 +104,13 @@ function DataTab({ built, findings }: { built: Built; findings: ReturnType<typeo
         {report && <div className="text-xs" role="status">{report.length ? <><p className="text-lab-amber">Exported with {report.length} warning{report.length === 1 ? '' : 's'}:</p><ul className="list-disc pl-5 text-lab-text-muted">{report.map((w) => <li key={w}>{w}</li>)}</ul></> : <p className="text-lab-cdsco">Exported: the dataset meets the XPT v5 limits.</p>}</div>}
       </Panel>
       <Panel title="Conformance findings" sub={`${p.ruleSet} rule set${!p.imported && domain !== 'DM' ? '; subject checks run against the study’s reference DM' : ''}. Reject: the submission would be refused. Error: must be fixed or explained. Warning: review.`}>
+        {explain && <RuleHelp id={explain} onClose={() => setExplain(null)} />}
         <Table head={['Rule', 'Severity', 'Variable', 'Records', 'First example', '']} rows={sum.map((s) => [
-          <span className="font-mono" title={RULES.find((r) => r.id === s.rule)?.basis}>{s.rule}</span>, <Pill tone={SEV_TONE[s.sev]}>{s.sev}</Pill>, <span className="font-mono">{s.variable}</span>, s.count, s.first.msg,
+          <button className="font-mono underline" aria-label={`How to fix ${s.rule}`} onClick={() => setExplain(s.rule)}>{s.rule}</button>, <Pill tone={SEV_TONE[s.sev]}>{s.sev}</Pill>, <span className="font-mono">{s.variable}</span>, s.count, s.first.msg,
           s.first.row !== undefined ? <Btn tone="grey" className="py-0.5" onClick={() => { const i = s.first.row!; setSubj(''); setPage(Math.floor(i / per)); setRow(i) }}>Show</Btn> : '',
         ])} empty="No findings. Clean." />
         <details className="text-xs"><summary className="cursor-pointer text-lab-text-muted">All rules and their severity in each rule set</summary>
-          <Table className="mt-2" head={['Rule', 'CDISC', 'FDA', 'PMDA', 'Checks', 'Basis']} rows={RULES.map((r) => [<span className="font-mono">{r.id}</span>, ...(['CDISC', 'FDA', 'PMDA'] as RuleSet[]).map((s) => { const v = severityIn(r.id, s); return v ? <Pill tone={SEV_TONE[v]}>{v}</Pill> : <span className="text-lab-text-muted">–</span> }), r.text, r.basis])} />
+          <Table className="mt-2" head={['Rule', 'CDISC', 'FDA', 'PMDA', 'Checks', 'Basis']} rows={RULES.map((r) => [<button className="font-mono underline" onClick={() => setExplain(r.id)}>{r.id}</button>, ...(['CDISC', 'FDA', 'PMDA'] as RuleSet[]).map((s) => { const v = severityIn(r.id, s); return v ? <Pill tone={SEV_TONE[v]}>{v}</Pill> : <span className="text-lab-text-muted">–</span> }), r.text, r.basis])} />
         </details>
       </Panel>
       <Panel title={`${domain} records`} right={<input aria-label="Filter by USUBJID" className={ic('w-56 text-xs')} value={subj} onChange={(e) => { setSubj(e.target.value); setPage(0) }} placeholder="Filter: part of USUBJID" />}>

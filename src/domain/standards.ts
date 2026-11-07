@@ -179,6 +179,7 @@ const META_34: Record<string, VarMeta[]> = {
     v('LBFAST', 'Fasting Status', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('LBDRVFL', 'Derived Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'),
     v('VISITNUM', 'Visit Number', 'Num', 'Timing', 'Exp'), v('VISIT', 'Visit Name', 'Char', 'Timing', 'Perm'), v('VISITDY', 'Planned Study Day of Visit', 'Num', 'Timing', 'Perm'),
     v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'), v('LBDTC', 'Date/Time of Specimen Collection', 'Char', 'Timing', 'Exp'), v('LBDY', 'Study Day of Specimen Collection', 'Num', 'Timing', 'Perm'),
+    v('LBTPT', 'Planned Time Point Name', 'Char', 'Timing', 'Perm'), v('LBTPTNUM', 'Planned Time Point Number', 'Num', 'Timing', 'Perm'), v('LBELTM', 'Planned Elapsed Time from Time Point Ref', 'Char', 'Timing', 'Perm'), v('LBTPTREF', 'Time Point Reference', 'Char', 'Timing', 'Perm'),
   ],
   SE: [
     v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Req'),

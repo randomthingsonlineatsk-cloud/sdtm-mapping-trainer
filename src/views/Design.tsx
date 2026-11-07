@@ -7,6 +7,7 @@ import { varsOf, domainInfo, CT, TRIAL_DESIGN } from '../domain/standards'
 import { log } from '../domain/project'
 import { STUDY } from '../domain/study'
 import { Panel, Pill, Btn, Table, Tabs, TextArea, ic } from './ui'
+import { RuleHelp } from './RuleHelp'
 
 const HELP: Record<string, string> = {
   TA: 'One record per element per arm, in order (TAETORD). TABRANCH on the element at whose end the subject is assigned to an arm; TATRANS where the next element can vary. EPOCH names the period each element belongs to.',
@@ -23,6 +24,7 @@ export default function Design() {
   const [paste, setPaste] = useState(false)
   const [text, setText] = useState('')
   const [msg, setMsg] = useState('')
+  const [explain, setExplain] = useState<string | null>(null)
   if (p.imported) return <Panel title="Trial design" sub="Trial design is built for GLV-12-301."><p className="text-sm">This project holds an imported CDM Console study. Open a GLV-12-301 project to build the trial design domains.</p></Panel>
   const rows = p.design[d] ?? []
   const vars = varsOf(d, p.version)
@@ -69,7 +71,8 @@ export default function Design() {
             <p className="text-[11px] text-lab-text-muted">* Required. Hover a column name for its label, core status and codelist. TSSEQ is numbered for you within each TSPARMCD when left empty.</p>
           </Panel>
           <Panel title="Checks" sub={`${p.ruleSet} rule set. TA is checked against TE and TV against TA where they exist.`}>
-            <Table head={['Rule', 'Severity', 'Variable', 'Records', 'First example']} rows={sum.map((s) => [<span className="font-mono">{s.rule}</span>, <Pill tone={s.sev === 'Warning' ? 'amber' : 'red'}>{s.sev}</Pill>, <span className="font-mono">{s.variable}</span>, s.count, s.first.msg])} empty={rows.length ? 'No findings.' : 'Nothing to check yet.'} />
+            {explain && <RuleHelp id={explain} onClose={() => setExplain(null)} />}
+            <Table head={['Rule', 'Severity', 'Variable', 'Records', 'First example']} rows={sum.map((s) => [<button className="font-mono underline" aria-label={`How to fix ${s.rule}`} onClick={() => setExplain(s.rule)}>{s.rule}</button>, <Pill tone={s.sev === 'Warning' ? 'amber' : 'red'}>{s.sev}</Pill>, <span className="font-mono">{s.variable}</span>, s.count, s.first.msg])} empty={rows.length ? 'No findings.' : 'Nothing to check yet.'} />
           </Panel>
         </>
       )}

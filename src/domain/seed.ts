@@ -29,7 +29,7 @@ export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | '
   DS: { name: 'End of study (disposition)', source: 'EDC', note: 'One row per subject, including screen failures. DSDECOD is the EDC label.' },
   AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event. The coding columns (lowest-level term to system class, with codes) come from the coding team’s export, coded with the Study Medical Dictionary (fictional, MedDRA-shaped).' },
   CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'One row per medication. CMDECOD and the class come from the coding export (Study Drug Dictionary, fictional, WHODrug-shaped). Dates are exported as DD-MMM-YYYY; an unknown day or month is exported as UN or UNK (UN-MAR-2019, UN-UNK-2019).' },
-  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Dates are YYYYMMDD and times HHMM. Resent results appear twice.' },
+  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Dates are YYYYMMDD and times HHMM. Resent results appear twice. At Week 12 glucose is drawn twice, before the dose and 2 hours after it (TIMEPOINT). From Week 12 the laboratory reports ALT against a new assay’s reference range.' },
   IE: { name: 'Eligibility', source: 'EDC', note: 'One row per subject when all criteria were met (IEYN = Y); otherwise one row per criterion not met, with its category and code from the protocol.' },
   MH: { name: 'Medical history', source: 'EDC', note: 'One row per condition. MHDECOD and MHBODSYS come from the coding export (Study Medical Dictionary 1.0). Start dates are often partial.' },
   DVL: { name: 'Protocol deviation log (CTMS)', source: 'CTMS', note: 'Exported from the clinical trial management system, not the EDC: one row per deviation recorded by the monitors, with category, description and whether it is important. Dates are DD/MM/YYYY.' },
@@ -45,7 +45,7 @@ const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
   DS: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DSDECOD', 'Status at end of study'], ['DSTERM', 'Details'], ['DSSTDAT', 'Date of completion or discontinuation']],
   AE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['AESPID', 'AE number'], ['AETERM', 'Adverse event'], ['AESTDAT', 'Start date'], ['AEENDAT', 'End date'], ['AEONGO', 'Ongoing'], ['AESEV', 'Severity'], ['AESER', 'Serious'], ['AEREL', 'Related to study drug'], ['AEACN', 'Action taken'], ['AEOUT', 'Outcome'], ['AESDTH', 'Resulted in death'], ['AESHOSP', 'Hospitalisation'], ['AELLT', 'Coded: lowest-level term'], ['AELLTCD', 'LLT code'], ['AEDECOD', 'Coded: preferred term'], ['AEPTCD', 'PT code'], ['AEHLT', 'Coded: cluster (HLT)'], ['AEHLTCD', 'HLT code'], ['AEHLGT', 'Coded: group (HLGT)'], ['AEHLGTCD', 'HLGT code'], ['AESOC', 'Coded: system class (SOC)'], ['AESOCCD', 'SOC code']],
   CM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['CMSPID', 'Medication number'], ['CMTRT', 'Medication'], ['CMINDC', 'Indication'], ['CMDOSE', 'Dose'], ['CMDOSU', 'Unit'], ['CMDOSFRQ', 'Frequency'], ['CMROUTE', 'Route'], ['CMSTDAT', 'Start date'], ['CMENDAT', 'End date'], ['CMONGO', 'Ongoing'], ['CMDECOD', 'Coded: standard name'], ['CMDRN', 'Coded: drug record number'], ['CMCLAS', 'Coded: class (level 4)'], ['CMCLASCD', 'Class code']],
-  LBC: [['SUBJID', 'Subject number'], ['VISIT', 'Visit'], ['ACCSNUM', 'Accession number'], ['COLLDATE', 'Collection date'], ['COLLTIME', 'Collection time'], ['TESTCODE', 'Vendor test code'], ['TESTNAME', 'Vendor test name'], ['RESULT', 'Result'], ['UNITS', 'Units'], ['REFLOW', 'Reference range low'], ['REFHIGH', 'Reference range high'], ['FLAG', 'Abnormal flag'], ['SPECIMEN', 'Specimen'], ['FASTING', 'Fasting'], ['COMMENT', 'Lab comment'], ['LABNAME', 'Laboratory']],
+  LBC: [['SUBJID', 'Subject number'], ['VISIT', 'Visit'], ['ACCSNUM', 'Accession number'], ['COLLDATE', 'Collection date'], ['COLLTIME', 'Collection time'], ['TESTCODE', 'Vendor test code'], ['TESTNAME', 'Vendor test name'], ['RESULT', 'Result'], ['UNITS', 'Units'], ['REFLOW', 'Reference range low'], ['REFHIGH', 'Reference range high'], ['FLAG', 'Abnormal flag'], ['SPECIMEN', 'Specimen'], ['FASTING', 'Fasting'], ['TIMEPOINT', 'Planned time point'], ['COMMENT', 'Lab comment'], ['LABNAME', 'Laboratory']],
   IE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit (folder)'], ['IEDAT', 'Date of eligibility assessment'], ['IEYN', 'Were all eligibility criteria met?'], ['IECAT', 'Criterion category'], ['IETESTCD', 'Criterion not met (identifier)']],
   MH: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['MHSPID', 'History number'], ['MHCAT', 'Category'], ['MHTERM', 'Condition'], ['MHSTDAT', 'Start date'], ['MHONGO', 'Ongoing at screening'], ['MHENDAT', 'End date'], ['MHLLT', 'Lowest level term (coding)'], ['MHDECOD', 'Preferred term (coding)'], ['MHPTCD', 'Preferred term code (coding)'], ['MHBODSYS', 'System class (coding)'], ['MHSOCCD', 'System class code (coding)']],
   DVL: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DEVID', 'Deviation ID'], ['DEVCAT', 'Category'], ['DEVTERM', 'Description'], ['DEVDATE', 'Date of deviation'], ['IMPORTANT', 'Important deviation (Yes/No)']],
@@ -355,7 +355,30 @@ function phase3(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
   c(S(PLANTED.afterDoseVitals), 'VS', 'Day 1', S(PLANTED.afterDoseVitals).d1!, 'Vital signs taken 25 minutes after the first dose; see deviation log.')
   c(dosed[3], 'AE', 'Week 4', svDate(dosed[3].subj, 'Week 4') || dosed[3].d1!, 'Investigator confirmed the event is not related to study drug.')
   c(dosed[5], '', 'Week 12', svDate(dosed[5].subj, 'Week 12') || dosed[5].d1!, 'Subject moving house in August; visits may be rescheduled.')
+  labPhase3(forms)
   c(dosed[8], 'LB', 'Week 26', svDate(dosed[8].subj, 'Week 26') || dosed[8].end, 'Sample collected 30 minutes later than planned because of a delayed courier.')
+}
+
+// Lab time points and a reference range change. At Week 12 glucose is drawn before the dose and
+// 2 hours after it, each with its own accession number; from Week 12 the laboratory measures ALT
+// with a new assay whose upper limit of normal is 45 U/L instead of 56.
+export const LAB_TPT = { visit: 'Week 12', pre: 'Pre-dose', post: '2 h post-dose', altNewHigh: 45, altFrom: ['Week 12', 'Week 26'] }
+function labPhase3(forms: Record<string, Row[]>) {
+  const r = rng(1230301 + 13)
+  for (const x of forms.LBC) x.TIMEPOINT ??= ''
+  const add: Row[] = []
+  for (const x of forms.LBC.filter((y) => y.VISIT === LAB_TPT.visit && y.TESTCODE === 'FPG' && y.RESULT)) {
+    if (add.some((y) => y.SUBJID === x.SUBJID)) continue
+    x.TIMEPOINT = LAB_TPT.pre
+    const [h, m] = x.COLLTIME.split(':').map(Number), t = h * 60 + m + 135
+    const val = Math.round(Number(x.RESULT) * (1.3 + r.next() * 0.25))
+    add.push({ ...x, __id: `LBC-TPT-${x.SUBJID}`, ACCSNUM: `${x.ACCSNUM}B`, COLLTIME: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`, TESTCODE: 'GLUPP', TESTNAME: 'Glucose, 2 h post-dose', RESULT: String(val), REFLOW: '70', REFHIGH: '140', FLAG: val > 140 ? 'H' : val < 70 ? 'L' : '', FASTING: 'N', TIMEPOINT: LAB_TPT.post })
+  }
+  forms.LBC.push(...add)
+  for (const x of forms.LBC.filter((y) => y.TESTCODE === 'ALT' && LAB_TPT.altFrom.includes(y.VISIT))) {
+    x.REFHIGH = String(LAB_TPT.altNewHigh)
+    if (x.RESULT && !x.RESULT.startsWith('<')) x.FLAG = Number(x.RESULT) > LAB_TPT.altNewHigh ? 'H' : Number(x.RESULT) < Number(x.REFLOW) ? 'L' : ''
+  }
 }
 
 // ---------- Transfer 2 ----------
