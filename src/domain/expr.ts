@@ -155,6 +155,14 @@ export const BUILTINS: Record<string, (...a: Val[]) => Val> = {
   trim: (x) => String(x ?? '').trim(),
   substr: (x, start, n) => { const s = String(x ?? ''), a = (num(start) ?? 1) - 1; return num(n) === null ? s.slice(a) : s.slice(a, a + (num(n) as number)) },
   replace: (x, a, b) => String(x ?? '').split(String(a ?? '')).join(String(b ?? '')),
+  // The nth piece of a text cut into lines of at most width characters at spaces, as long text is
+  // split into COVAL, COVAL1, … or TSVAL, TSVAL1, … without breaking words.
+  wrap: (x, width, n) => {
+    const w = num(width) ?? 200, k = num(n) ?? 1, parts: string[] = []
+    let rest = String(x ?? '').trim()
+    while (rest) { if (rest.length <= w) { parts.push(rest); break } let cut = rest.lastIndexOf(' ', w); if (cut <= 0) cut = w; parts.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim() }
+    return parts[k - 1] ?? ''
+  },
   part: (x, sep, n) => { const p = String(x ?? '').split(String(sep ?? '')); const i = num(n) ?? 1; return i >= 1 && i <= p.length ? p[i - 1].trim() : '' },
   num: (x) => num(x) ?? '',
   str: (x) => (blank(x) ? '' : fmt(x)),

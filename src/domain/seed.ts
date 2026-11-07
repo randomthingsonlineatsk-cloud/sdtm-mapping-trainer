@@ -8,9 +8,9 @@
 // vital signs taken after the dose at one subject, vital signs not done at one Day 1 visit,
 // unscheduled visits, and a missing screening temperature.
 
-import { toEdc, toYmd, anyDate } from './rawdate'
+import { toEdc, toYmd, toDmy, anyDate } from './rawdate'
 import { rng, addDays, type Rng } from './util'
-import { SITES, VISITS, ARMS, STUDY, LAB_STANDARDS } from './study'
+import { SITES, VISITS, ARMS, STUDY, LAB_STANDARDS, CRITERIA } from './study'
 import { SMD_10, SMD_11, V11_CHANGES, exactLlt, path } from './dictmed'
 import { exactDrug, atcByCode, DRUGS } from './dictdrug'
 
@@ -20,7 +20,7 @@ export const LAB_NAME = 'Meridian Central Laboratories (fictional)'
 export interface SubjectTruth { subj: string; site: string; fate: Fate; scr: string; d1?: string; arm?: string; kit?: string; doseTime?: string; lastDose?: string; end: string }
 export type Fate = 'completed' | 'screen-fail' | 'ae' | 'withdrew' | 'lost' | 'death' | 'not-dosed'
 
-export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | 'Vendor'; note: string }> = {
+export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | 'Vendor' | 'CTMS'; note: string }> = {
   DM: { name: 'Demographics', source: 'EDC', note: 'One row per subject. SEX, RACE and ETHNIC are exported as their EDC labels, not CT values.' },
   IC: { name: 'Informed consent', source: 'EDC', note: 'One row per subject.' },
   SV: { name: 'Visit dates', source: 'EDC', note: 'One row per visit that took place, including unscheduled visits.' },
@@ -30,6 +30,10 @@ export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | '
   AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event. The coding columns (lowest-level term to system class, with codes) come from the coding team’s export, coded with the Study Medical Dictionary (fictional, MedDRA-shaped).' },
   CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'One row per medication. CMDECOD and the class come from the coding export (Study Drug Dictionary, fictional, WHODrug-shaped). Dates are exported as DD-MMM-YYYY; an unknown day or month is exported as UN or UNK (UN-MAR-2019, UN-UNK-2019).' },
   LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Dates are YYYYMMDD and times HHMM. Resent results appear twice.' },
+  IE: { name: 'Eligibility', source: 'EDC', note: 'One row per subject when all criteria were met (IEYN = Y); otherwise one row per criterion not met, with its category and code from the protocol.' },
+  MH: { name: 'Medical history', source: 'EDC', note: 'One row per condition. MHDECOD and MHBODSYS come from the coding export (Study Medical Dictionary 1.0). Start dates are often partial.' },
+  DVL: { name: 'Protocol deviation log (CTMS)', source: 'CTMS', note: 'Exported from the clinical trial management system, not the EDC: one row per deviation recorded by the monitors, with category, description and whether it is important. Dates are DD/MM/YYYY.' },
+  CO: { name: 'Comments', source: 'EDC', note: 'Free-text comments the sites entered on a form or for the subject in general (FORM blank). Some are longer than 200 characters.' },
   IRT: { name: 'IRT randomisation file', source: 'IRT', note: 'External file from the randomisation system: planned arm (RANDARM) and the arm of the kits actually dispensed (KITARM). Screen failures are not in it. Dates are ISO 8601.' },
 }
 const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
@@ -42,6 +46,10 @@ const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
   AE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['AESPID', 'AE number'], ['AETERM', 'Adverse event'], ['AESTDAT', 'Start date'], ['AEENDAT', 'End date'], ['AEONGO', 'Ongoing'], ['AESEV', 'Severity'], ['AESER', 'Serious'], ['AEREL', 'Related to study drug'], ['AEACN', 'Action taken'], ['AEOUT', 'Outcome'], ['AESDTH', 'Resulted in death'], ['AESHOSP', 'Hospitalisation'], ['AELLT', 'Coded: lowest-level term'], ['AELLTCD', 'LLT code'], ['AEDECOD', 'Coded: preferred term'], ['AEPTCD', 'PT code'], ['AEHLT', 'Coded: cluster (HLT)'], ['AEHLTCD', 'HLT code'], ['AEHLGT', 'Coded: group (HLGT)'], ['AEHLGTCD', 'HLGT code'], ['AESOC', 'Coded: system class (SOC)'], ['AESOCCD', 'SOC code']],
   CM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['CMSPID', 'Medication number'], ['CMTRT', 'Medication'], ['CMINDC', 'Indication'], ['CMDOSE', 'Dose'], ['CMDOSU', 'Unit'], ['CMDOSFRQ', 'Frequency'], ['CMROUTE', 'Route'], ['CMSTDAT', 'Start date'], ['CMENDAT', 'End date'], ['CMONGO', 'Ongoing'], ['CMDECOD', 'Coded: standard name'], ['CMDRN', 'Coded: drug record number'], ['CMCLAS', 'Coded: class (level 4)'], ['CMCLASCD', 'Class code']],
   LBC: [['SUBJID', 'Subject number'], ['VISIT', 'Visit'], ['ACCSNUM', 'Accession number'], ['COLLDATE', 'Collection date'], ['COLLTIME', 'Collection time'], ['TESTCODE', 'Vendor test code'], ['TESTNAME', 'Vendor test name'], ['RESULT', 'Result'], ['UNITS', 'Units'], ['REFLOW', 'Reference range low'], ['REFHIGH', 'Reference range high'], ['FLAG', 'Abnormal flag'], ['SPECIMEN', 'Specimen'], ['FASTING', 'Fasting'], ['COMMENT', 'Lab comment'], ['LABNAME', 'Laboratory']],
+  IE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit (folder)'], ['IEDAT', 'Date of eligibility assessment'], ['IEYN', 'Were all eligibility criteria met?'], ['IECAT', 'Criterion category'], ['IETESTCD', 'Criterion not met (identifier)']],
+  MH: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['MHSPID', 'History number'], ['MHCAT', 'Category'], ['MHTERM', 'Condition'], ['MHSTDAT', 'Start date'], ['MHONGO', 'Ongoing at screening'], ['MHENDAT', 'End date'], ['MHLLT', 'Lowest level term (coding)'], ['MHDECOD', 'Preferred term (coding)'], ['MHPTCD', 'Preferred term code (coding)'], ['MHBODSYS', 'System class (coding)'], ['MHSOCCD', 'System class code (coding)']],
+  DVL: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DEVID', 'Deviation ID'], ['DEVCAT', 'Category'], ['DEVTERM', 'Description'], ['DEVDATE', 'Date of deviation'], ['IMPORTANT', 'Important deviation (Yes/No)']],
+  CO: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['FORM', 'Form commented on (blank: general)'], ['VISIT', 'Visit (folder)'], ['CODAT', 'Date of comment'], ['COMMENT', 'Comment']],
   IRT: [['SUBJID', 'Subject number'], ['RANDNO', 'Randomisation number'], ['RANDDT', 'Randomisation date'], ['RANDARM', 'Randomised arm (code)'], ['KITARM', 'Arm of kits dispensed (code)']],
 }
 export const RAW_FIELDS: Record<string, { name: string; label: string }[]> = Object.fromEntries(Object.entries(RAW_FIELD_PAIRS).map(([k, v]) => [k, v.map(([name, label]) => ({ name, label }))]))
@@ -189,6 +197,7 @@ export function generate(seed = 1230301): RawData {
     }
   })
   phase2(forms, subjects, seed)
+  phase3(forms, subjects, seed)
   exportFormats(forms)
   return { forms, subjects }
 }
@@ -208,8 +217,9 @@ export const raw = (t: Transfer = 1): RawData => (t === 2 ? (cache2 ??= transfer
 // them: the EDC as DD-MMM-YYYY with UN/UNK for unknown parts, the central laboratory as YYYYMMDD
 // with HHMM times, the IRT as ISO 8601.
 function exportFormats(forms: Record<string, Row[]>) {
-  for (const f of ['DM', 'IC', 'SV', 'VS', 'EX', 'DS', 'AE', 'CM']) for (const r of forms[f] ?? []) for (const k of Object.keys(r)) if (/DAT$/.test(k) && r[k]) r[k] = toEdc(r[k])
+  for (const f of ['DM', 'IC', 'SV', 'VS', 'EX', 'DS', 'AE', 'CM', 'IE', 'MH', 'CO']) for (const r of forms[f] ?? []) for (const k of Object.keys(r)) if (/DAT$/.test(k) && r[k]) r[k] = toEdc(r[k])
   for (const r of forms.LBC ?? []) { r.COLLDATE = toYmd(r.COLLDATE); r.COLLTIME = r.COLLTIME.replace(':', '') }
+  for (const r of forms.DVL ?? []) r.DEVDATE = toDmy(r.DEVDATE)
 }
 
 // ---------- Phase 2 additions (a separate random stream, so the Phase 1 data are unchanged) ----------
@@ -296,6 +306,56 @@ function phase2(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
   }
   lab.forEach((x, i) => { x.__id = `LBC-${String(i + 1).padStart(5, '0')}` })
   forms.LBC = lab
+}
+
+// ---------- Eligibility, medical history, deviations and comments ----------
+// A separate random stream again, so everything generated before stays as it was.
+export const PLANTED_DV = { lateReconsent: '103-002', outOfWindow: '105-003' }
+export const LONG_COMMENT = 'Subject reported that the morning dose was taken with breakfast on most days during the first two weeks because of mild nausea on an empty stomach; site re-educated the subject at the Week 2 visit and dosing before breakfast was confirmed at every visit after that.'
+function phase3(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: number) {
+  const r = rng(seed + 11)
+  const id = (form: string) => `${form}-${String((forms[form] ??= []).length + 1).padStart(4, '0')}`
+  const add = (form: string, row: Record<string, string>) => { (forms[form] ??= []).push({ __id: id(form), ...row }) }
+  const svDate = (subj: string, visit: string) => forms.SV.find((x) => x.SUBJID === subj && x.VISIT === visit)?.VISDAT ?? ''
+  for (const s of subjects) {
+    // Eligibility: screen failures failed one criterion, now and then two.
+    if (s.fate === 'screen-fail') {
+      const failed = r.pick([['IN02'], ['IN02'], ['IN03'], ['EX01'], ['EX02'], ['IN02', 'EX02']])
+      for (const code of failed) { const c = CRITERIA.find((x) => x.code === code)!; add('IE', { SUBJID: s.subj, SITEID: s.site, VISIT: 'Screening', IEDAT: s.scr, IEYN: 'N', IECAT: c.cat === 'INCLUSION' ? 'Inclusion' : 'Exclusion', IETESTCD: code }) }
+    } else add('IE', { SUBJID: s.subj, SITEID: s.site, VISIT: 'Screening', IEDAT: s.scr, IEYN: 'Y', IECAT: '', IETESTCD: '' })
+    // Medical history: the diabetes itself, then common comorbidities.
+    const hist: [string, string, string][] = [['Diabetes history', 'Type 2 diabetes mellitus', addDays(s.scr, -r.int(400, 4000))]]
+    if (r.next() < 0.55) hist.push(['General medical history', r.pick(['Hypertension', 'Essential hypertension', 'High blood pressure']), addDays(s.scr, -r.int(300, 3000))])
+    if (r.next() < 0.45) hist.push(['General medical history', r.pick(['Hypercholesterolaemia', 'High cholesterol']), addDays(s.scr, -r.int(300, 3000))])
+    if (r.next() < 0.15) hist.push(['General medical history', 'Osteoarthritis of the knee', addDays(s.scr, -r.int(500, 5000))])
+    if (r.next() < 0.06) hist.push(['General medical history', 'Kidney stones', addDays(s.scr, -r.int(800, 5000))])
+    hist.forEach(([cat, term, st], i) => {
+      const u = r.next(), start = u < 0.35 ? st.slice(0, 4) : u < 0.7 ? st.slice(0, 7) : st
+      const over = term === 'Kidney stones'
+      const llt = exactLlt(SMD_10, term)!, p = path(SMD_10, llt.code), at = (lv: string) => p.find((t) => t.level === lv)!
+      add('MH', { SUBJID: s.subj, SITEID: s.site, MHSPID: String(i + 1), MHCAT: cat, MHTERM: term, MHSTDAT: start, MHONGO: over ? 'N' : 'Y', MHENDAT: over ? addDays(st, r.int(10, 60)).slice(0, 7) : '', MHLLT: llt.name, MHDECOD: at('PT').name, MHPTCD: at('PT').code, MHBODSYS: at('SOC').name, MHSOCCD: at('SOC').code })
+    })
+  }
+  // Protocol deviations recorded by the monitors in the CTMS.
+  const dev = (s: SubjectTruth, cat: string, term: string, date: string, important: boolean) => add('DVL', { SUBJID: s.subj, SITEID: s.site, DEVID: `PD-${String((forms.DVL ?? []).length + 1).padStart(3, '0')}`, DEVCAT: cat, DEVTERM: term, DEVDATE: date, IMPORTANT: important ? 'Yes' : 'No' })
+  const S = (subj: string) => subjects.find((x) => x.subj === subj)!
+  dev(S(PLANTED.wrongKit), 'Investigational product', 'Kits of the other GLV-12 dose level dispensed from Day 1 to the end of treatment', S(PLANTED.wrongKit).d1!, true)
+  dev(S(PLANTED.afterDoseVitals), 'Study procedures', 'Day 1 vital signs measured after the first dose instead of before it', S(PLANTED.afterDoseVitals).d1!, false)
+  dev(S(PLANTED.day1NotDone), 'Study procedures', 'Day 1 vital signs not done', S(PLANTED.day1NotDone).d1!, false)
+  const rc = S(PLANTED_DV.lateReconsent)
+  if (rc?.d1) dev(rc, 'Informed consent', 'Re-consent to protocol amendment 1 obtained 3 weeks after the amendment was approved', addDays(rc.d1, 50), true)
+  const ow = S(PLANTED_DV.outOfWindow)
+  if (ow?.d1 && svDate(ow.subj, 'Week 12')) dev(ow, 'Visit schedule', 'Week 12 visit performed outside the protocol window', svDate(ow.subj, 'Week 12'), false)
+  for (const s of subjects.filter((x) => x.fate === 'lost')) dev(s, 'Visit schedule', 'Subject missed scheduled visits and could not be contacted', s.end, false)
+  // Comments the sites entered.
+  const dosed = subjects.filter((x) => x.d1 && x.fate === 'completed')
+  const c = (s: SubjectTruth, form: string, visit: string, date: string, text: string) => add('CO', { SUBJID: s.subj, SITEID: s.site, FORM: form, VISIT: visit, CODAT: date, COMMENT: text })
+  c(dosed[0], 'EX', 'Day 1', dosed[0].d1!, LONG_COMMENT)
+  c(S(PLANTED.day1NotDone), 'VS', 'Day 1', S(PLANTED.day1NotDone).d1!, 'Vital signs not measured: blood pressure monitor out of service on Day 1.')
+  c(S(PLANTED.afterDoseVitals), 'VS', 'Day 1', S(PLANTED.afterDoseVitals).d1!, 'Vital signs taken 25 minutes after the first dose; see deviation log.')
+  c(dosed[3], 'AE', 'Week 4', svDate(dosed[3].subj, 'Week 4') || dosed[3].d1!, 'Investigator confirmed the event is not related to study drug.')
+  c(dosed[5], '', 'Week 12', svDate(dosed[5].subj, 'Week 12') || dosed[5].d1!, 'Subject moving house in August; visits may be rescheduled.')
+  c(dosed[8], 'LB', 'Week 26', svDate(dosed[8].subj, 'Week 26') || dosed[8].end, 'Sample collected 30 minutes later than planned because of a delayed courier.')
 }
 
 // ---------- Transfer 2 ----------

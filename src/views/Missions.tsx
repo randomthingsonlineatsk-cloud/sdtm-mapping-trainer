@@ -3,10 +3,10 @@ import { useStore } from '../state'
 import { useNav } from '../App'
 import { MISSIONS, activeRun, bestRun, startMission, finishMission, evaluateMission } from '../domain/missions'
 import { emptySpec } from '../domain/project'
+import { DEFAULT_SOURCE } from '../domain/reference'
 import { VERSION_LABEL, isRel, dsName } from '../domain/standards'
 import { Panel, Pill, Btn, Table, Stat } from './ui'
 
-const SOURCE: Record<string, string> = { DM: 'DM', VS: 'VS', AE: 'AE', CM: 'CM', EX: 'EX', DS: 'DS', LB: 'LBC' }
 
 export default function Missions() {
   const { p } = useStore()
@@ -34,7 +34,7 @@ function MissionCard({ id }: { id: string }) {
   const [confirm, setConfirm] = useState(false)
   const start = () => act((pp) => {
     startMission(pp, id)
-    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d)) pp.specs[d] ??= emptySpec(d, SOURCE[d] ?? d)
+    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d)) pp.specs[d] ??= emptySpec(d, DEFAULT_SOURCE[d] ?? d)
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
     : m.kind === 'rerun' ? <><Btn onClick={() => go('raw')}>What changed (Raw data)</Btn>{m.domains.map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d}</Btn>)}</>

@@ -6,7 +6,7 @@ import { toR, toSAS } from '../domain/codegen'
 import { MISSIONS } from '../domain/missions'
 import { varsOf, DETAIL_DOMAINS, domainInfo, CT, type VarMeta } from '../domain/standards'
 import { emptySpec, log, type Project } from '../domain/project'
-import { SORT } from '../domain/reference'
+import { SORT, DEFAULT_SOURCE } from '../domain/reference'
 import { Panel, Pill, Btn, Select, Table, TextArea, Tabs, ic } from './ui'
 import { useData, formsOf, formName, fieldsOf, samples, distinct } from './shared'
 
@@ -24,7 +24,7 @@ export default function Mapping() {
   const spec = bag[domain]
   const data = useData()
   const forms = formsOf(p)
-  const start = () => act((pp) => { const b = track === 'qc' ? (pp.qc ??= {}) : pp.specs; b[domain] = emptySpec(domain, domain === 'LB' && forms.includes('LBC') ? 'LBC' : forms.includes(domain) ? domain : forms[0]); log(pp, `Started ${track === 'qc' ? 'QC programming' : 'mapping'} ${domain}`) })
+  const start = () => act((pp) => { const b = track === 'qc' ? (pp.qc ??= {}) : pp.specs; b[domain] = emptySpec(domain, DEFAULT_SOURCE[domain] && forms.includes(DEFAULT_SOURCE[domain]) ? DEFAULT_SOURCE[domain] : forms.includes(domain) ? domain : forms[0]); log(pp, `Started ${track === 'qc' ? 'QC programming' : 'mapping'} ${domain}`) })
   return (
     <div className="space-y-4">
       <Panel title="Mapping workspace" sub="Raw data on the left, SDTM variables on the right. Pick a variable, choose how it is filled, and watch the dataset rebuild below. Follow the study’s SDTM conventions on the Study tab."

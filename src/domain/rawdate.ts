@@ -2,11 +2,12 @@
 // - EDC exports: DD-MMM-YYYY (10-MAR-2026). An unknown day or month is exported as UN or UNK
 //   (UN-MAR-2026, UN-UNK-2019), the convention most EDC systems use for partial dates.
 // - Central laboratory transfers: YYYYMMDD (20260310) with times as HHMM (0915).
+// - The CTMS protocol deviation log: DD/MM/YYYY (14/03/2026).
 // - IRT files: ISO 8601 already.
 // SDTM keeps only what was collected: an unknown day gives 2026-03, an unknown month 2019 (the
 // day is not kept without its month), and nothing is imputed.
 
-export const INFORMATS = ['DD-MMM-YYYY', 'YYYYMMDD', 'ISO 8601'] as const
+export const INFORMATS = ['DD-MMM-YYYY', 'YYYYMMDD', 'DD/MM/YYYY', 'ISO 8601'] as const
 export type Informat = (typeof INFORMATS)[number]
 const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 const UNK = /^(UN|UK|UNK|NK|XX|--)$/i
@@ -37,6 +38,12 @@ export function toIso(text: string, informat: string): string {
     if (!m) throw new Error(`“${s}” is not YYYYMMDD`)
     if (!valid(+m[1], +m[2], +m[3])) throw new Error(`“${s}” is not a calendar date`)
     return `${m[1]}-${m[2]}-${m[3]}`
+  }
+  if (f === 'DD/MM/YYYY') {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s)
+    if (!m) throw new Error(`“${s}” is not DD/MM/YYYY`)
+    if (!valid(+m[3], +m[2], +m[1])) throw new Error(`“${s}” is not a calendar date`)
+    return `${m[3]}-${m[2]}-${m[1]}`
   }
   if (f === 'ISO 8601' || f === 'ISO' || f === 'ISO8601') {
     if (!ISO_PARTIAL.test(s)) throw new Error(`“${s}” is not ISO 8601`)
@@ -72,3 +79,4 @@ export function toEdc(iso: string): string {
   return `${d ?? 'UN'}-${MON[Number(m) - 1]}-${y}`
 }
 export const toYmd = (iso: string) => iso.slice(0, 10).replace(/-/g, '')
+export const toDmy = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')

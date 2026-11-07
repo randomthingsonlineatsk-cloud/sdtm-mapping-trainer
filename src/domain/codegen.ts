@@ -34,6 +34,7 @@ function expr(n: Node, L: Lang): string {
     case 'call': {
       const f = n.name.toLowerCase(), a = n.args.map(go)
       if (f === '__in') return L === 'R' ? `${a[0]} %in% c(${a.slice(1).join(', ')})` : `${a[0]} in (${a.slice(1).join(', ')})`
+      if (f === 'wrap') return L === 'R' ? `wrap_text(${a[0]}, ${a[1]}, ${a[2]})` : `%scan_wrap(${a[0]}, ${a[1]}, ${a[2]})`
       if (f === 'part') return L === 'R' ? `trimws(stringr::str_split_i(${a[0]}, stringr::fixed(${a[1]}), ${a[2]}))` : `strip(scan(${a[0]}, ${a[2]}, ${a[1]}))`
       if (f === 'isdup') return L === 'R' ? `duplicated(paste(${a.join(', ')}))` : `(first_key_seen(catx('|', ${a.join(', ')})) = 0)`
       if (HELPERS[f]) {

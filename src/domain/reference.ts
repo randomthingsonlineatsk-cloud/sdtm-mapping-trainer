@@ -67,6 +67,35 @@ const EX_RULES: Record<string, Rule> = {
   EXDOSU: c('mg'), EXDOSFRM: c('TABLET'), EXDOSFRQ: c('QD'), EXROUTE: c('ORAL'),
   EPOCH: e('epoch(EXSTDTC)'), EXSTDTC: e("dtc(EXSTDAT, 'DD-MMM-YYYY', EXSTTIM)"), EXENDTC: e("dtc(EXENDAT, 'DD-MMM-YYYY')"), EXSTDY: e('studyday(EXSTDTC)'), EXENDY: e('studyday(EXENDTC)'),
 }
+const IE_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('IE'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), IESEQ: { kind: 'seq' },
+  IETESTCD: cp('IETESTCD'), IETEST: e("ti(IETESTCD, 'text')"), IECAT: e('upper(IECAT)'),
+  IEORRES: e("if(upper(IECAT) = 'INCLUSION', 'N', 'Y')"), IESTRESC: e('IEORRES'),
+  VISITNUM: e('visitnum(VISIT, IEDAT)'), VISIT: e('visitname(VISIT, IEDAT)'), EPOCH: e('epoch(IEDTC)'), IEDTC: e("dtc(IEDAT, 'DD-MMM-YYYY')"), IEDY: e('studyday(IEDTC)'),
+}
+const MH_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('MH'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), MHSEQ: { kind: 'seq' }, MHSPID: cp('MHSPID'),
+  MHTERM: cp('MHTERM'), MHDECOD: cp('MHDECOD'), MHCAT: e('upper(MHCAT)'), MHBODSYS: cp('MHBODSYS'),
+  MHSTDTC: e("dtc(MHSTDAT, 'DD-MMM-YYYY')"), MHENDTC: e("dtc(MHENDAT, 'DD-MMM-YYYY')"),
+  MHENRTPT: e("if(MHONGO = 'Y', 'ONGOING', '')"), MHENTPT: e("if(MHONGO = 'Y', 'SCREENING', '')"),
+}
+// EC is the treatment as collected: blinded, in tablets, from the dosing form. EX is the
+// treatment actually given, known from the IRT kit arm once the study is unblinded.
+const EC_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('EC'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), ECSEQ: { kind: 'seq' },
+  ECTRT: c('GLV-12 OR PLACEBO'), ECDOSE: e('num(EXTABS)'), ECDOSU: c('TABLET'), ECDOSFRM: c('TABLET'), ECDOSFRQ: c('QD'), ECROUTE: c('ORAL'), ECREFID: cp('EXKIT'),
+  EPOCH: e('epoch(ECSTDTC)'), ECSTDTC: e("dtc(EXSTDAT, 'DD-MMM-YYYY', EXSTTIM)"), ECENDTC: e("dtc(EXENDAT, 'DD-MMM-YYYY')"), ECSTDY: e('studyday(ECSTDTC)'), ECENDY: e('studyday(ECENDTC)'),
+}
+const DV_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('DV'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), DVSEQ: { kind: 'seq' }, DVREFID: cp('DEVID'),
+  DVTERM: cp('DEVTERM'), DVCAT: e('upper(DEVCAT)'), DVSCAT: e("if(IMPORTANT = 'Yes', 'IMPORTANT', 'NOT IMPORTANT')"),
+  EPOCH: e('epoch(DVSTDTC)'), DVSTDTC: e("dtc(DEVDATE, 'DD/MM/YYYY')"), DVSTDY: e('studyday(DVSTDTC)'),
+}
+// Comments over 200 characters continue in COVAL1 (SDTMIG CO assumption), split between words.
+const CO_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('CO'), RDOMAIN: cp('FORM'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), COSEQ: { kind: 'seq' },
+  COREF: e('visitname(VISIT, CODAT)'), COVAL: e('wrap(COMMENT, 200, 1)'), COVAL1: e('wrap(COMMENT, 200, 2)'), CODTC: e("dtc(CODAT, 'DD-MMM-YYYY')"), CODY: e('studyday(CODTC)'),
+}
 const DS_COMMON: Record<string, Rule> = { STUDYID: c(STUDY.id), DOMAIN: c('DS'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), DSSEQ: { kind: 'seq' }, DSSTDY: e('studyday(DSSTDTC)') }
 const DS_RULES: Record<string, Rule> = { ...DS_COMMON, DSTERM: e('coalesce(DSTERM, upper(DSDECOD))'), DSDECOD: e('upper(DSDECOD)'), DSCAT: c('DISPOSITION EVENT'), EPOCH: e('epoch(DSSTDTC)'), DSSTDTC: e("dtc(DSSTDAT, 'DD-MMM-YYYY')") }
 const DS_IC: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e("dtc(DSSTDAT, 'DD-MMM-YYYY')") }
@@ -90,6 +119,7 @@ const SV_RULES: Record<string, Rule> = {
 export const SORT: Record<string, string[]> = {
   DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'], AE: ['USUBJID', 'AEDECOD', 'AESTDTC'], CM: ['USUBJID', 'CMTRT', 'CMSTDTC'],
   EX: ['USUBJID', 'EXSTDTC'], DS: ['USUBJID', 'DSSTDTC', 'DSCAT'], LB: ['USUBJID', 'LBTESTCD', 'VISITNUM', 'LBDTC'], SV: ['USUBJID', 'VISITNUM'],
+  IE: ['USUBJID', 'IETESTCD'], MH: ['USUBJID', 'MHCAT', 'MHTERM', 'MHSTDTC'], EC: ['USUBJID', 'ECSTDTC'], DV: ['USUBJID', 'DVSTDTC', 'DVREFID'], CO: ['USUBJID', 'CODTC', 'RDOMAIN'],
 }
 
 // Which IG variables each reference includes: every Required and Expected variable, plus the
@@ -103,8 +133,15 @@ const REF: Record<string, { rules: Record<string, Rule>; perm: string[]; transpo
   DS: { rules: DS_RULES, perm: ['EPOCH', 'DSSTDY', 'SUBJID'], parts: [{ source: 'IC', rules: DS_IC }, { source: 'IRT', rules: DS_IRT }] },
   LB: { rules: LB_RULES, perm: ['LBREFID', 'LBSTAT', 'LBREASND', 'LBNAM', 'LBSPEC', 'LBFAST', 'VISIT', 'EPOCH', 'LBDY', 'SUBJID'], source: 'LBC', filter: 'not isdup(ACCSNUM, TESTCODE)' },
   SV: { rules: SV_RULES, perm: ['VISIT', 'VISITDY', 'EPOCH', 'SVSTDY', 'SVENDY'] },
+  IE: { rules: IE_RULES, perm: ['VISITNUM', 'VISIT', 'EPOCH', 'IEDTC', 'IEDY', 'SUBJID'], filter: "IEYN = 'N'" },
+  MH: { rules: MH_RULES, perm: ['MHSPID', 'MHDECOD', 'MHCAT', 'MHBODSYS', 'MHSTDTC', 'MHENDTC', 'MHENRTPT', 'MHENTPT', 'SUBJID'] },
+  EC: { rules: EC_RULES, perm: ['ECDOSFRQ', 'ECROUTE', 'ECREFID', 'EPOCH', 'ECSTDY', 'ECENDY', 'SUBJID'], source: 'EX' },
+  DV: { rules: DV_RULES, perm: ['DVREFID', 'DVCAT', 'DVSCAT', 'EPOCH', 'DVSTDTC', 'DVSTDY', 'SUBJID'], source: 'DVL' },
+  CO: { rules: CO_RULES, perm: ['RDOMAIN', 'COREF', 'COVAL1', 'CODTC', 'CODY'] },
 }
 export const REF_DOMAINS = Object.keys(REF)
+// The raw form a domain is mapped from when it is not the form of the same name.
+export const DEFAULT_SOURCE: Record<string, string> = { LB: 'LBC', EC: 'EX', DV: 'DVL' }
 export function referenceSpec(domain: string, ver: Version): DomainSpec {
   const r = REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain}`)
   const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name)) && r.rules[m.name]).map((m) => m.name)
