@@ -7,8 +7,9 @@
 
 import { build, type Built, type DomainSpec } from './engine'
 import { check, summarise, type Finding } from './conformance'
-import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM } from './reference'
+import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM, REF_DOMAINS } from './reference'
 import { buildRelrec, checkRelrec } from './relrec'
+import { crfPages, suggest, checkAcrf, domainsOf, namedVars, NOT_SUBMITTED } from './acrf'
 import { compareDatasets } from './qc'
 import { currentVersion, mismatches } from './plan'
 import { RAW_FIELDS } from './seed'
@@ -17,7 +18,7 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
@@ -69,6 +70,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S16', domains: ['XE'], kind: 'custom', phase: 3, title: 'A custom domain for diabetes education', pass: PASS + ', and the custom domain defined with its class, structure and the reason no standard domain fits',
     brief: 'The sites recorded diabetes education sessions (EDU form). Check that no published domain fits, then define the sponsor domain XE (Interventions class) in the Mapping workspace and map it.',
     watch: ['Custom domain codes start with X, Y or Z', 'Choose the observation class: the session is something given to the subject', 'Write down why PR, ML, CM and the others do not fit', 'A duration is ISO 8601: PT30M'] },
+  { id: 'S17', domains: ['aCRF'], kind: 'acrf', phase: 3, title: 'Annotate the CRF', pass: '90% of fields annotated with the variables the study’s mapping puts them in, and no aCRF errors against your own mapping',
+    brief: 'On the aCRF tab, annotate every unique CRF page: the variable each field is submitted in, in the standard syntax, or [NOT SUBMITTED]. The suggestions come from your own mapping, so map the domains first; the score compares your annotations with what the study’s reference mapping implies.',
+    watch: ['Findings: VSORRES when VSTESTCD = SYSBP, and the unit field too', 'Supplemental qualifiers: QVAL when QNAM = RACE1 in SUPPDM', 'A field another domain looks up (the consent date for RFICDTC) carries that domain’s variable as DM.RFICDTC', 'Link fields (CMAENO, AELBACC) are annotated RELREC', 'Derived variables are not annotated'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -123,6 +127,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   if (p.imported) throw new Error('Missions run on GLV-12-301. Open or start a GLV-12-301 project.')
   const data = studyData(p.transfer ?? 1)
   const ver = p.version
+  if (def.kind === 'acrf') return evaluateAcrf(p, data)
   const refDesign = referenceDesign(ver, p.transfer ?? 1)
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
   const results: DomainResult[] = []
@@ -233,4 +238,32 @@ export function brokenSpec(d: 'AE' | 'LB' | 'VS', ver: Version): DomainSpec {
     s.rules.LBNRIND = { kind: 'const', value: 'NORMAL' }
   }
   return s
+}
+
+// S17: annotations against those the reference mapping implies, field by field, and the aCRF
+// checks against the learner's own mapping.
+function evaluateAcrf(p: Project, data: ReturnType<typeof studyData>) {
+  const pages = crfPages(data.forms)
+  const refSpecs = Object.fromEntries(REF_DOMAINS.map((d) => [d, referenceSpec(d, p.version)]))
+  const perVar: NonNullable<MissionRun['perVar']> = []
+  let ok = 0, total = 0
+  for (const pg of pages) {
+    const want = suggest(pg.form, refSpecs, REF_RELREC, p.version)
+    const doms = domainsOf(pg.form, refSpecs)
+    let good = 0; const examples: string[] = []
+    for (const f of pg.fields) {
+      total++
+      const mine = (p.acrf?.[pg.form]?.[f.name] ?? '').trim()
+      const key = (t: string) => (t === NOT_SUBMITTED ? [NOT_SUBMITTED] : namedVars(t, doms).map((x) => x.variable).sort())
+      const a = key(mine), b = key(want[f.name])
+      if (mine && a.length === b.length && a.every((x, i) => x === b[i])) { ok++; good++ }
+      else if (examples.length < 3) examples.push(`${f.name}: expected “${want[f.name]}”, yours “${mine || '(none)'}”`)
+    }
+    perVar.push({ v: pg.form, credit: pg.fields.length ? good / pg.fields.length : 1, core: '', examples })
+  }
+  const errors = checkAcrf(pages, p.acrf ?? {}, p.specs, p.relrec ?? [], p.version).filter((f) => f.sev === 'Error')
+  const score = Math.round((ok / Math.max(1, total)) * 100)
+  const passed = score >= 90 && errors.length === 0
+  const comparison = { perVar, matched: ok, refRows: total, learnerRows: total, extra: 0 }
+  return { score, passed, domains: [{ domain: 'aCRF', score, passed, comparison, findings: [] }], detail: [`aCRF: ${ok} of ${total} fields annotated as the reference mapping implies`, `${errors.length} aCRF error${errors.length === 1 ? '' : 's'} against your own mapping${errors.length ? `: ${errors.slice(0, 3).map((e) => `${e.form}.${e.field} (${e.msg})`).join('; ')}` : ''}`] }
 }

@@ -140,11 +140,17 @@ rules; no vendor rule text or tool is copied.
   might already hold them, requires a reason why none fits and a code starting with X, Y or Z,
   and creates the domain from the general observation class variables. The diabetes education
   form goes to the sponsor domain XE. Mission S16.
+- **Annotated CRF:** every unique EDC page rendered with its fields, annotated in the standard
+  syntax (domain header, VARIABLE or DOMAIN.VARIABLE, “VSORRES when VSTESTCD = SYSBP”, QVAL
+  for supplemental qualifiers, RELREC, [NOT SUBMITTED]) with colours by domain; suggestions
+  from your own mapping; checks that every field is annotated, every variable exists and
+  every annotation matches the mapping. acrf.pdf is written in the browser with a linked table
+  of contents and bookmarks by form and by visit. Mission S17.
 
 ## Coming next
 
-- **Rest of Phase 3:** aCRF editor and acrf.pdf, define.xml v2.1 with a preview, the
-  reviewer's guide, a submission-style zip, and a pharmacokinetics study (PC and PP).
+- **Rest of Phase 3:** define.xml v2.1 with a preview, the reviewer's guide, a
+  submission-style zip, and a pharmacokinetics study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study

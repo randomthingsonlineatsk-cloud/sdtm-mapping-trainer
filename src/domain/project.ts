@@ -31,6 +31,7 @@ export interface Project {
   missions: MissionRun[]
   quiz: Record<string, Record<string, number>>
   log: LogEntry[]
+  acrf?: Record<string, Record<string, string>> // annotations per CRF page and field
   relrec?: RelDef[] // relationship rules for RELREC
   custom?: CustomDomain[] // sponsor-defined domains
   plan?: Record<string, Plan> // the written mapping specifications, with their versions
