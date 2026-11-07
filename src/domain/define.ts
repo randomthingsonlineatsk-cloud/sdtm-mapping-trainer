@@ -23,7 +23,7 @@ export interface DCodelist { oid: string; name: string; extensible: boolean; ter
 export interface DMethod { oid: string; name: string; description: string }
 export interface DComment { oid: string; text: string }
 export interface DefineModel {
-  study: string; version: Version; created: string
+  study: string; title: string; version: Version; created: string
   standards: { oid: string; name: string; type: string; version: string; status: string; publishingSet?: string }[]
   datasets: DDataset[]; items: DItem[]; valueLists: DValueList[]; wheres: DWhere[]; codelists: DCodelist[]; methods: DMethod[]; comments: DComment[]
   leaves: { id: string; href: string; title: string }[]
@@ -46,11 +46,12 @@ function dataType(m: VarMeta | undefined, v: string, values: string[]): string {
 }
 const lengthOf = (t: string, values: string[]) => (t === 'text' ? Math.max(1, ...values.map((x) => x.length)) : t === 'integer' || t === 'float' ? 8 : undefined)
 
-export interface DefineInput { builts: Map<string, Built>; specs: Record<string, DomainSpec>; version: Version; laid: LaidPage[]; designDomains: string[] }
+// study, rawFields and formSource default to GLV-12-301's.
+export interface DefineInput { builts: Map<string, Built>; specs: Record<string, DomainSpec>; version: Version; laid: LaidPage[]; designDomains: string[]; study?: { id: string; title: string }; rawFields?: Record<string, { name: string }[]>; formSource?: Record<string, string> }
 export function buildDefine(inp: DefineInput, now = new Date()): DefineModel {
   const { builts, specs, version: ver, laid } = inp
   const m: DefineModel = {
-    study: STUDY.id, version: ver, created: now.toISOString().slice(0, 19),
+    study: inp.study?.id ?? STUDY.id, title: inp.study?.title ?? STUDY.title, version: ver, created: now.toISOString().slice(0, 19),
     standards: [
       { oid: 'STD.1', name: 'SDTMIG', type: 'IG', version: ver === '3.4' ? '3.4' : '4.0', status: ver === '3.4' ? 'Final' : 'Draft' },
       { oid: 'STD.2', name: 'CDISC/NCI', type: 'CT', publishingSet: 'SDTM', version: /(\d{4}-\d{2}(-\d{2})?)/.exec(CT_INFO.label)?.[1] ?? 'bundled', status: 'Final' },
@@ -59,7 +60,7 @@ export function buildDefine(inp: DefineInput, now = new Date()): DefineModel {
     leaves: [{ id: 'LF.acrf', href: 'acrf.pdf', title: 'Annotated CRF' }, { id: 'LF.csdrg', href: 'csdrg.pdf', title: 'Clinical Study Data Reviewer’s Guide' }],
   }
   const usedCl = new Map<string, Set<string>>()
-  const raw = (f: string) => (RAW_FIELDS[f] ?? []).map((x) => x.name)
+  const raw = (f: string) => ((inp.rawFields ?? RAW_FIELDS)[f] ?? []).map((x) => x.name)
   for (const [name, b] of builts) {
     const spec = specs[name]
     const info = domainInfo(isRel(name) ? 'SUPPQUAL' : name)
@@ -86,7 +87,7 @@ export function buildDefine(inp: DefineInput, now = new Date()): DefineModel {
         const collected = o.find((x) => x.origin === 'Collected'), assigned = o.every((x) => x.origin === 'Assigned')
         // A variable annotated on the aCRF is collected there, even when a small expression cleans it.
         const pages = acrfPageOf(laid, specs, name, v)
-        if (collected || (pages.length && !assigned)) item.origin = { type: 'Collected', source: collected?.source ?? (FORM_SRC[spec.source] ?? 'Investigator'), pages }
+        if (collected || (pages.length && !assigned)) item.origin = { type: 'Collected', source: collected?.source ?? ((inp.formSource ?? FORM_SRC)[spec.source] ?? 'Investigator'), pages }
         else if (assigned && o.length) item.origin = { type: 'Assigned', source: 'Sponsor', text: rules.map((x) => describe(x.rule)).join(' | ') }
         else if (o.length) {
           const mt = { oid: `MT.${name}.${v}`, name: `Algorithm for ${name}.${v}`, description: rules.map((x, k) => `${rules.length > 1 ? `[${x.source}] ` : ''}${describe(x.rule)}${k < rules.length - 1 ? '' : ''}`).join(' | ') }
@@ -139,7 +140,7 @@ export function toDefineXml(m: DefineModel): string {
   const L: string[] = []
   L.push('<?xml version="1.0" encoding="UTF-8"?>', `<?xml-stylesheet type="text/xsl" href="${STYLESHEET}"?>`)
   L.push(`<ODM xmlns="http://www.cdisc.org/ns/odm/v1.3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:def="http://www.cdisc.org/ns/def/v2.1" ODMVersion="1.3.2" FileType="Snapshot" FileOID="DEF.${esc(m.study)}" CreationDateTime="${m.created}" Originator="SDTM Mapping Trainer (training data, fictional study)" SourceSystem="SDTM Mapping Trainer" SourceSystemVersion="3" def:Context="Submission">`)
-  L.push(` <Study OID="STDY.${esc(m.study)}">`, `  <GlobalVariables><StudyName>${esc(m.study)}</StudyName><StudyDescription>${esc(STUDY.title)}</StudyDescription><ProtocolName>${esc(m.study)}</ProtocolName></GlobalVariables>`)
+  L.push(` <Study OID="STDY.${esc(m.study)}">`, `  <GlobalVariables><StudyName>${esc(m.study)}</StudyName><StudyDescription>${esc(m.title)}</StudyDescription><ProtocolName>${esc(m.study)}</ProtocolName></GlobalVariables>`)
   L.push(`  <MetaDataVersion OID="MDV.${esc(m.study)}.SDTM" Name="${esc(m.study)} SDTM" Description="SDTM tabulation datasets (training)" def:DefineVersion="2.1.0">`)
   L.push('   <def:Standards>', ...m.standards.map((s) => `    <def:Standard OID="${s.oid}" Name="${s.name}" Type="${s.type}"${s.publishingSet ? ` PublishingSet="${s.publishingSet}"` : ''} Version="${esc(s.version)}" Status="${s.status}"/>`), '   </def:Standards>')
   L.push('   <def:AnnotatedCRF><def:DocumentRef leafID="LF.acrf"/></def:AnnotatedCRF>', '   <def:SupplementalDoc><def:DocumentRef leafID="LF.csdrg"/></def:SupplementalDoc>')

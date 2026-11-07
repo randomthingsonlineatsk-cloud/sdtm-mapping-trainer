@@ -8,7 +8,7 @@ import { domainInfo, TRIAL_DESIGN, isRel, relLabel, relName } from '../domain/st
 import { toXpt, toDatasetJson } from '../domain/exports'
 import { specRows, specCsv, valueLevel } from '../domain/spec'
 import { SORT } from '../domain/reference'
-import { log, refSpecFor } from '../domain/project'
+import { log, refSpecFor, isGlv } from '../domain/project'
 import { download } from '../domain/store'
 import { Panel, Pill, Btn, Select, Table, Stat, Tabs, ic } from './ui'
 import { useData, fieldsOf } from './shared'
@@ -59,8 +59,9 @@ export default function Datasets() {
         </div>
         <Tabs tabs={[{ id: 'data' as const, label: 'Datasets and findings' }, { id: 'spec' as const, label: 'Mapping specification' }]} value={tab} onChange={setTab} />
       </Panel>
-      {tab === 'data' && !p.imported && (p.transfer ?? 1) === 2 && p.specs[domain]?.vars.length ? <SinceT1 domain={domain} built={built} /> : null}
+      {tab === 'data' && isGlv(p) && (p.transfer ?? 1) === 2 && p.specs[domain]?.vars.length ? <SinceT1 domain={domain} built={built} /> : null}
       {tab === 'data' ? <DataTab built={built} findings={findings} /> : <SpecTab all={all} />}
+      {!p.imported && tab === 'data' && <Handoff />}
     </div>
   )
 }
@@ -155,6 +156,31 @@ function SinceT1({ domain, built }: { domain: string; built: Built }) {
       <p className="text-sm">{c.baseObs} records in transfer 1, {c.compareObs} now: {c.obsOnlyCompare.length} new, {c.obsOnlyBase.length} no longer present, {c.diffs.length ? `${c.unequalValues} changed values in ${c.diffs.map((d) => `${d.v} (${d.count})`).join(', ')}` : 'no changed values'}.</p>
       {(c.obsOnlyCompare.length > 0 || c.obsOnlyBase.length > 0) && <Table head={['Key', 'Change']} rows={[...c.obsOnlyCompare.slice(0, 10).map((k) => [<span className="font-mono text-[11px]">{k}</span>, 'New in transfer 2']), ...c.obsOnlyBase.slice(0, 10).map((k) => [<span className="font-mono text-[11px]">{k}</span>, 'Not in transfer 2'])]} />}
       {c.diffs.length > 0 && <Table head={['Variable', 'Key', 'Transfer 1', 'Transfer 2']} rows={c.diffs.flatMap((d) => d.examples.slice(0, 3).map((e) => [<span className="font-mono">{d.v}</span>, <span className="font-mono text-[11px]">{e.key}</span>, <span className="font-mono">{e.base || '(null)'}</span>, <span className="font-mono">{e.compare || '(null)'}</span>]))} />}
+    </Panel>
+  )
+}
+
+// The hand-off to the TLF Programming Lab.
+function Handoff() {
+  const { p } = useStore()
+  const data = useData()
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<{ files: number; datasets: number; open: number; must: number } | null>(null)
+  const go = async () => {
+    setBusy(true)
+    try {
+      const { buildHandoff, zipHandoff } = await import('../domain/handoff')
+      const h = buildHandoff(p, data)
+      const bytes = zipHandoff(h.files)
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }))
+      const a = document.createElement('a'); a.href = url; a.download = `${h.manifest.study.id.toLowerCase()}_sdtm_handoff.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setDone({ files: h.manifest.files.length, datasets: h.manifest.datasets.length, open: h.manifest.validation.open, must: h.manifest.validation.mustFix })
+    } finally { setBusy(false) }
+  }
+  return (
+    <Panel title="Hand-off to the TLF Programming Lab" sub="What the analysis programmers receive at database lock: every dataset as Dataset-JSON v1.1 and XPT v5, define.xml with its stylesheet, and handoff.json, a manifest with the study, the standards, the transfer, each dataset’s keys and variable metadata (label, type, length, role, codelist, origin, derivation) and the validation status with your explanations."
+      right={<Btn tone="solid" disabled={busy} onClick={go}>{busy ? 'Building…' : 'Download the hand-off (.zip)'}</Btn>}>
+      {done && <p className="text-xs" role="status">{done.files} files, {done.datasets} datasets.{done.must || done.open ? <span className="text-lab-amber"> The manifest records {done.must} issue{done.must === 1 ? '' : 's'} to fix and {done.open} not explained: the Lab will see them.</span> : ' Validation issues are all explained.'}</p>}
     </Panel>
   )
 }
