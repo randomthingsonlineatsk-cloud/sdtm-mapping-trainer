@@ -51,6 +51,12 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S11', domains: ['DM', 'AE', 'LB'], kind: 'rerun', phase: 2, title: 'Re-run on the final transfer', pass: PASS,
     brief: 'Transfer 2 has arrived at database lock. Starting this mission switches the project to it; your mappings stay as they are. Review what changed on the Raw data tab, re-run DM, AE and LB, and make every change land correctly: a mapping that worked on transfer 1 is not guaranteed to work on transfer 2.',
     watch: ['The central laboratory changed units part-way through: a conversion that assumes one unit converts some results twice', 'Late-entered events and a corrected date of birth', 'The coding was up-versioned: a hard-coded term would now be wrong', 'Compare each dataset with transfer 1 on the Datasets tab and explain every change'] },
+  { id: 'S12', domains: ['IE', 'MH'], kind: 'map', phase: 2, title: 'Map IE and MH', pass: PASS,
+    brief: 'Build IE from the eligibility form (only the criteria that were not met) and MH from the medical history form with its coding.',
+    watch: ['IE holds only criteria not met: subjects who met all of them have no records', 'An inclusion criterion not met is N; an exclusion criterion met is Y', 'IETEST is the criterion text from the protocol (TI), and may be longer than 40 characters', 'Medical history dates are often partial', 'Conditions ongoing at screening'] },
+  { id: 'S13', domains: ['EC', 'DV', 'CO'], kind: 'map', phase: 2, title: 'Map EC, DV and CO', pass: PASS,
+    brief: 'Build EC (exposure as collected, still blinded) from the dosing form, DV from the protocol deviation log exported from the CTMS, and CO from the sites’ comments.',
+    watch: ['EC records what the site saw: a blinded kit, in tablets; EX records what was given', 'The deviation log comes from another system, with its own date format', 'Each comment links to the domain of the form it was written on', 'A comment over 200 characters continues in COVAL1, split between words'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 

@@ -18,7 +18,7 @@ import { raw } from '../src/domain/seed'
 const data = studyData()
 const full = (v: '3.4' | '4.0d' = '3.4') => {
   const p = createProject('u', 'c', v)
-  for (const d of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB']) p.specs[d] = referenceSpec(d, v)
+  for (const d of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'IE', 'MH', 'EC', 'DV', 'CO']) p.specs[d] = referenceSpec(d, v)
   p.design = referenceDesign(v)
   return p
 }
@@ -334,5 +334,39 @@ describe('data transfer 2 (mission S11)', () => {
     expect(ae.obsOnlyCompare).toHaveLength(2)
     const dm = compareDatasets(build(referenceSpec('DM', '3.4'), studyData(1)), build(referenceSpec('DM', '3.4'), studyData(2)), SORT.DM)
     expect(dm.diffs.map((d) => d.v).sort()).toEqual(['AGE', 'BRTHDTC'])
+  })
+})
+
+describe('IE, MH, EC, DV and CO (missions S12 and S13)', () => {
+  test('IE holds only criteria not met, with the protocol text', () => {
+    const ie = build(referenceSpec('IE', '3.4'), data)
+    const sf = raw().subjects.filter((x) => x.fate === 'screen-fail').map((x) => `GLV-12-301-${x.subj}`)
+    expect([...new Set(ie.rows.map((r) => r.USUBJID))].sort()).toEqual(sf.sort())
+    expect(ie.rows.every((r) => (r.IECAT === 'INCLUSION' && r.IEORRES === 'N') || (r.IECAT === 'EXCLUSION' && r.IEORRES === 'Y'))).toBe(true)
+    expect(ie.rows.some((r) => r.IETEST.length > 40)).toBe(true)
+    expect(check(ie, '3.4')).toHaveLength(0)
+    const s = referenceSpec('AE', '3.4'); s.rules.AETERM = { kind: 'expr', expr: "concat(AETERM, ' reported by the subject at the visit')" }
+  })
+  test('EC is blinded and in tablets; EX is unblinded in mg', () => {
+    const ec = build(referenceSpec('EC', '3.4'), data), ex = build(referenceSpec('EX', '3.4'), data)
+    expect(ec.rows.length).toBe(ex.rows.length)
+    expect(new Set(ec.rows.map((r) => r.ECTRT))).toEqual(new Set(['GLV-12 OR PLACEBO']))
+    expect(new Set(ec.rows.map((r) => r.ECDOSU))).toEqual(new Set(['TABLET']))
+    expect(new Set(ex.rows.map((r) => r.EXTRT))).toEqual(new Set(['GLV-12', 'PLACEBO']))
+  })
+  test('DV from the CTMS log with DD/MM/YYYY dates; CO split between words', async () => {
+    const { LONG_COMMENT } = await import('../src/domain/seed')
+    expect(raw().forms.DVL.every((r) => /^\d{2}\/\d{2}\/\d{4}$/.test(r.DEVDATE))).toBe(true)
+    const dv = build(referenceSpec('DV', '3.4'), data)
+    expect(dv.rows.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.DVSTDTC))).toBe(true)
+    expect(dv.rows.filter((r) => r.DVSCAT === 'IMPORTANT').length).toBeGreaterThanOrEqual(2)
+    const co = build(referenceSpec('CO', '3.4'), data)
+    const long = co.rows.find((r) => r.COVAL1)!
+    expect(long.COVAL.length).toBeLessThanOrEqual(200)
+    expect(`${long.COVAL} ${long.COVAL1}`).toBe(LONG_COMMENT)
+    expect(co.rows.some((r) => r.RDOMAIN === '')).toBe(true)
+    // Unsplit, the long comment breaks the 200-character limit.
+    const s = referenceSpec('CO', '3.4'); s.rules.COVAL = { kind: 'copy', field: 'COMMENT' }
+    expect(check(build(s, data), '3.4').some((f) => f.rule === 'TRN-052')).toBe(true)
   })
 })

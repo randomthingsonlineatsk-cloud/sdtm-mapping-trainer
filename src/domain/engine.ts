@@ -6,7 +6,7 @@
 
 import { parse, evaluate, validate, fmt, isBlank, toNum, type Node, type Val } from './expr'
 import { CT, decode, type Version } from './standards'
-import { SITES, ARMS, VISITS, LAB_STANDARDS, type Visit } from './study'
+import { SITES, ARMS, VISITS, LAB_STANDARDS, CRITERIA, type Visit } from './study'
 import type { Row } from './seed'
 import { toIso, toIsoTime, anyDate, ISO_PARTIAL } from './rawdate'
 
@@ -101,6 +101,8 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     subjwhere: (form, field, wf, wv, how) => agg(mine(S(form)).filter((r) => (r[S(wf)] ?? '') === S(wv)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     irt: (field) => mine('IRT')[0]?.[S(field)] ?? '',
     country: (site) => SITES.find((s) => s.id === S(site))?.iso ?? '',
+    // The protocol's eligibility criteria (as in TI): ti('IN02', 'text') or ti('IN02', 'cat').
+    ti: (code, what) => { const c = CRITERIA.find((x) => x.code === S(code)); return !c ? '' : S(what) === 'cat' ? c.cat : c.text },
     armname: (code) => ARMS.find((a) => a.code === S(code))?.name ?? '',
     age: (birth, ref) => {
       const b = fullDate(anyDate(S(birth)) ?? ''), r = fullDate(anyDate(S(ref)) ?? ''); if (!b || !r) return ''
@@ -151,6 +153,7 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: "dtc(date, informat, time)", what: "A raw date to ISO 8601. informat: 'DD-MMM-YYYY' (EDC: 10-MAR-2026, UN-MAR-2026, UN-UNK-2019), 'YYYYMMDD' (lab) or 'ISO 8601'. Unknown parts are dropped, not imputed: UN-MAR-2026 gives 2026-03. time (HH:MM or HHMM) is added to complete dates only." },
   { sig: 'iso(date, time)', what: 'Joins a date that is already ISO 8601 (the IRT file) with an optional time: 2026-03-10T09:00.' },
   { sig: "upper(x), lower(x), trim(x), substr(x, start, n), replace(x, a, b)", what: 'Text functions' },
+  { sig: "wrap(x, width, n)", what: "The nth line of x cut at spaces into lines of at most width characters: wrap(COMMENT, 200, 1) for COVAL, wrap(COMMENT, 200, 2) for COVAL1" },
   { sig: "part(x, sep, n)", what: "The nth piece of x split at sep, trimmed: part('White; Asian', ';', 2) is Asian. Blank when there is no nth piece." },
   { sig: "if(condition, a, b)", what: 'a when the condition is true, otherwise b' },
   { sig: 'coalesce(a, b, …)', what: 'The first value that is not blank' },
@@ -158,6 +161,7 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: "subj(form, field, how)", what: "One value per subject from another raw form; how = 'first', 'last', 'min', 'max' or 'count'. subj('EX', 'EXSTDAT', 'min')" },
   { sig: "subjwhere(form, field, whereField, whereValue, how)", what: "As subj, only rows where whereField equals whereValue. subjwhere('DS', 'DSSTDAT', 'DSDECOD', 'Death', 'first')" },
   { sig: "irt(field)", what: "The subject's value in the IRT randomisation file: irt('RANDARM')" },
+  { sig: "ti(code, what)", what: "A protocol eligibility criterion, as in TI: ti('IN02', 'text') is its text, ti('IN02', 'cat') INCLUSION or EXCLUSION" },
   { sig: 'armname(code), country(siteid)', what: 'Arm description from TA; ISO 3166 alpha-3 country of a site' },
   { sig: 'age(birthdate, refdate)', what: 'Completed years between two full dates' },
   { sig: "dm(var)", what: "A variable of this subject's record in the study's reference DM: dm('RFSTDTC')" },

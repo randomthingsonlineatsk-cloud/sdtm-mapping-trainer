@@ -106,6 +106,11 @@ rules; no vendor rule text or tool is copied.
   every added, removed and changed record; Datasets compares each dataset with transfer 1.
   Mission S11 re-runs DM, AE and LB on it: a lab conversion that assumed one unit now converts
   some results twice.
+- **The rest of the domains a diabetes study submits:** IE (only the criteria the screen
+  failures did not meet, with the protocol text), MH (coded history with partial dates), EC
+  (exposure as collected, blinded, in tablets) next to EX (as given, from the IRT), DV from the
+  monitors' deviation log exported from the CTMS (dates as DD/MM/YYYY), and CO (site comments,
+  long ones split between words into COVAL and COVAL1). Missions S12 (IE, MH) and S13 (EC, DV, CO).
 
 ## Coming next
 

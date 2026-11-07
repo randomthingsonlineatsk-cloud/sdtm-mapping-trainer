@@ -168,11 +168,25 @@ export const TOPICS: Topic[] = [
     quiz: [
       { q: 'Which codelist does DSDECOD use for informed consent?', options: ['NCOMPLT', 'PROTMLST', 'DSCAT', 'NY'], answer: 1, why: 'Informed consent is a protocol milestone: PROTMLST.' },
     ] },
+  { id: 'iemh', title: 'IE, MH, DV and CO',
+    body: [
+      'IE records only the eligibility criteria a subject did not meet: an inclusion criterion not met (IEORRES N) or an exclusion criterion met (IEORRES Y). A subject who met every criterion has no IE records. IETEST is the criterion text, the one --TEST allowed to run to 200 characters, and matches TI.',
+      'MH holds the conditions the subject had before the study, coded like adverse events (MHDECOD, MHBODSYS). Its dates are often partial, and a condition still present at screening has MHENRTPT = ONGOING.',
+      'DV lists protocol deviations. They are rarely in the EDC: monitors record them in the clinical trial management system, so DV is mapped from a separate export with its own formats. Whether a deviation is important matters to reviewers.',
+      'CO holds free-text comments, each linked to the domain it was written on through RDOMAIN (and to a record through IDVAR when there is one). A comment over 200 characters continues in COVAL1, COVAL2, … split between words.',
+    ],
+    example: { caption: 'IE for a screen failure', head: ['USUBJID', 'IETESTCD', 'IETEST', 'IECAT', 'IEORRES'], rows: [['GLV-12-301-101-004', 'EX02', 'Any other glucose-lowering drug in the last 12 weeks', 'EXCLUSION', 'Y']] },
+    quiz: [
+      { q: 'A subject met every eligibility criterion. How many IE records?', options: ['One with IEORRES Y', 'Six, one per criterion', 'None', 'One with IEORRES NA'], answer: 2, why: 'IE holds criteria not met only.' },
+      { q: 'Inclusion criterion IN02 (HbA1c range) was not met. What is IEORRES?', options: ['Y', 'N', 'NOT MET', 'FAIL'], answer: 1, why: 'The answer to the criterion: N for an inclusion criterion not met.' },
+      { q: 'Where do protocol deviations usually come from?', options: ['The EDC', 'The CTMS deviation log', 'The IRT', 'The lab'], answer: 1, why: 'Monitors log deviations in the CTMS; DV is mapped from its export.' },
+    ] },
   { id: 'ex', title: 'EX: exposure as dosing intervals',
     body: [
       'EX has one record per constant-dosing interval: while dose, frequency and route stay the same, one record from its start to its end date.',
       'EXTRT is the treatment actually taken, not the one planned. In a blinded study the CRF does not say which treatment was taken: it comes from the IRT kit numbers once the study is unblinded. Placebo is recorded as PLACEBO with EXDOSE 0.',
       'RFXSTDTC and RFXENDTC in DM are the first and last EX dates. A subject randomised but never dosed has no EX records.',
+      'EC (exposure as collected) records the treatment as the site saw it: in a blinded study, the kit label (GLV-12 OR PLACEBO) and the tablets taken. Both EC and EX are submitted when they differ, as they do in a blinded study.',
     ],
     quiz: [
       { q: 'A subject was randomised to 5 mg but received 10 mg kits. What is EXTRT and EXDOSE?', options: ['GLV-12, 5', 'GLV-12, 10', 'PLACEBO, 0', 'GLV-12 5 mg, null'], answer: 1, why: 'EX records what was actually taken. ARMCD keeps the planned arm; ACTARMCD the actual one.' },

@@ -58,7 +58,7 @@ export const RULES: Rule[] = [
   { id: 'TRN-049', sev: 'Error', text: 'SUPP-- or NS--: a qualifier or non-standard variable name that is not a valid SAS V5 name or reuses a standard variable, a label over 40 characters, or a record with no parent record', basis: 'SDTMIG v3.4 supplemental qualifiers; SDTMIG v4.0 draft non-standard variable datasets; SAS V5 transport limits' },
   { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, visit and date/time)', basis: 'FDA validator rules: duplicate records' },
   { id: 'TRN-052', sev: 'Error', text: 'Value longer than 200 characters', basis: 'SAS V5 transport format limit (Study Data Technical Conformance Guide)' },
-  { id: 'TRN-053', sev: 'Error', text: '--TESTCD over 8 characters or not starting with a letter, or --TEST over 40', basis: 'SDTMIG findings; SAS V5 transport limits' },
+  { id: 'TRN-053', sev: 'Error', text: '--TESTCD over 8 characters or not starting with a letter, or --TEST over 40 (IETEST over 200)', basis: 'SDTMIG findings; SAS V5 transport limits' },
 ]
 export const severityIn = (rule: string, set: RuleSet): Severity | null => { const r = RULES.find((x) => x.id === rule); if (!r) return null; const s = r.sets?.[set]; return s === undefined ? r.sev : s }
 const ISO = /^(\d{4})(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01])(T([01]\d|2[0-3])(:[0-5]\d(:[0-5]\d(\.\d+)?)?)?)?)?)?$/
@@ -132,7 +132,8 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
     }
     if (d === 'EX' && r.EXDOSE && (Number(r.EXDOSE) < 0 || (r.EXTRT === 'PLACEBO' && Number(r.EXDOSE) > 0))) add('TRN-046', 'EXDOSE', `EXDOSE ${r.EXDOSE} for ${r.EXTRT}`, i)
     if (has(`${d}TESTCD`) && r[`${d}TESTCD`] && (r[`${d}TESTCD`].length > 8 || !/^[A-Z]/.test(r[`${d}TESTCD`]))) add('TRN-053', `${d}TESTCD`, `"${r[`${d}TESTCD`]}"`, i)
-    if (has(`${d}TEST`) && (r[`${d}TEST`] ?? '').length > 40) add('TRN-053', `${d}TEST`, `${d}TEST is ${r[`${d}TEST`].length} characters`, i)
+    // IETEST is the exception: it holds the criterion text, up to 200 characters.
+    if (has(`${d}TEST`) && (r[`${d}TEST`] ?? '').length > (d === 'IE' ? 200 : 40)) add('TRN-053', `${d}TEST`, `${d}TEST is ${r[`${d}TEST`].length} characters`, i)
     if (r.EPOCH && ctx.ta && !ctx.ta.rows.some((t) => t.EPOCH === r.EPOCH)) add('TRN-034', 'EPOCH', `EPOCH "${r.EPOCH}" is not in TA`, i)
     if (d === 'DM' && ctx.ta) for (const v of ['ARMCD', 'ACTARMCD']) if (r[v] && !ctx.ta.rows.some((t) => t.ARMCD === r[v])) add('TRN-032', v, `${v} "${r[v]}" is not in TA`, i)
     if (ctx.tv && r.VISITNUM && Number.isInteger(Number(r.VISITNUM)) && !ctx.tv.rows.some((t) => t.VISITNUM === r.VISITNUM)) add('TRN-033', 'VISITNUM', `VISITNUM ${r.VISITNUM} is not in TV`, i)
