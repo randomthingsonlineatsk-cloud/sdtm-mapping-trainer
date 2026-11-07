@@ -3,11 +3,11 @@
 // its domain, and bookmarks by form and by visit (as reviewers navigate an aCRF).
 
 import { jsPDF } from 'jspdf'
-import { domainsOf, namedVars, DOMAIN_COLOURS, NOT_SUBMITTED, VISIT_ORDER, type CrfPage } from './acrf'
+import { domainsOf, namedVars, layoutAcrf, DOMAIN_COLOURS, NOT_SUBMITTED, VISIT_ORDER, type CrfPage } from './acrf'
 import type { DomainSpec } from './engine'
 import { domainInfo } from './standards'
 
-const W = 595, H = 842, M = 40
+const W = 595, H = 842, M = 40 // A4 in points
 const hex = (h: string): [number, number, number] => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
 
 export function acrfPdf(study: string, pages: CrfPage[], notes: Record<string, Record<string, string>>, specs: Record<string, DomainSpec>): Uint8Array {
@@ -17,41 +17,38 @@ export function acrfPdf(study: string, pages: CrfPage[], notes: Record<string, R
   const first: Record<string, number> = {}
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text(`Annotated Case Report Form`, M, 60)
   doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.text(`${study} · SDTM annotations · unique pages only`, M, 78)
+  const laid = layoutAcrf(pages, notes)
   for (const pg of pages) {
+    const lp = laid.find((x) => x.form === pg.form)!
     doc.addPage(); let pn = doc.getNumberOfPages(); first[pg.form] = pn
     const doms = domainsOf(pg.form, specs)
-    let y = 40
     // Domain header: top left, one box per domain, in the page's colours.
     let x = M
     doc.setFontSize(8); doc.setFont('helvetica', 'bold')
     for (const [i, d] of doms.entries()) {
       const label = `${d} (${domainInfo(d)?.name ?? d})`, w = doc.getTextWidth(label) + 10
-      doc.setFillColor(...hex(DOMAIN_COLOURS[i % DOMAIN_COLOURS.length])); doc.setDrawColor(60); doc.rect(x, y - 10, w, 14, 'FD'); doc.text(label, x + 5, y)
+      doc.setFillColor(...hex(DOMAIN_COLOURS[i % DOMAIN_COLOURS.length])); doc.setDrawColor(60); doc.rect(x, 30, w, 14, 'FD'); doc.text(label, x + 5, 40)
       x += w + 6
     }
-    y += 26
-    doc.setFontSize(13); doc.text(pg.title, M, y); y += 14
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(90); doc.text(`Form ${pg.form} · visits: ${pg.visits.join(', ')}`, M, y); doc.setTextColor(0); y += 18
-    for (const f of pg.fields) {
-      const a = notes[pg.form]?.[f.name] ?? ''
+    doc.setFontSize(13); doc.text(pg.title, M, 80)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(90); doc.text(`Form ${pg.form} · visits: ${pg.visits.join(', ')}`, M, 94); doc.setTextColor(0)
+    for (const f of lp.fields) {
+      if (f.page > pn) { footer(pn); doc.addPage(); pn = doc.getNumberOfPages() }
+      const a = f.text, y = f.y
       const nv = namedVars(a, doms)
-      const di = Math.max(0, doms.indexOf(nv[0]?.domain ?? '') )
+      const di = Math.max(0, doms.indexOf(nv[0]?.domain ?? ''))
       const colour = a === NOT_SUBMITTED || !a ? '#E5E7EB' : DOMAIN_COLOURS[di % DOMAIN_COLOURS.length]
       doc.setFontSize(8)
-      const ann = doc.splitTextToSize(a || '(not annotated)', 200)
-      const opts = f.options.length ? doc.splitTextToSize(f.options.map((o) => `( ) ${o}`).join('   '), 220) : []
-      const h = Math.max(30, 12 + ann.length * 10, 22 + opts.length * 9)
-      if (y + h > H - 50) { footer(pn); doc.addPage(); pn = doc.getNumberOfPages(); y = 50 }
       doc.setFont('helvetica', 'bold'); doc.text(f.label, M, y + 8)
       doc.setFont('helvetica', 'normal'); doc.setTextColor(120); doc.text(f.name, M, y + 18); doc.setTextColor(0)
       doc.setDrawColor(150); doc.rect(M + 150, y, 160, 14)
       if (f.date) { doc.setTextColor(150); doc.text('DD-MMM-YYYY', M + 154, y + 10); doc.setTextColor(0) }
-      if (opts.length) doc.text(opts, M + 150, y + 24)
-      doc.setFillColor(...hex(colour)); doc.setDrawColor(80); doc.rect(W - M - 205, y - 2, 205, 6 + ann.length * 10, 'FD')
-      doc.setFont('helvetica', a === NOT_SUBMITTED ? 'italic' : 'normal'); doc.text(ann, W - M - 201, y + 7)
-      y += h + 6
+      if (f.opts.length) doc.text(f.opts, M + 150, y + 24)
+      doc.setFillColor(...hex(colour)); doc.setDrawColor(80); doc.rect(W - M - 205, y - 2, 205, 6 + f.ann.length * 10, 'FD')
+      doc.setFont('helvetica', a === NOT_SUBMITTED ? 'italic' : 'normal'); doc.text(f.ann, W - M - 201, y + 7)
     }
     footer(pn)
+    if (pn !== lp.last) throw new Error(`acrf layout mismatch on ${pg.form}`)
   }
   // Contents with links, on page 1.
   doc.setPage(1)

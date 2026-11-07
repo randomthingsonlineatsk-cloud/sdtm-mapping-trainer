@@ -122,7 +122,7 @@ const SV_RULES: Record<string, Rule> = {
 export const SORT: Record<string, string[]> = {
   DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'], AE: ['USUBJID', 'AEDECOD', 'AESTDTC'], CM: ['USUBJID', 'CMTRT', 'CMSTDTC'],
   EX: ['USUBJID', 'EXSTDTC'], DS: ['USUBJID', 'DSSTDTC', 'DSCAT'], LB: ['USUBJID', 'LBTESTCD', 'VISITNUM', 'LBDTC'], SV: ['USUBJID', 'VISITNUM'],
-  IE: ['USUBJID', 'IETESTCD'], MH: ['USUBJID', 'MHCAT', 'MHTERM', 'MHSTDTC'], EC: ['USUBJID', 'ECSTDTC'], DV: ['USUBJID', 'DVSTDTC', 'DVREFID'], CO: ['USUBJID', 'CODTC', 'RDOMAIN'], XE: ['USUBJID', 'XESTDTC', 'XETRT'],
+  IE: ['USUBJID', 'IETESTCD'], MH: ['USUBJID', 'MHCAT', 'MHTERM', 'MHSTDTC'], EC: ['USUBJID', 'ECSTDTC'], DV: ['USUBJID', 'DVSTDTC', 'DVREFID'], CO: ['USUBJID', 'CODTC', 'RDOMAIN'], SE: ['USUBJID', 'SESTDTC', 'ETCD'], XE: ['USUBJID', 'XESTDTC', 'XETRT'],
 }
 
 // Which IG variables each reference includes: every Required and Expected variable, plus the

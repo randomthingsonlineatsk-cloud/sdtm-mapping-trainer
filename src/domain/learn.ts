@@ -243,6 +243,16 @@ export const TOPICS: Topic[] = [
       { q: 'The vital signs page collects systolic blood pressure. What is its annotation?', options: ['SYSBP', 'VSORRES when VSTESTCD = SYSBP', 'VS.SYSBP', 'VSSTRESN'], answer: 1, why: 'Findings are annotated as the result variable with the test code that identifies the record.' },
       { q: 'A field is collected but not used in any dataset. How is it annotated?', options: ['Left blank', '[NOT SUBMITTED]', 'SUPP--', 'NA'], answer: 1, why: 'Every field is annotated; unused ones say so.' },
     ] },
+  { id: 'define', title: 'define.xml',
+    body: [
+      'define.xml is the metadata of the submission: each dataset with its class, structure and key variables; each variable with its label, type, length, controlled terms and origin; value-level metadata where a variable’s metadata depends on another variable (VSORRES for each VSTESTCD, QVAL for each QNAM); a method for every derivation; and links to the datasets, the aCRF and the reviewer’s guide. Version 2.1 adds def:Standards and splits the origin into a type and a source.',
+      'Origins: Collected (with the source, Investigator or Vendor, and the aCRF page for CRF data), Derived (with a method), Assigned (set by the sponsor, such as dictionary coding or a test name printed on the CRF), Protocol (trial design) and Not Available. The origin of every collected variable must agree with the aCRF.',
+      'Codelists list the terms the data use; a term a sponsor adds to an extensible codelist is marked as an extended value. A stylesheet turns define.xml into readable tables in a browser.',
+    ],
+    quiz: [
+      { q: 'What is the origin of AEDECOD from the coding team’s export?', options: ['Collected', 'Derived', 'Assigned', 'Protocol'], answer: 2, why: 'Dictionary coding is assigned by the sponsor, not collected on the CRF.' },
+      { q: 'Where does define.xml say how VSORRES is collected for systolic blood pressure?', options: ['In the codelist', 'In value-level metadata, with a where clause VSTESTCD = SYSBP', 'In a comment', 'Nowhere'], answer: 1, why: 'Value-level metadata gives metadata per test.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',
