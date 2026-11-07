@@ -111,6 +111,11 @@ rules; no vendor rule text or tool is copied.
   (exposure as collected, blinded, in tablets) next to EX (as given, from the IRT), DV from the
   monitors' deviation log exported from the CTMS (dates as DD/MM/YYYY), and CO (site comments,
   long ones split between words into COVAL and COVAL1). Missions S12 (IE, MH) and S13 (EC, DV, CO).
+- **Trial Summary as FDA expects it:** REGID, OUTMSPRI, PCLAS, ADAPT, INTMODEL, INTTYPE,
+  objectives, stopping rules, and the data cut-off of the transfer in use; coded values in
+  TSVALCD (metformin by its FDA SRS UNII, the indication by SNOMED CT 44054006, and fictional
+  codes for the fictional product and its class); null flavors. Five new checks (TRN-035 to
+  TRN-039) are errors under the FDA rule set and warnings under CDISC.
 
 ## Coming next
 

@@ -153,11 +153,13 @@ export const TOPICS: Topic[] = [
       'Arms (TA) list the elements of each arm in order (TAETORD) and the epoch each belongs to. TABRANCH sits on the element at whose end the subject is assigned to an arm: here, screening ends with randomisation.',
       'Trial visits (TV) are the planned visits with VISITNUM, VISIT and VISITDY. Trial inclusion/exclusion (TI) holds every criterion; IE only the ones a subject failed.',
       'Trial summary (TS) is one record per parameter value: phase, blinding, planned and actual subjects, ages, countries (one FCNTRY each), SDTM and IG versions. FDA rejects a study whose TS lacks the study start date (SSTDTC). SE records each subject’s actual path through the elements.',
+      'FDA expects more than the SDTMIG asks for: the registry ID (REGID), primary outcome (OUTMSPRI), pharmacologic class (PCLAS), intervention model and type, adaptive design (ADAPT), and the data cut-off (DCUTDTC, DCUTDESC). Some values must carry a code from an outside dictionary in TSVALCD, named in TSVCDREF: the treatment and background therapy by their FDA SRS UNII, the indication by its SNOMED CT concept, the class from MED-RT. A value that is unknown or does not apply goes in TSVALNF as a null flavor (NI, NA, UNK…) with TSVAL left null.',
     ],
     example: { caption: 'TA for one arm of GLV-12-301', head: ['ARMCD', 'TAETORD', 'ETCD', 'ELEMENT', 'TABRANCH', 'EPOCH'], rows: [['GLV5', '1', 'SCRN', 'Screening', 'Randomized to GLV-12 5 mg', 'SCREENING'], ['GLV5', '2', 'GLV5', 'GLV-12 5 mg', '', 'TREATMENT'], ['GLV5', '3', 'FU', 'Follow-up', '', 'FOLLOW-UP']] },
     quiz: [
       { q: 'The study has sites in five countries. How many FCNTRY records does TS have?', options: ['One, listing all five', 'Five', 'None: COUNTRY is in DM', 'One per site'], answer: 1, why: 'A TS parameter with several values has one record per value, numbered by TSSEQ.' },
       { q: 'Which TS parameter does FDA reject a submission without?', options: ['TITLE', 'SSTDTC', 'NARMS', 'SPONSOR'], answer: 1, why: 'The FDA technical rejection criteria require the study start date in TS.' },
+      { q: 'TS INDIC is “Type 2 diabetes mellitus”. What goes in TSVALCD and TSVCDREF?', options: ['The NCI C-code and CDISC', '44054006 and SNOMED', 'E11 and ICD-10', 'Nothing'], answer: 1, why: 'FDA expects the indication coded with SNOMED CT.' },
     ] },
   { id: 'ds', title: 'DS: disposition events and milestones',
     body: [

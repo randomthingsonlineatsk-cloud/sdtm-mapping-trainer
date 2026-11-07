@@ -10,6 +10,10 @@ import { varsOf, CT, metaOf, type Version } from './standards'
 import { studyDay, cmpDtc } from './engine'
 
 export type Severity = 'Reject' | 'Error' | 'Warning'
+// TS parameters the FDA Study Data Technical Conformance Guide expects (SSTDTC has its own
+// rejection rule, TRN-030), and the parameters whose values must carry a code.
+export const FDA_TS = ['TRT', 'REGID', 'OUTMSPRI', 'PCLAS', 'FCNTRY', 'ADAPT', 'DCUTDTC', 'DCUTDESC', 'INTMODEL', 'NARMS', 'STYPE', 'INTTYPE', 'SENDTC', 'ACTSUB', 'HLTSUBJI']
+export const CODED_TS: Record<string, string[]> = { TRT: ['UNII'], COMPTRT: ['UNII'], CURTRT: ['UNII'], INDIC: ['SNOMED'], PCLAS: ['MED-RT', 'NDF-RT'] }
 export type RuleSet = 'CDISC' | 'FDA' | 'PMDA'
 export const RULE_SETS: { id: RuleSet; name: string; note: string }[] = [
   { id: 'CDISC', name: 'CDISC conformance', note: 'Conformance with the SDTM and SDTMIG as written (modelled on the CDISC conformance rules run by the open CDISC rules engine, CORE).' },
@@ -43,6 +47,11 @@ export const RULES: Rule[] = [
   { id: 'TRN-021', sev: 'Error', text: 'Reference start is after reference end', basis: 'SDTMIG DM: RFSTDTC on or before RFENDTC' },
   { id: 'TRN-030', sev: 'Error', text: 'TS has no Study Start Date (SSTDTC)', basis: 'FDA technical rejection criteria and Study Data Technical Conformance Guide: TS with SSTDTC', sets: { FDA: 'Reject', PMDA: 'Error' } },
   { id: 'TRN-031', sev: 'Error', text: 'TS has no SDTM or SDTMIG version (SDTMVER, SDTIGVER)', basis: 'Study Data Technical Conformance Guide: TS parameters' },
+  { id: 'TRN-035', sev: 'Warning', text: 'TS lacks a parameter FDA expects (TRT, REGID, OUTMSPRI, PCLAS, FCNTRY, ADAPT, DCUTDTC, DCUTDESC, INTMODEL, NARMS, STYPE, INTTYPE, SENDTC, ACTSUB, HLTSUBJI)', basis: 'Study Data Technical Conformance Guide: trial summary parameters; FDA business rules', sets: { FDA: 'Error' } },
+  { id: 'TRN-036', sev: 'Warning', text: 'A TS value that must be coded has no code: TRT, COMPTRT and CURTRT with an FDA SRS UNII, INDIC with a SNOMED CT concept, PCLAS with a MED-RT class (TSVALCD and TSVCDREF)', basis: 'Study Data Technical Conformance Guide: coded TS values; FDA validator rules', sets: { FDA: 'Error' } },
+  { id: 'TRN-037', sev: 'Error', text: 'TS: TSVALNF must be populated exactly when TSVAL is null', basis: 'SDTMIG TS assumptions: null flavors (ISO 21090)' },
+  { id: 'TRN-038', sev: 'Error', text: 'TS value in the wrong format: SSTDTC, SENDTC and DCUTDTC must be ISO 8601; NARMS, PLANSUB and ACTSUB numbers', basis: 'SDTMIG TS; FDA validator rules' },
+  { id: 'TRN-039', sev: 'Warning', text: 'TS: an add-on study (ADDON = Y) has no current treatment (CURTRT)', basis: 'FDA validator rules: CURTRT when ADDON is Y', sets: { FDA: 'Error' } },
   { id: 'TRN-032', sev: 'Error', text: 'ARMCD or ACTARMCD in DM is not an arm in TA', basis: 'SDTMIG: arms in DM come from TA' },
   { id: 'TRN-033', sev: 'Warning', text: 'A planned VISITNUM is not in TV', basis: 'SDTMIG: scheduled visits are defined in TV' },
   { id: 'TRN-034', sev: 'Error', text: 'EPOCH value is not an epoch in TA', basis: 'SDTMIG: EPOCH values come from TA' },
@@ -149,6 +158,16 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
   if (d === 'TS') {
     if (!b.rows.some((r) => r.TSPARMCD === 'SSTDTC' && r.TSVAL)) add('TRN-030', 'TSPARMCD', 'No TSPARMCD = SSTDTC with a value')
     for (const p2 of ['SDTMVER', 'SDTIGVER']) if (!b.rows.some((r) => r.TSPARMCD === p2 && r.TSVAL)) add('TRN-031', 'TSPARMCD', `No TSPARMCD = ${p2}`)
+    const has1 = (code: string) => b.rows.some((r) => r.TSPARMCD === code && (r.TSVAL || r.TSVALNF))
+    for (const code of FDA_TS) if (!has1(code)) add('TRN-035', 'TSPARMCD', `No TSPARMCD = ${code}`)
+    b.rows.forEach((r, i) => {
+      const need = CODED_TS[r.TSPARMCD]
+      if (need && r.TSVAL && !(r.TSPARMCD === 'COMPTRT' && r.TSVAL === 'PLACEBO') && (!r.TSVALCD || !need.includes(r.TSVCDREF))) add('TRN-036', 'TSVALCD', `${r.TSPARMCD} “${r.TSVAL}” needs TSVALCD with TSVCDREF ${need.join(' or ')}`, i)
+      if (!!r.TSVAL === !!r.TSVALNF) add('TRN-037', r.TSVAL ? 'TSVALNF' : 'TSVAL', r.TSVAL ? `${r.TSPARMCD} has both TSVAL and TSVALNF` : `${r.TSPARMCD} has neither TSVAL nor TSVALNF`, i)
+      if (['SSTDTC', 'SENDTC', 'DCUTDTC'].includes(r.TSPARMCD) && r.TSVAL && !isIso8601(r.TSVAL)) add('TRN-038', 'TSVAL', `${r.TSPARMCD} “${r.TSVAL}” is not ISO 8601`, i)
+      if (['NARMS', 'PLANSUB', 'ACTSUB'].includes(r.TSPARMCD) && r.TSVAL && !isNum(r.TSVAL)) add('TRN-038', 'TSVAL', `${r.TSPARMCD} “${r.TSVAL}” is not a number`, i)
+    })
+    if (b.rows.some((r) => r.TSPARMCD === 'ADDON' && r.TSVAL === 'Y') && !has1('CURTRT')) add('TRN-039', 'TSPARMCD', 'ADDON is Y but there is no CURTRT')
   }
   const seqVar = `${d}SEQ`
   if (has(seqVar)) {

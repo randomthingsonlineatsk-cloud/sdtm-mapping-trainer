@@ -370,3 +370,26 @@ describe('IE, MH, EC, DV and CO (missions S12 and S13)', () => {
     expect(check(build(s, data), '3.4').some((f) => f.rule === 'TRN-052')).toBe(true)
   })
 })
+
+describe('TS as FDA expects it', () => {
+  const ts = (rows: Record<string, string>[]) => designBuilt('TS', rows, '3.4')
+  test('coded values, null flavors, formats and required parameters', () => {
+    const d = referenceDesign('3.4', 2)
+    const by = (c: string) => d.TS.find((r) => r.TSPARMCD === c)!
+    expect([by('INDIC').TSVALCD, by('INDIC').TSVCDREF]).toEqual(['44054006', 'SNOMED'])
+    expect([by('CURTRT').TSVALCD, by('CURTRT').TSVCDREF]).toEqual(['9100L32L2N', 'UNII'])
+    expect(by('DCUTDTC').TSVAL).toBe('2026-10-20'); expect(by('DCUTDESC').TSVAL).toBe('DATABASE LOCK')
+    expect(check(ts(d.TS), '3.4', { set: 'FDA' }).filter((f) => f.sev !== 'Warning')).toHaveLength(0)
+    // Remove a code, a required parameter and CURTRT; break a format and a null flavor.
+    const broken = d.TS.filter((r) => !['REGID', 'CURTRT'].includes(r.TSPARMCD)).map((r) => ({ ...r }))
+    broken.find((r) => r.TSPARMCD === 'INDIC')!.TSVALCD = ''
+    broken.find((r) => r.TSPARMCD === 'ACTSUB')!.TSVAL = 'eighty-one'
+    Object.assign(broken.find((r) => r.TSPARMCD === 'ADAPT')!, { TSVAL: '', TSVALNF: '' })
+    const f = check(ts(broken), '3.4', { set: 'FDA' })
+    const has = (rule: string, sev: string) => f.some((x) => x.rule === rule && x.sev === sev)
+    expect(has('TRN-035', 'Error')).toBe(true); expect(has('TRN-036', 'Error')).toBe(true); expect(has('TRN-037', 'Error')).toBe(true)
+    expect(has('TRN-038', 'Error')).toBe(true); expect(has('TRN-039', 'Error')).toBe(true)
+    // Under the CDISC rule set the FDA expectations are warnings.
+    expect(check(ts(broken), '3.4', { set: 'CDISC' }).find((x) => x.rule === 'TRN-035')!.sev).toBe('Warning')
+  })
+})

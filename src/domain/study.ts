@@ -126,5 +126,13 @@ export const PROTOCOL_FACTS: { what: string; value: string }[] = [
   { what: 'Countries', value: 'United States, Japan, Germany, India, Brazil' },
   { what: 'Investigational treatment', value: 'GLV-12, oral tablet, once daily; comparator: placebo' },
   { what: 'Sponsor', value: 'Glyvant Pharmaceuticals (fictional)' },
+  { what: 'Design', value: 'Parallel-group; intervention type: drug; not an adaptive design' },
+  { what: 'Primary objective', value: 'To show that GLV-12 lowers HbA1c more than placebo after 26 weeks in adults with type 2 diabetes inadequately controlled on metformin' },
+  { what: 'Secondary objective', value: 'To assess the safety and tolerability of GLV-12 5 mg and 10 mg over 26 weeks' },
+  { what: 'Primary outcome measure', value: 'Change from baseline in HbA1c at Week 26' },
+  { what: 'Stopping rules', value: 'The study stops for a subject at a confirmed fasting glucose above 15 mmol/L or an eGFR below 30 mL/min/1.73 m2' },
+  { what: 'Registry', value: 'ClinicalTrials.gov NCT99912301 (fictional identifier)' },
+  { what: 'Coding of TS values', value: 'Indication: SNOMED CT 44054006, Type 2 diabetes mellitus. Background treatment: metformin, FDA SRS UNII 9100L32L2N. GLV-12 and its class are fictional: the training study uses the fictional UNII GLV12TRN01 and the fictional class “Glucose transport modulator” (code GLVPC0001), standing in for an FDA SRS UNII and a MED-RT class.' },
+  { what: 'Data cut-off', value: 'Transfer 1: 2026-09-15 snapshot after the last subject’s last visit. Transfer 2: database lock on 2026-10-20.' },
   { what: 'Study start date (FDA definition)', value: 'The earliest date of informed consent of any subject (TS SSTDTC); study end date is the last subject’s last contact (SENDTC)' },
 ]

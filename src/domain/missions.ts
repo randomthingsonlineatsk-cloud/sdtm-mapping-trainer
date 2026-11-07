@@ -41,7 +41,7 @@ export const MISSIONS: MissionDef[] = [
     watch: ['Some results were sent twice', 'One site’s units came as mg/dl', 'A result reported as “<5”', 'A haemolysed sample was not reported', 'The lab standards table on the Study tab has the codes, units and factors'] },
   { id: 'S8', domains: ['TA', 'TE', 'TV', 'TI', 'TS'], kind: 'design', phase: 2, title: 'Build the trial design domains', pass: PASS,
     brief: 'From the protocol facts on the Study tab, build TA (arms and their elements), TE (elements), TV (planned visits), TI (eligibility criteria) and TS (trial summary) on the Trial design tab.',
-    watch: ['Every arm runs through the same three epochs', 'TABRANCH sits on the element at whose end randomisation happens', 'TS needs SSTDTC (FDA rejects a study without it), SDTMVER and SDTIGVER', 'Several countries: one FCNTRY record each', 'Durations are ISO 8601: P26W, P18Y'] },
+    watch: ['Every arm runs through the same three epochs', 'TABRANCH sits on the element at whose end randomisation happens', 'TS needs SSTDTC (FDA rejects a study without it), SDTMVER and SDTIGVER', 'Several countries: one FCNTRY record each', 'Durations are ISO 8601: P26W, P18Y', 'FDA also expects REGID, OUTMSPRI, PCLAS, ADAPT, INTMODEL, INTTYPE and the data cut-off for the transfer you work on', 'The treatment, background metformin, the indication and the class carry codes in TSVALCD (see Coding of TS values on the Study tab)'] },
   { id: 'S9', domains: ['AE', 'SUPPAE', 'LB'], kind: 'fix', phase: 2, title: 'Fix a broken delivery', pass: PASS,
     brief: 'A colleague’s AE and LB mappings fail validation. Starting this mission replaces your AE and LB mappings with theirs (export your project first if you want to keep yours). Find every problem with the checks and fix the rules.',
     watch: ['Run the checks under the FDA rule set as well as CDISC', 'Some problems are only visible against the conventions, not the checks'] },
@@ -110,7 +110,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   if (p.imported) throw new Error('Missions run on GLV-12-301. Open or start a GLV-12-301 project.')
   const data = studyData(p.transfer ?? 1)
   const ver = p.version
-  const refDesign = referenceDesign(ver)
+  const refDesign = referenceDesign(ver, p.transfer ?? 1)
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
   const results: DomainResult[] = []
   const errs: string[] = []
