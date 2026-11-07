@@ -222,6 +222,7 @@ rules; no vendor rule text or tool is copied.
   dose, new lesions without PD, and a sum of diameters that does not add up.
 
 ## Coming next
+
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
   (RE, QS) and the vaccine study's CE, FACE and IS domains.
 
