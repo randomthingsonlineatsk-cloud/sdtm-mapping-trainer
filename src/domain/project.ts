@@ -15,6 +15,8 @@ import type { Visit } from './study'
 import { STUDY } from './study'
 import { studyData, SORT } from './reference'
 import { hash } from './util'
+import type { Explanation, ValidationRun } from './validation'
+import type { CsdrgNotes } from './csdrg'
 
 export interface ImportedStudy { protocol: string; title: string; source: string; importedUtc: string; forms: Record<string, Row[]>; visits: Visit[]; notes: string[] }
 export interface MissionRun { id: string; startedUtc: string; version: Version; ruleSet?: RuleSet; domainScores?: Record<string, number>; endedUtc?: string; score?: number; passed?: boolean; detail?: string[]; perVar?: { v: string; credit: number; core: string; examples: string[] }[]; domainPass?: Record<string, boolean>; findings?: number }
@@ -39,6 +41,9 @@ export interface Project {
   qc?: Record<string, DomainSpec> // the independent QC programs
   qcLog?: Record<string, Record<string, QcResolution>> // per domain, per difference
   qcSignoff?: Record<string, { utc: string; by: string; note: string }>
+  explain?: Record<string, Explanation> // validation issues explained for the reviewer's guide, by dataset|check|variable
+  validation?: ValidationRun[] // the validation runs, newest last
+  csdrg?: CsdrgNotes // what the learner wrote in the reviewer's guide
 }
 
 const newId = () => `p_${Date.now().toString(36)}_${hash(String(Math.random())).slice(-6)}`
