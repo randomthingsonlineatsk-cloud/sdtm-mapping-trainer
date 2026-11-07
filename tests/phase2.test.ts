@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { build } from '../src/domain/engine'
-import { referenceSpec, studyData } from '../src/domain/reference'
+import { referenceSpec, studyData, REF_CUSTOM, REF_RELREC } from '../src/domain/reference'
 import { createProject } from '../src/domain/project'
 import { MISSIONS, evaluateMission, finishMission, startMission } from '../src/domain/missions'
 import { check, RULE_SETS, severityIn } from '../src/domain/conformance'
@@ -20,6 +20,7 @@ const full = (v: '3.4' | '4.0d' = '3.4') => {
   const p = createProject('u', 'c', v)
   for (const d of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'IE', 'MH', 'EC', 'DV', 'CO']) p.specs[d] = referenceSpec(d, v)
   p.design = referenceDesign(v)
+  p.specs.XE = referenceSpec('XE', v); p.custom = [REF_CUSTOM]; p.relrec = REF_RELREC.map((x) => ({ ...x }))
   return p
 }
 
@@ -448,5 +449,42 @@ describe('rule help, lab time points and range changes', () => {
     const between = lb.filter((r) => r.VISIT === 'WEEK 12' && Number(r.LBSTRESN) > 45 && Number(r.LBSTRESN) <= 56)
     expect(between.every((r) => r.LBNRIND === 'HIGH')).toBe(true)
     expect(check(build(referenceSpec('LB', '3.4'), data), '3.4').filter((f) => f.rule === 'TRN-043')).toHaveLength(0)
+  })
+})
+
+describe('Phase 3a: RELREC and custom domains', () => {
+  test('reference RELREC links AEs to their medications and to the ALT result, and is clean', async () => {
+    const { buildRelrec, checkRelrec } = await import('../src/domain/relrec')
+    const { REF_RELREC } = await import('../src/domain/reference')
+    const b = Object.fromEntries(['AE', 'CM', 'LB'].map((d) => [d, build(referenceSpec(d, '3.4'), data)]))
+    const rel = buildRelrec(REF_RELREC, b, data)
+    expect(rel.rows.filter((r) => r.RELID.startsWith('AECM')).length).toBeGreaterThan(4)
+    expect(rel.rows.filter((r) => r.RELID.startsWith('AELB')).length).toBeGreaterThan(1)
+    expect(rel.rows.filter((r) => r.RDOMAIN === 'LB').every((r) => b.LB.rows.find((x) => x.USUBJID === r.USUBJID && x.LBSEQ === r.IDVARVAL)!.LBTESTCD === 'ALT')).toBe(true)
+    expect(checkRelrec(rel, b)).toEqual([])
+    // A relationship pointing to a renumbered LB fails.
+    const lb2 = { ...b.LB, rows: b.LB.rows.map((r) => ({ ...r, LBSEQ: String(Number(r.LBSEQ) + 5000) })) }
+    expect(checkRelrec(rel, { ...b, LB: lb2 }).some((f) => f.rule === 'TRN-054')).toBe(true)
+  })
+  test('S15 scores the learner’s RELREC; S16 needs XE defined with a reason', async () => {
+    const { REF_RELREC, REF_CUSTOM } = await import('../src/domain/reference')
+    const { registerCustom } = await import('../src/domain/standards')
+    const p = createProject()
+    for (const d of ['AE', 'CM', 'LB', 'XE']) p.specs[d] = referenceSpec(d, '3.4')
+    p.relrec = REF_RELREC.map((x) => ({ ...x }))
+    expect(evaluateMission(p, 'S15').score).toBe(100)
+    p.relrec = [REF_RELREC[0]]
+    expect(evaluateMission(p, 'S15').passed).toBe(false)
+    expect(evaluateMission(p, 'S16').passed).toBe(false)
+    p.custom = [REF_CUSTOM]; registerCustom(p.custom)
+    const r = evaluateMission(p, 'S16'); expect(r.passed).toBe(true); expect(r.score).toBe(100)
+    expect(check(build(p.specs.XE, data), '3.4').filter((f) => f.sev !== 'Warning')).toHaveLength(0)
+    registerCustom([])
+  })
+  test('custom domain codes and the standard-domain fit check', async () => {
+    const { customCodeProblem, standardCandidates } = await import('../src/domain/standards')
+    expect(customCodeProblem('XE')).toBe(''); expect(customCodeProblem('AE')).toMatch(/standard/); expect(customCodeProblem('ED')).toMatch(/X, Y or Z/)
+    expect(standardCandidates('blood pressure readings at home')).toContain('VS')
+    expect(standardCandidates('quality of life questionnaire')).toContain('QS')
   })
 })

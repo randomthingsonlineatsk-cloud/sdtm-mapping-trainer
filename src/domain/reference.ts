@@ -3,7 +3,8 @@
 // also how the study functions get the reference DM (reference dates for study day and epoch).
 
 import { build, type DomainSpec, type OutRow, type StudyData, type Rule, type Part, type SuppQual } from './engine'
-import { varsOf, type Version } from './standards'
+import { varsOf, customVars, registerReferenceCustom, type Version, type CustomDomain } from './standards'
+import type { RelDef } from './relrec'
 import { raw, type Transfer } from './seed'
 import { STUDY } from './study'
 
@@ -121,11 +122,19 @@ const SV_RULES: Record<string, Rule> = {
 export const SORT: Record<string, string[]> = {
   DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'], AE: ['USUBJID', 'AEDECOD', 'AESTDTC'], CM: ['USUBJID', 'CMTRT', 'CMSTDTC'],
   EX: ['USUBJID', 'EXSTDTC'], DS: ['USUBJID', 'DSSTDTC', 'DSCAT'], LB: ['USUBJID', 'LBTESTCD', 'VISITNUM', 'LBDTC'], SV: ['USUBJID', 'VISITNUM'],
-  IE: ['USUBJID', 'IETESTCD'], MH: ['USUBJID', 'MHCAT', 'MHTERM', 'MHSTDTC'], EC: ['USUBJID', 'ECSTDTC'], DV: ['USUBJID', 'DVSTDTC', 'DVREFID'], CO: ['USUBJID', 'CODTC', 'RDOMAIN'],
+  IE: ['USUBJID', 'IETESTCD'], MH: ['USUBJID', 'MHCAT', 'MHTERM', 'MHSTDTC'], EC: ['USUBJID', 'ECSTDTC'], DV: ['USUBJID', 'DVSTDTC', 'DVREFID'], CO: ['USUBJID', 'CODTC', 'RDOMAIN'], XE: ['USUBJID', 'XESTDTC', 'XETRT'],
 }
 
 // Which IG variables each reference includes: every Required and Expected variable, plus the
 // permissible ones the study collects or derives.
+// The sponsor-defined domain for diabetes education sessions.
+export const REF_CUSTOM: CustomDomain = { code: 'XE', name: 'Diabetes Education', cls: 'Interventions', structure: 'One record per education session per subject', reason: 'Education sessions are not procedures performed on the subject (PR), meals (ML) or medications (CM, EX); no published domain holds them.', vars: customVars('XE', 'Interventions') }
+const XE_RULES: Record<string, Rule> = {
+  STUDYID: c(STUDY.id), DOMAIN: c('XE'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), XESEQ: { kind: 'seq' },
+  XETRT: e('upper(TOPIC)'), XECAT: c('DIABETES EDUCATION'), XESCAT: e('upper(FORMAT)'), XEDUR: e("concat('PT', DURMIN, 'M')"),
+  VISITNUM: e('visitnum(VISIT, EDUDAT)'), VISIT: e('visitname(VISIT, EDUDAT)'), EPOCH: e('epoch(XESTDTC)'), XESTDTC: e("dtc(EDUDAT, 'DD-MMM-YYYY')"), XESTDY: e('studyday(XESTDTC)'),
+}
+registerReferenceCustom(REF_CUSTOM)
 const REF: Record<string, { rules: Record<string, Rule>; perm: string[]; transpose?: DomainSpec['transpose']; filter?: string; source?: string; parts?: Part[]; supp?: SuppQual[] }> = {
   DM: { rules: DM_RULES, perm: ['BRTHDTC', 'ETHNIC', 'DMDTC', 'DMDY'], supp: RACEQ },
   VS: { rules: VS_RULES, perm: ['VSPOS', 'VSSTAT', 'VSREASND', 'VISIT', 'EPOCH', 'VSDY', 'SUBJID'], transpose: VS_TRANSPOSE },
@@ -140,10 +149,17 @@ const REF: Record<string, { rules: Record<string, Rule>; perm: string[]; transpo
   EC: { rules: EC_RULES, perm: ['ECDOSFRQ', 'ECROUTE', 'ECREFID', 'EPOCH', 'ECSTDY', 'ECENDY', 'SUBJID'], source: 'EX' },
   DV: { rules: DV_RULES, perm: ['DVREFID', 'DVCAT', 'DVSCAT', 'EPOCH', 'DVSTDTC', 'DVSTDY', 'SUBJID'], source: 'DVL' },
   CO: { rules: CO_RULES, perm: ['RDOMAIN', 'COREF', 'COVAL1', 'CODTC', 'CODY'] },
+  XE: { rules: XE_RULES, perm: ['XECAT', 'XESCAT', 'XEDUR', 'VISITNUM', 'VISIT', 'EPOCH', 'XESTDY', 'SUBJID'], source: 'EDU' },
 }
 export const REF_DOMAINS = Object.keys(REF)
+// Relationships: the medication given for an adverse event (CMAENO is the AE number), and the
+// lab result behind an abnormal-lab adverse event (AELBACC is the sample's accession number).
+export const REF_RELREC: RelDef[] = [
+  { id: 'AECM', label: 'Adverse event and the medication given for it', a: { domain: 'AE', key: 'AESPID' }, b: { domain: 'CM', key: 'CMAENO' } },
+  { id: 'AELB', label: 'Abnormal-lab adverse event and the ALT result behind it', a: { domain: 'AE', key: 'AELBACC' }, b: { domain: 'LB', key: 'LBREFID', filter: "LBTESTCD = 'ALT'" } },
+]
 // The raw form a domain is mapped from when it is not the form of the same name.
-export const DEFAULT_SOURCE: Record<string, string> = { LB: 'LBC', EC: 'EX', DV: 'DVL' }
+export const DEFAULT_SOURCE: Record<string, string> = { LB: 'LBC', EC: 'EX', DV: 'DVL', XE: 'EDU' }
 export function referenceSpec(domain: string, ver: Version): DomainSpec {
   const r = REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain}`)
   const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name)) && r.rules[m.name]).map((m) => m.name)

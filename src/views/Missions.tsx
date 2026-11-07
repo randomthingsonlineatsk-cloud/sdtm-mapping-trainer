@@ -37,12 +37,14 @@ function MissionCard({ id }: { id: string }) {
     if (m.kind === 'map') for (const d of m.domains) if (!isRel(d)) pp.specs[d] ??= emptySpec(d, DEFAULT_SOURCE[d] ?? d)
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
+    : m.kind === 'relrec' ? <Btn onClick={() => go('relations')}>Open Relationships</Btn>
+    : m.kind === 'custom' ? <><Btn onClick={() => go('raw')}>The EDU form</Btn><Btn onClick={() => go('mapping', m.domains[0])}>Define and map {m.domains[0]}</Btn></>
     : m.kind === 'spec' ? <><Btn onClick={() => go('plan')}>Write the specification</Btn><Btn onClick={() => go('mapping', m.domains[0])}>Program {m.domains[0]}</Btn></>
     : m.kind === 'rerun' ? <><Btn onClick={() => go('raw')}>What changed (Raw data)</Btn>{m.domains.map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d}</Btn>)}</>
     : m.kind === 'qc' ? <><Btn onClick={() => go('mapping', `qc:${m.domains[0]}`)}>Write your QC {m.domains[0]}</Btn><Btn onClick={() => go('qc')}>Open QC compare</Btn></>
     : m.domains.filter((d) => !isRel(d)).map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d} in the workspace</Btn>)
   return (
-    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : m.kind === 'qc' ? 'Independent QC' : m.kind === 'rerun' ? 'New data transfer' : m.kind === 'spec' ? 'Specification first' : 'Map from raw'} · Pass: {m.pass}</>}
+    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : m.kind === 'qc' ? 'Independent QC' : m.kind === 'rerun' ? 'New data transfer' : m.kind === 'spec' ? 'Specification first' : m.kind === 'relrec' ? 'Relationships' : m.kind === 'custom' ? 'Custom domain' : 'Map from raw'} · Pass: {m.pass}</>}
       right={run ? <Pill tone="blue">In progress</Pill> : best ? <Pill tone={best.passed ? 'green' : 'red'}>best {best.score}%</Pill> : null}>
       <p className="text-sm">{m.brief}</p>
       <details className="text-xs"><summary className="cursor-pointer text-lab-text-muted">What to watch for</summary><ul className="list-disc pl-5 mt-1">{m.watch.map((w) => <li key={w}>{w}</li>)}</ul></details>

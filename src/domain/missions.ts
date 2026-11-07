@@ -7,7 +7,8 @@
 
 import { build, type Built, type DomainSpec } from './engine'
 import { check, summarise, type Finding } from './conformance'
-import { referenceSpec, studyData, AETRTEM, SORT } from './reference'
+import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM } from './reference'
+import { buildRelrec, checkRelrec } from './relrec'
 import { compareDatasets } from './qc'
 import { currentVersion, mismatches } from './plan'
 import { RAW_FIELDS } from './seed'
@@ -16,7 +17,7 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
@@ -62,6 +63,12 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S14', domains: ['CM'], kind: 'spec', phase: 2, title: 'Specification first: CM', pass: 'CM 70% or more with no blocking finding, a specification approved by a reviewer other than its author, and a program that follows the approved version',
     brief: 'Work the way a sponsor or CRO does. Write the CM specification on the Specification tab, have it reviewed and approved by someone else, then program CM against it. When the program has to differ, revise the specification with a reason and approve the new version. Starting clears your CM specification and program.',
     watch: ['Name the raw field of every collected variable as FORM.FIELD', 'Describe each derivation in words someone else could program from', 'The author cannot approve their own specification', 'A change after approval is a new version with a reason, not an edit'] },
+  { id: 'S15', domains: ['RELREC'], kind: 'relrec', phase: 3, title: 'Relate records with RELREC', pass: PASS,
+    brief: 'Build RELREC on the Relationships tab: link each adverse event to the medications given for it, and each abnormal-lab adverse event to the ALT result behind it. AE, CM and LB must be mapped first; RELREC points to their --SEQ.',
+    watch: ['The CRF links them with fields that are not SDTM variables: CMAENO (the AE number) and AELBACC (the lab accession number)', 'Only the ALT result, not every test in that sample', 'Each related group shares one RELID; IDVAR is --SEQ', 'Rebuild RELREC whenever --SEQ changes'] },
+  { id: 'S16', domains: ['XE'], kind: 'custom', phase: 3, title: 'A custom domain for diabetes education', pass: PASS + ', and the custom domain defined with its class, structure and the reason no standard domain fits',
+    brief: 'The sites recorded diabetes education sessions (EDU form). Check that no published domain fits, then define the sponsor domain XE (Interventions class) in the Mapping workspace and map it.',
+    watch: ['Custom domain codes start with X, Y or Z', 'Choose the observation class: the session is something given to the subject', 'Write down why PR, ML, CM and the others do not fit', 'A duration is ISO 8601: PT30M'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -122,9 +129,16 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const errs: string[] = []
   const tracks: { d: string; qc: boolean }[] = def.domains.flatMap((d) => (def.kind === 'qc' ? [{ d, qc: false }, { d, qc: true }] : [{ d, qc: false }]))
   for (const { d, qc } of tracks) {
-    let mine: Built, ref: Built
+    let mine: Built, ref: Built, relFindings: Finding[] | null = null
     if (def.kind === 'design') {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
+    } else if (d === 'RELREC') {
+      const need = ['AE', 'CM', 'LB']
+      for (const x of need) if (!p.specs[x]?.vars.length) throw new Error(`Map ${x} first: RELREC points to its records.`)
+      const mineB = Object.fromEntries(need.map((x) => [x, build(p.specs[x], data, ver)]))
+      const refB = Object.fromEntries(need.map((x) => [x, build(referenceSpec(x, ver), data, ver)]))
+      mine = buildRelrec(p.relrec ?? [], mineB, data); ref = buildRelrec(REF_RELREC, refB, data)
+      relFindings = checkRelrec(mine, mineB)
     } else if (isRel(d)) {
       const parent = relParent(d)
       const spec = p.specs[parent]
@@ -138,7 +152,7 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
       for (const [v, e] of Object.entries(mine.errors)) errs.push(`${d}.${v} (${e.count}×: ${e.first})`)
     }
     // The parent's checks cover its SUPP--/NS-- dataset (TRN-049); score each on its own findings.
-    const findings = isRel(d) ? (() => { const spec = p.specs[relParent(d)]; return spec?.vars.length ? check(build(spec, data, ver), ver, relParent(d) === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).filter((f) => f.domain === mine.domain) : [] })() : check(mine, ver, d === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).filter((f) => !isRel(f.domain))
+    const findings = relFindings ?? (isRel(d) ? (() => { const spec = p.specs[relParent(d)]; return spec?.vars.length ? check(build(spec, data, ver), ver, relParent(d) === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).filter((f) => f.domain === mine.domain) : [] })() : check(mine, ver, d === 'DM' ? { ...ctxBase, dm: undefined } : ctxBase).filter((f) => !isRel(f.domain)))
     const comparison = compare(mine, ref, ver, TEXT_VARS[d] ?? [])
     const kinds = summarise(findings).filter((s) => s.sev !== 'Warning')
     const raw = comparison.perVar.length ? (comparison.perVar.reduce((a, x) => a + x.credit, 0) / comparison.perVar.length) * 100 : 0
@@ -149,6 +163,14 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const score = Math.round(results.reduce((a, r) => a + r.score, 0) / results.length)
   let passed = results.every((r) => r.passed)
   const qcNotes: string[] = []
+  if (def.kind === 'custom') for (const d of def.domains) {
+    const c = p.custom?.find((x) => x.code === d)
+    if (!c) { passed = false; qcNotes.push(`${d} is not defined as a custom domain`) }
+    else {
+      if (c.cls !== REF_CUSTOM.cls) { passed = false; qcNotes.push(`${d}: class ${c.cls}; an education session is given to the subject (Interventions)`) }
+      if (c.reason.trim().length < 20) { passed = false; qcNotes.push(`${d}: say why no standard domain fits`) }
+    }
+  }
   if (def.kind === 'spec') for (const d of def.domains) {
     const plan = p.plan?.[d], cur = plan && currentVersion(plan)
     if (!cur) { passed = false; qcNotes.push(`${d}: no approved specification`); continue }

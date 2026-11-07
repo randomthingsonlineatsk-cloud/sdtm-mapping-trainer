@@ -15,6 +15,7 @@ import { Panel, Pill, Btn, Select, Table, Stat, Tabs, ic } from './ui'
 import { useData, fieldsOf } from './shared'
 import { compareDatasets } from '../domain/qc'
 import { RuleHelp } from './RuleHelp'
+import { buildRelrec, checkRelrec } from '../domain/relrec'
 import { studyData } from '../domain/reference'
 
 const SEV_TONE = { Reject: 'purple', Error: 'red', Warning: 'amber' } as const
@@ -33,6 +34,7 @@ export default function Datasets() {
   const all = useMemo(() => {
     const m = new Map<string, Built>()
     for (const d of Object.keys(p.specs).sort()) { const s = p.specs[d]; if (!s.vars.length) continue; const b = build(s, data, p.version); m.set(d, b); if (b.supp) m.set(b.supp.domain, b.supp) }
+    if (p.relrec?.length) { const rel = buildRelrec(p.relrec, Object.fromEntries([...m].filter(([k]) => p.specs[k])), data); if (rel.rows.length) m.set('RELREC', rel) }
     if (!p.imported) {
       for (const d of TRIAL_DESIGN) if (p.design[d]?.length) m.set(d, designBuilt(d, p.design[d], p.version))
       m.set('SE', deriveSE())
@@ -48,6 +50,7 @@ export default function Datasets() {
   const built = all.get(domain)
   const findings = useMemo(() => {
     if (!built) return []
+    if (domain === 'RELREC') return checkRelrec(built, Object.fromEntries([...all].filter(([k]) => p.specs[k])))
     const own = isRel(domain) ? domain.replace(/^(SUPP|NS)/, '') : domain
     const target = all.get(own) ?? built
     return check(target, p.version, own === 'DM' ? { ...ctx, dm: undefined } : ctx).filter((f) => (isRel(domain) ? f.domain === domain : !isRel(f.domain)))

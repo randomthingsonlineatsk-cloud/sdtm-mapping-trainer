@@ -11,16 +11,17 @@ import Datasets from './views/Datasets'
 import Design from './views/Design'
 import Qc from './views/Qc'
 import PlanView from './views/Plan'
+import Relations from './views/Relations'
 import Missions from './views/Missions'
 import ProjectView from './views/ProjectView'
 
-export type View = 'learn' | 'study' | 'raw' | 'mapping' | 'design' | 'datasets' | 'qc' | 'plan' | 'missions' | 'project'
+export type View = 'learn' | 'study' | 'raw' | 'mapping' | 'design' | 'datasets' | 'qc' | 'plan' | 'relations' | 'missions' | 'project'
 interface Nav { view: View; arg?: string; go: (v: View, arg?: string) => void }
 const NavCtx = createContext<Nav>({ view: 'learn', go: () => {} })
 export const useNav = () => useContext(NavCtx)
 
 const VIEWS: { id: View; label: string }[] = [
-  { id: 'learn', label: 'Learn' }, { id: 'study', label: 'Study' }, { id: 'raw', label: 'Raw data' }, { id: 'plan', label: 'Specification' }, { id: 'mapping', label: 'Mapping' }, { id: 'design', label: 'Trial design' }, { id: 'qc', label: 'QC compare' },
+  { id: 'learn', label: 'Learn' }, { id: 'study', label: 'Study' }, { id: 'raw', label: 'Raw data' }, { id: 'plan', label: 'Specification' }, { id: 'mapping', label: 'Mapping' }, { id: 'design', label: 'Trial design' }, { id: 'relations', label: 'Relationships' }, { id: 'qc', label: 'QC compare' },
   { id: 'datasets', label: 'Datasets & checks' }, { id: 'missions', label: 'Missions' }, { id: 'project', label: 'Project' },
 ]
 
@@ -28,7 +29,7 @@ function Shell() {
   const { p, error, setError, saved } = useStore()
   const [nav, setNav] = useState<{ view: View; arg?: string }>({ view: 'learn' })
   const go = (view: View, arg?: string) => { setNav({ view, arg }); window.scrollTo({ top: 0 }) }
-  const V = { learn: Learn, study: StudyView, raw: RawData, plan: PlanView, mapping: Mapping, design: Design, qc: Qc, datasets: Datasets, missions: Missions, project: ProjectView }[nav.view]
+  const V = { learn: Learn, study: StudyView, raw: RawData, plan: PlanView, mapping: Mapping, design: Design, relations: Relations, qc: Qc, datasets: Datasets, missions: Missions, project: ProjectView }[nav.view]
   return (
     <NavCtx.Provider value={{ ...nav, go }}>
       <div className="min-h-screen bg-lab-bg text-lab-text flex flex-col">

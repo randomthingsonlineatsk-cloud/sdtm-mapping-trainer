@@ -33,6 +33,7 @@ export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | '
   IE: { name: 'Eligibility', source: 'EDC', note: 'One row per subject when all criteria were met (IEYN = Y); otherwise one row per criterion not met, with its category and code from the protocol.' },
   MH: { name: 'Medical history', source: 'EDC', note: 'One row per condition. MHDECOD and MHBODSYS come from the coding export (Study Medical Dictionary 1.0). Start dates are often partial.' },
   DVL: { name: 'Protocol deviation log (CTMS)', source: 'CTMS', note: 'Exported from the clinical trial management system, not the EDC: one row per deviation recorded by the monitors, with category, description and whether it is important. Dates are DD/MM/YYYY.' },
+  EDU: { name: 'Diabetes education', source: 'EDC', note: 'One row per education session the site gave: topic, format and length. No standard SDTM domain holds this; it is mapped to the sponsor-defined domain XE.' },
   CO: { name: 'Comments', source: 'EDC', note: 'Free-text comments the sites entered on a form or for the subject in general (FORM blank). Some are longer than 200 characters.' },
   IRT: { name: 'IRT randomisation file', source: 'IRT', note: 'External file from the randomisation system: planned arm (RANDARM) and the arm of the kits actually dispensed (KITARM). Screen failures are not in it. Dates are ISO 8601.' },
 }
@@ -43,12 +44,13 @@ const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
   VS: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit (folder)'], ['VSPERF', 'Were vital signs measured? (Y/N)'], ['VSREASND', 'Reason not done'], ['VSDAT', 'Date of measurements'], ['VSTIM', 'Time of measurements'], ['VSPOS', 'Position for blood pressure and pulse'], ['SYSBP', 'Systolic blood pressure (mmHg)'], ['DIABP', 'Diastolic blood pressure (mmHg)'], ['PULSE', 'Pulse (beats/min)'], ['WEIGHT', 'Weight'], ['WEIGHTU', 'Weight unit'], ['HEIGHT', 'Height'], ['HEIGHTU', 'Height unit'], ['TEMP', 'Oral temperature (°C)']],
   EX: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit kit dispensed'], ['EXKIT', 'Kit number'], ['EXSTDAT', 'Start date'], ['EXSTTIM', 'Time of first dose (Day 1 only)'], ['EXENDAT', 'End date'], ['EXTABS', 'Tablets per day']],
   DS: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DSDECOD', 'Status at end of study'], ['DSTERM', 'Details'], ['DSSTDAT', 'Date of completion or discontinuation']],
-  AE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['AESPID', 'AE number'], ['AETERM', 'Adverse event'], ['AESTDAT', 'Start date'], ['AEENDAT', 'End date'], ['AEONGO', 'Ongoing'], ['AESEV', 'Severity'], ['AESER', 'Serious'], ['AEREL', 'Related to study drug'], ['AEACN', 'Action taken'], ['AEOUT', 'Outcome'], ['AESDTH', 'Resulted in death'], ['AESHOSP', 'Hospitalisation'], ['AELLT', 'Coded: lowest-level term'], ['AELLTCD', 'LLT code'], ['AEDECOD', 'Coded: preferred term'], ['AEPTCD', 'PT code'], ['AEHLT', 'Coded: cluster (HLT)'], ['AEHLTCD', 'HLT code'], ['AEHLGT', 'Coded: group (HLGT)'], ['AEHLGTCD', 'HLGT code'], ['AESOC', 'Coded: system class (SOC)'], ['AESOCCD', 'SOC code']],
-  CM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['CMSPID', 'Medication number'], ['CMTRT', 'Medication'], ['CMINDC', 'Indication'], ['CMDOSE', 'Dose'], ['CMDOSU', 'Unit'], ['CMDOSFRQ', 'Frequency'], ['CMROUTE', 'Route'], ['CMSTDAT', 'Start date'], ['CMENDAT', 'End date'], ['CMONGO', 'Ongoing'], ['CMDECOD', 'Coded: standard name'], ['CMDRN', 'Coded: drug record number'], ['CMCLAS', 'Coded: class (level 4)'], ['CMCLASCD', 'Class code']],
+  AE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['AESPID', 'AE number'], ['AETERM', 'Adverse event'], ['AESTDAT', 'Start date'], ['AEENDAT', 'End date'], ['AEONGO', 'Ongoing'], ['AESEV', 'Severity'], ['AESER', 'Serious'], ['AEREL', 'Related to study drug'], ['AEACN', 'Action taken'], ['AELBACC', 'Related lab sample (accession number)'], ['AEOUT', 'Outcome'], ['AESDTH', 'Resulted in death'], ['AESHOSP', 'Hospitalisation'], ['AELLT', 'Coded: lowest-level term'], ['AELLTCD', 'LLT code'], ['AEDECOD', 'Coded: preferred term'], ['AEPTCD', 'PT code'], ['AEHLT', 'Coded: cluster (HLT)'], ['AEHLTCD', 'HLT code'], ['AEHLGT', 'Coded: group (HLGT)'], ['AEHLGTCD', 'HLGT code'], ['AESOC', 'Coded: system class (SOC)'], ['AESOCCD', 'SOC code']],
+  CM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['CMSPID', 'Medication number'], ['CMTRT', 'Medication'], ['CMINDC', 'Indication'], ['CMDOSE', 'Dose'], ['CMDOSU', 'Unit'], ['CMDOSFRQ', 'Frequency'], ['CMROUTE', 'Route'], ['CMAENO', 'Related adverse event number'], ['CMSTDAT', 'Start date'], ['CMENDAT', 'End date'], ['CMONGO', 'Ongoing'], ['CMDECOD', 'Coded: standard name'], ['CMDRN', 'Coded: drug record number'], ['CMCLAS', 'Coded: class (level 4)'], ['CMCLASCD', 'Class code']],
   LBC: [['SUBJID', 'Subject number'], ['VISIT', 'Visit'], ['ACCSNUM', 'Accession number'], ['COLLDATE', 'Collection date'], ['COLLTIME', 'Collection time'], ['TESTCODE', 'Vendor test code'], ['TESTNAME', 'Vendor test name'], ['RESULT', 'Result'], ['UNITS', 'Units'], ['REFLOW', 'Reference range low'], ['REFHIGH', 'Reference range high'], ['FLAG', 'Abnormal flag'], ['SPECIMEN', 'Specimen'], ['FASTING', 'Fasting'], ['TIMEPOINT', 'Planned time point'], ['COMMENT', 'Lab comment'], ['LABNAME', 'Laboratory']],
   IE: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit (folder)'], ['IEDAT', 'Date of eligibility assessment'], ['IEYN', 'Were all eligibility criteria met?'], ['IECAT', 'Criterion category'], ['IETESTCD', 'Criterion not met (identifier)']],
   MH: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['MHSPID', 'History number'], ['MHCAT', 'Category'], ['MHTERM', 'Condition'], ['MHSTDAT', 'Start date'], ['MHONGO', 'Ongoing at screening'], ['MHENDAT', 'End date'], ['MHLLT', 'Lowest level term (coding)'], ['MHDECOD', 'Preferred term (coding)'], ['MHPTCD', 'Preferred term code (coding)'], ['MHBODSYS', 'System class (coding)'], ['MHSOCCD', 'System class code (coding)']],
   DVL: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DEVID', 'Deviation ID'], ['DEVCAT', 'Category'], ['DEVTERM', 'Description'], ['DEVDATE', 'Date of deviation'], ['IMPORTANT', 'Important deviation (Yes/No)']],
+  EDU: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['VISIT', 'Visit (folder)'], ['EDUDAT', 'Date of session'], ['TOPIC', 'Topic'], ['FORMAT', 'Format'], ['DURMIN', 'Length (minutes)']],
   CO: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['FORM', 'Form commented on (blank: general)'], ['VISIT', 'Visit (folder)'], ['CODAT', 'Date of comment'], ['COMMENT', 'Comment']],
   IRT: [['SUBJID', 'Subject number'], ['RANDNO', 'Randomisation number'], ['RANDDT', 'Randomisation date'], ['RANDARM', 'Randomised arm (code)'], ['KITARM', 'Arm of kits dispensed (code)']],
 }
@@ -217,7 +219,7 @@ export const raw = (t: Transfer = 1): RawData => (t === 2 ? (cache2 ??= transfer
 // them: the EDC as DD-MMM-YYYY with UN/UNK for unknown parts, the central laboratory as YYYYMMDD
 // with HHMM times, the IRT as ISO 8601.
 function exportFormats(forms: Record<string, Row[]>) {
-  for (const f of ['DM', 'IC', 'SV', 'VS', 'EX', 'DS', 'AE', 'CM', 'IE', 'MH', 'CO']) for (const r of forms[f] ?? []) for (const k of Object.keys(r)) if (/DAT$/.test(k) && r[k]) r[k] = toEdc(r[k])
+  for (const f of ['DM', 'IC', 'SV', 'VS', 'EX', 'DS', 'AE', 'CM', 'IE', 'MH', 'CO', 'EDU']) for (const r of forms[f] ?? []) for (const k of Object.keys(r)) if (/DAT$/.test(k) && r[k]) r[k] = toEdc(r[k])
   for (const r of forms.LBC ?? []) { r.COLLDATE = toYmd(r.COLLDATE); r.COLLTIME = r.COLLTIME.replace(':', '') }
   for (const r of forms.DVL ?? []) r.DEVDATE = toDmy(r.DEVDATE)
 }
@@ -357,6 +359,30 @@ function phase3(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
   c(dosed[5], '', 'Week 12', svDate(dosed[5].subj, 'Week 12') || dosed[5].d1!, 'Subject moving house in August; visits may be rescheduled.')
   labPhase3(forms)
   c(dosed[8], 'LB', 'Week 26', svDate(dosed[8].subj, 'Week 26') || dosed[8].end, 'Sample collected 30 minutes later than planned because of a delayed courier.')
+  linkFields(forms)
+  // Diabetes education sessions: no standard domain holds them, so they go to a custom domain.
+  for (const s of subjects.filter((x) => x.d1)) {
+    const sessions: [string, string][] = [['Day 1', s.d1!]]
+    const w4 = svDate(s.subj, 'Week 4'); if (w4) sessions.push(['Week 4', w4])
+    sessions.forEach(([visit, date], i) => add('EDU', { SUBJID: s.subj, SITEID: s.site, VISIT: visit, EDUDAT: date, TOPIC: i === 0 ? r.pick(['Diet', 'Physical activity']) : r.pick(['Foot care', 'Recognising hypoglycaemia', 'Diet']), FORMAT: r.pick(['One-to-one', 'One-to-one', 'Group']), DURMIN: String(r.pick([30, 45, 60])) }))
+  }
+}
+
+// Fields that tie records together, as CRFs collect them: the adverse event a medication was
+// given for (CMAENO, the AE number) and the lab sample behind an abnormal-lab adverse event
+// (AELBACC, its accession number). They feed RELREC; they are not SDTM variables themselves.
+function linkFields(forms: Record<string, Row[]>) {
+  for (const cm of forms.CM) {
+    const ae = forms.AE.find((a) => a.SUBJID === cm.SUBJID && a.AETERM === cm.CMINDC && a.AESTDAT === cm.CMSTDAT)
+    cm.CMAENO = ae ? ae.AESPID : ''
+  }
+  for (const ae of forms.AE) {
+    ae.AELBACC = ''
+    if (ae.AETERM !== 'ALT increased') continue
+    const alt = forms.LBC.filter((l) => l.SUBJID === ae.SUBJID && l.TESTCODE === 'ALT' && l.RESULT)
+    const near = alt.sort((a, b) => Math.abs(Date.parse(a.COLLDATE) - Date.parse(ae.AESTDAT.length === 10 ? ae.AESTDAT : a.COLLDATE)) - Math.abs(Date.parse(b.COLLDATE) - Date.parse(ae.AESTDAT.length === 10 ? ae.AESTDAT : b.COLLDATE)))[0]
+    if (near) ae.AELBACC = near.ACCSNUM
+  }
 }
 
 // Lab time points and a reference range change. At Week 12 glucose is drawn before the dose and
@@ -401,7 +427,7 @@ function transfer2(t1: RawData): RawData {
     const subj = (late.subj = s.subj), term = late.term
     const st = addDays(s.d1!, 40), en = addDays(st, 9)
     const n = forms.AE.filter((x) => x.SUBJID === subj).length + 1
-    forms.AE.push({ __id: `AE-T2-${subj}`, SUBJID: subj, SITEID: s.site, AESPID: String(n), AETERM: term, AESTDAT: toEdc(st), AEENDAT: toEdc(en), AEONGO: 'N', AESEV: 'Moderate', AESER: 'N', AEREL: 'Not related', AEACN: 'Dose not changed', AEOUT: 'Recovered/resolved', AESDTH: '', AESHOSP: '' })
+    forms.AE.push({ __id: `AE-T2-${subj}`, SUBJID: subj, SITEID: s.site, AESPID: String(n), AETERM: term, AESTDAT: toEdc(st), AEENDAT: toEdc(en), AEONGO: 'N', AESEV: 'Moderate', AESER: 'N', AEREL: 'Not related', AEACN: 'Dose not changed', AEOUT: 'Recovered/resolved', AESDTH: '', AESHOSP: '', AELBACC: '' })
   }
   // Query corrections.
   const dm = forms.DM.find((x) => x.SUBJID === TRANSFER2.birthCorrected)!

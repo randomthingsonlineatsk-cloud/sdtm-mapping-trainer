@@ -266,6 +266,11 @@ const META_34: Record<string, VarMeta[]> = {
     v('QNAM', 'Qualifier Variable Name', 'Char', 'Topic', 'Req'), v('QLABEL', 'Qualifier Variable Label', 'Char', 'Synonym Qualifier', 'Req'),
     v('QVAL', 'Data Value', 'Char', 'Result Qualifier', 'Req'), v('QORIG', 'Origin', 'Char', 'Record Qualifier', 'Req'), v('QEVAL', 'Evaluator', 'Char', 'Record Qualifier', 'Exp'),
   ],
+  RELREC: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('RDOMAIN', 'Related Domain Abbreviation', 'Char', 'Identifier', 'Req'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Exp'),
+    v('IDVAR', 'Identifying Variable', 'Char', 'Identifier', 'Req'), v('IDVARVAL', 'Identifying Variable Value', 'Char', 'Identifier', 'Exp'),
+    v('RELTYPE', 'Relationship Type', 'Char', 'Record Qualifier', 'Exp'), v('RELID', 'Relationship Identifier', 'Char', 'Record Qualifier', 'Req'),
+  ],
   // SDTMIG v4.0 draft: one horizontal NS-- record per parent record; the non-standard variables
   // themselves are columns whose metadata (label, type, origin) lives in define.xml.
   NSQUAL: [
@@ -281,7 +286,7 @@ export const relName = (parent: string, ver: Version) => `${ver === '3.4' ? 'SUP
 export const dsName = (d: string, ver: Version) => (isRel(d) ? relName(relParent(d), ver) : d)
 export const relMetaKey = (d: string) => (d.startsWith('NS') ? 'NSQUAL' : 'SUPPQUAL')
 export const relLabel = (d: string) => (d.startsWith('NS') ? `Non-standard Variables for ${relParent(d)}` : `Supplemental Qualifiers for ${relParent(d)}`)
-export const DETAIL_DOMAINS = Object.keys(META_34).filter((d) => !['SE', 'TA', 'TE', 'TV', 'TI', 'TS', 'SUPPQUAL', 'NSQUAL'].includes(d))
+export const DETAIL_DOMAINS = Object.keys(META_34).filter((d) => !['SE', 'TA', 'TE', 'TV', 'TI', 'TS', 'SUPPQUAL', 'NSQUAL', 'RELREC'].includes(d))
 export const TRIAL_DESIGN = ['TA', 'TE', 'TV', 'TI', 'TS']
 export const hasMeta = (d: string) => !!META_34[d]
 
@@ -299,11 +304,48 @@ export const DRAFT_CHANGES: { what: string; where: string }[] = [
   { what: 'New domains, including DC, EA and GI', where: 'Not used by this study' },
 ]
 
+// Sponsor-defined (custom) domains of the open project, registered when it loads.
+export interface CustomDomain { code: string; name: string; cls: 'Interventions' | 'Events' | 'Findings'; structure: string; reason: string; vars: VarMeta[] }
+const CUSTOM: Record<string, CustomDomain> = {}
+export function registerCustom(list: CustomDomain[] = []) { for (const k of Object.keys(CUSTOM)) delete CUSTOM[k]; for (const c of list) CUSTOM[c.code] = c }
+export const customDomains = () => Object.values(CUSTOM)
+// The reference custom domain, so missions can build the hidden reference even before the
+// learner has defined it; it is not offered in the interface.
+const REF_CUSTOM: Record<string, CustomDomain> = {}
+export function registerReferenceCustom(c: CustomDomain) { REF_CUSTOM[c.code] = c }
+// The general observation class variables a custom domain is built from (SDTM v2.0), with the
+// domain prefix in place of --.
+export function customVars(code: string, cls: CustomDomain['cls']): VarMeta[] {
+  const x = (n: string) => n.replace('--', code)
+  const common = [v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Req'), v(x('--SEQ'), 'Sequence Number', 'Num', 'Identifier', 'Req'), v(x('--SPID'), 'Sponsor-Defined Identifier', 'Char', 'Identifier', 'Perm')]
+  const timing = [v('VISITNUM', 'Visit Number', 'Num', 'Timing', 'Perm'), v('VISIT', 'Visit Name', 'Char', 'Timing', 'Perm'), v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH')]
+  if (cls === 'Interventions') return [...common, v(x('--TRT'), 'Name of Treatment', 'Char', 'Topic', 'Req'), v(x('--CAT'), 'Category', 'Char', 'Grouping Qualifier', 'Perm'), v(x('--SCAT'), 'Subcategory', 'Char', 'Grouping Qualifier', 'Perm'), v(x('--DOSE'), 'Dose', 'Num', 'Record Qualifier', 'Perm'), v(x('--DOSU'), 'Dose Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'), ...timing, v(x('--STDTC'), 'Start Date/Time', 'Char', 'Timing', 'Exp'), v(x('--ENDTC'), 'End Date/Time', 'Char', 'Timing', 'Perm'), v(x('--STDY'), 'Study Day of Start', 'Num', 'Timing', 'Perm'), v(x('--ENDY'), 'Study Day of End', 'Num', 'Timing', 'Perm'), v(x('--DUR'), 'Duration', 'Char', 'Timing', 'Perm')]
+  if (cls === 'Events') return [...common, v(x('--TERM'), 'Reported Term', 'Char', 'Topic', 'Req'), v(x('--DECOD'), 'Dictionary-Derived Term', 'Char', 'Synonym Qualifier', 'Perm'), v(x('--CAT'), 'Category', 'Char', 'Grouping Qualifier', 'Perm'), v(x('--SCAT'), 'Subcategory', 'Char', 'Grouping Qualifier', 'Perm'), v(x('--SEV'), 'Severity/Intensity', 'Char', 'Record Qualifier', 'Perm'), ...timing, v(x('--STDTC'), 'Start Date/Time', 'Char', 'Timing', 'Exp'), v(x('--ENDTC'), 'End Date/Time', 'Char', 'Timing', 'Perm'), v(x('--STDY'), 'Study Day of Start', 'Num', 'Timing', 'Perm'), v(x('--ENDY'), 'Study Day of End', 'Num', 'Timing', 'Perm')]
+  return [...common, v(x('--TESTCD'), 'Short Name of Test', 'Char', 'Topic', 'Req'), v(x('--TEST'), 'Name of Test', 'Char', 'Synonym Qualifier', 'Req'), v(x('--CAT'), 'Category', 'Char', 'Grouping Qualifier', 'Perm'), v(x('--ORRES'), 'Result in Original Units', 'Char', 'Result Qualifier', 'Exp'), v(x('--ORRESU'), 'Original Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'), v(x('--STRESC'), 'Result in Standard Format', 'Char', 'Result Qualifier', 'Exp'), v(x('--STRESN'), 'Numeric Result in Standard Units', 'Num', 'Result Qualifier', 'Perm'), v(x('--STRESU'), 'Standard Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'), v(x('--STAT'), 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v(x('--REASND'), 'Reason Not Done', 'Char', 'Record Qualifier', 'Perm'), ...timing, v(x('--DTC'), 'Date/Time of Collection', 'Char', 'Timing', 'Exp'), v(x('--DY'), 'Study Day of Collection', 'Num', 'Timing', 'Perm')]
+}
+// Which standard domains might hold the data a custom domain is proposed for: SDTMIG allows a
+// custom domain only when no published domain fits.
+const FIT_WORDS: [RegExp, string[]][] = [
+  [/question|scale|score|survey|instrument|diary/i, ['QS']], [/procedure|surgery|operation|biopsy/i, ['PR']], [/meal|food|nutrition|diet/i, ['ML']],
+  [/vital|blood pressure|pulse|weight|height|temperature/i, ['VS']], [/lab|blood test|urine|chemistry|haematology|hematology/i, ['LB']], [/ecg|electrocardio/i, ['EG']],
+  [/medication|drug|dose|tablet|treatment/i, ['CM', 'EX', 'EC']], [/device/i, ['DI', 'DU', 'DO']], [/tobacco|smok|alcohol|substance|caffeine/i, ['SU']],
+  [/pregnan|reproductive|menstrua/i, ['RP']], [/micro|culture|organism/i, ['MB', 'MS']], [/pharmacokinetic|concentration/i, ['PC', 'PP']],
+  [/hospital|admission|visit to|encounter/i, ['HO']], [/death|autopsy/i, ['DD']], [/tumou?r|lesion|response/i, ['TU', 'TR', 'RS']], [/physical exam|examination/i, ['PE']],
+  [/history|condition/i, ['MH']], [/adverse|side effect/i, ['AE']], [/deviation/i, ['DV']], [/comment/i, ['CO']], [/eligib|criteri/i, ['IE']], [/social|economic|employ|education level/i, ['SC']],
+]
+export function standardCandidates(text: string): string[] { return [...new Set(FIT_WORDS.filter(([re]) => re.test(text)).flatMap(([, d]) => d))] }
+export function customCodeProblem(code: string): string {
+  if (!/^[A-Z]{2}$/.test(code)) return 'A domain code is two capital letters'
+  if (DOMAINS.some((d) => d.code === code) || ['SUPPQUAL', 'RELREC'].includes(code)) return `${code} is a standard domain`
+  if (!/^[XYZ]/.test(code)) return 'Custom domain codes start with X, Y or Z: CDISC reserves those letters for sponsor-defined domains'
+  return ''
+}
+
 export function varsOf(domain: string, ver: Version): VarMeta[] {
-  const base = META_34[domain] ?? []
+  const base = META_34[domain] ?? CUSTOM[domain]?.vars ?? REF_CUSTOM[domain]?.vars ?? []
   if (ver === '3.4') return base
   let out = base.filter((x) => !(x.name.length > 2 && x.name.endsWith('BLFL') && x.name.startsWith(domain)))
-  if (GENERAL.has(domain) && !out.some((x) => x.name === 'SUBJID')) {
+  if ((GENERAL.has(domain) || CUSTOM[domain] || REF_CUSTOM[domain]) && !out.some((x) => x.name === 'SUBJID')) {
     const i = out.findIndex((x) => x.name === 'USUBJID') + 1
     out = [...out.slice(0, i), { ...v('SUBJID', 'Subject Identifier for the Study', 'Char', 'Identifier', 'Perm'), draft: true, note: 'Added in the v4.0 draft; check core status in the final standard' }, ...out.slice(i)]
   }
@@ -314,7 +356,7 @@ export function varsOf(domain: string, ver: Version): VarMeta[] {
   return out
 }
 export const metaOf = (domain: string, name: string, ver: Version) => varsOf(domain, ver).find((x) => x.name === name)
-export const domainInfo = (code: string) => DOMAINS.find((d) => d.code === code)
+export const domainInfo = (code: string): DomainInfo | undefined => DOMAINS.find((d) => d.code === code) ?? (CUSTOM[code] ? { code, name: `${CUSTOM[code].name} (custom)`, cls: CUSTOM[code].cls, structure: CUSTOM[code].structure, detail: true } : undefined)
 
 // ---------- controlled terminology (bundled subset) ----------
 // CDISC Controlled Terminology is published quarterly through NCI EVS. The trainer bundles the

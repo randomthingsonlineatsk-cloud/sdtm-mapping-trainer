@@ -4,7 +4,7 @@ import { useNav } from '../App'
 import { build, ruleError, fieldsFor, FN_HELP, RULE_LABEL, PSEUDO, type Rule, type DomainSpec, type TestMap, type Part, type SuppQual } from '../domain/engine'
 import { toR, toSAS } from '../domain/codegen'
 import { MISSIONS } from '../domain/missions'
-import { varsOf, DETAIL_DOMAINS, domainInfo, CT, type VarMeta } from '../domain/standards'
+import { varsOf, DETAIL_DOMAINS, domainInfo, CT, customVars, customCodeProblem, standardCandidates, type VarMeta, type CustomDomain } from '../domain/standards'
 import { emptySpec, log, type Project } from '../domain/project'
 import { currentVersion } from '../domain/plan'
 import { SORT, DEFAULT_SOURCE } from '../domain/reference'
@@ -18,7 +18,9 @@ export default function Mapping() {
   const nav = useNav()
   // nav.arg is a domain (DM) or a QC program (qc:VS).
   const argQc = nav.arg?.startsWith('qc:'), argDomain = argQc ? nav.arg!.slice(3) : nav.arg
-  const [domain, setDomain] = useState(argDomain && DETAIL_DOMAINS.includes(argDomain) ? argDomain : 'DM')
+  const domains = [...DETAIL_DOMAINS, ...(p.custom ?? []).map((c) => c.code)]
+  const [domain, setDomain] = useState(argDomain && domains.includes(argDomain) ? argDomain : 'DM')
+  const [defining, setDefining] = useState(false)
   // Production is the program delivered; QC is the second programmer's independent program.
   const [track, setTrack] = useState<'prod' | 'qc'>(argQc ? 'qc' : 'prod')
   const bag = track === 'qc' ? p.qc ?? {} : p.specs
@@ -29,15 +31,20 @@ export default function Mapping() {
   return (
     <div className="space-y-4">
       <Panel title="Mapping workspace" sub="Raw data on the left, SDTM variables on the right. Pick a variable, choose how it is filled, and watch the dataset rebuild below. Follow the study’s SDTM conventions on the Study tab."
-        right={<Select aria-label="Domain to map" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={DETAIL_DOMAINS.map((d) => ({ value: d, label: `${d} · ${domainInfo(d)?.name}${bag[d]?.vars.length ? ` (${bag[d].vars.length} vars)` : ''}` }))} />}>
+        right={<Select aria-label="Domain to map" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={domains.map((d) => ({ value: d, label: `${d} · ${domainInfo(d)?.name}${bag[d]?.vars.length ? ` (${bag[d].vars.length} vars)` : ''}` }))} />}>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Program">
           <Btn tone={track === 'prod' ? 'solid' : 'grey'} className="py-0.5" aria-pressed={track === 'prod'} onClick={() => setTrack('prod')}>Production</Btn>
           <Btn tone={track === 'qc' ? 'solid' : 'grey'} className="py-0.5" aria-pressed={track === 'qc'} onClick={() => setTrack('qc')}>QC (independent)</Btn>
           <span className="text-[11px] text-lab-text-muted">{track === 'qc' ? 'You are the QC programmer: write this domain again from the specification and conventions, without reading the production rules, then compare on the QC compare tab.' : 'The program that produces the delivered dataset.'}</span>
         </div>
         <p className="text-xs text-lab-text-muted">{domainInfo(domain)?.cls} · {domainInfo(domain)?.structure}. {(() => { const ms = MISSIONS.filter((m) => m.domains.includes(domain)); return ms.length ? `Scored by mission${ms.length > 1 ? 's' : ''} ${ms.map((m) => m.id).join(', ')} against a hidden reference.` : 'Free practice: no mission scores this domain.' })()} Trial design domains (TA, TE, TV, TI, TS) are built as tables on the Trial design tab.</p>
-        {!spec && <Btn tone="solid" onClick={start}>{track === 'qc' ? `Start QC programming of ${domain}` : `Start mapping ${domain}`}</Btn>}
+        <div className="flex flex-wrap gap-2">
+          {!spec && <Btn tone="solid" onClick={start}>{track === 'qc' ? `Start QC programming of ${domain}` : `Start mapping ${domain}`}</Btn>}
+          {!p.imported && <Btn tone="grey" onClick={() => setDefining(!defining)}>{defining ? 'Close' : 'Define a custom domain…'}</Btn>}
+        </div>
+        {(p.custom ?? []).some((c) => c.code === domain) && <CustomInfo code={domain} />}
       </Panel>
+      {defining && <CustomBuilder onDone={(code) => { setDefining(false); setDomain(code) }} />}
       {spec && <Workspace key={`${track}-${domain}`} domain={domain} spec={spec} data={data} track={track} />}
     </div>
   )
@@ -298,5 +305,46 @@ function SpecLine({ domain, variable }: { domain: string; variable: string }) {
     <p className="text-xs rounded border border-lab-line px-2 py-1"><span className="text-lab-text-muted">Specification {cur.version}:</span>{' '}
       {r ? <><b>{r.origin}</b>{r.source && <> · <span className="font-mono">{r.source}</span></>}{r.method && <> · {r.method}</>}</> : <span className="text-lab-amber">not in the specification</span>}
     </p>
+  )
+}
+
+// A sponsor-defined domain: allowed only when no published domain fits the data. The builder
+// asks what the data are, lists the standard domains that might hold them, and records why
+// none does, then creates the domain from the general observation class variables.
+function CustomBuilder({ onDone }: { onDone: (code: string) => void }) {
+  const { act } = useStore()
+  const [code, setCode] = useState('')
+  const [name, setName] = useState('')
+  const [cls, setCls] = useState<CustomDomain['cls']>('Interventions')
+  const [structure, setStructure] = useState('')
+  const [what, setWhat] = useState('')
+  const [reason, setReason] = useState('')
+  const problem = code ? customCodeProblem(code) : ''
+  const cands = standardCandidates(`${name} ${what}`)
+  const ok = code && !problem && name.trim() && structure.trim() && reason.trim().length >= 20
+  return (
+    <Panel title="Define a custom domain" sub="SDTMIG allows a sponsor-defined domain only when no published domain fits the data. Describe the data first, check the standard domains suggested, and record why none fits: the reason goes into define.xml and the reviewer’s guide.">
+      <div className="grid sm:grid-cols-2 gap-2 text-xs">
+        <label className="space-y-1"><span>What the data are</span><input aria-label="What the data are" className={ic('w-full text-xs')} value={what} onChange={(e) => setWhat(e.target.value)} placeholder="e.g. diabetes education sessions the site gave" /></label>
+        <label className="space-y-1"><span>Domain name</span><input aria-label="Custom domain name" className={ic('w-full text-xs')} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diabetes Education" /></label>
+        <label className="space-y-1"><span>Code (2 letters)</span><input aria-label="Custom domain code" className={ic('w-24 font-mono text-xs')} value={code} maxLength={2} onChange={(e) => setCode(e.target.value.toUpperCase())} />{problem && <span className="block text-lab-red">{problem}</span>}</label>
+        <label className="space-y-1"><span>Observation class</span><Select aria-label="Observation class" className="w-48 text-xs py-1" value={cls} onChange={(e) => setCls(e.target.value as CustomDomain['cls'])} options={['Interventions', 'Events', 'Findings'].map((x) => ({ value: x, label: x }))} /><span className="block text-lab-text-muted">Interventions: given to or taken by the subject. Events: things that happen. Findings: results of tests and assessments.</span></label>
+        <label className="space-y-1 sm:col-span-2"><span>Structure</span><input aria-label="Custom domain structure" className={ic('w-full text-xs')} value={structure} onChange={(e) => setStructure(e.target.value)} placeholder="One record per … per subject" /></label>
+      </div>
+      {cands.length > 0 && <p className="text-xs text-lab-amber" role="note">Check these standard domains before creating a custom one: {cands.map((c) => `${c} (${domainInfo(c)?.name ?? c})`).join(', ')}.</p>}
+      <label className="block text-xs space-y-1"><span>Why no standard domain fits</span><textarea aria-label="Why no standard domain fits" className={ic('w-full text-xs h-16')} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Name the domains you considered and why they do not hold these data" /></label>
+      <Btn tone="solid" disabled={!ok} onClick={() => { act((pp) => { (pp.custom ??= []).push({ code, name: name.trim(), cls, structure: structure.trim(), reason: reason.trim(), vars: customVars(code, cls) }); log(pp, `Custom domain ${code} (${cls}) defined`) }); onDone(code) }}>Create {code || 'the domain'}</Btn>
+    </Panel>
+  )
+}
+function CustomInfo({ code }: { code: string }) {
+  const { p, act } = useStore()
+  const c = p.custom!.find((x) => x.code === code)!
+  return (
+    <div className="text-xs rounded border border-lab-line p-2 space-y-1">
+      <p><b>{c.code} · {c.name}</b> · sponsor-defined {c.cls} domain · {c.structure}</p>
+      <p className="text-lab-text-muted">Why no standard domain fits: {c.reason}</p>
+      <Btn tone="red" className="py-0.5" onClick={() => act((pp) => { pp.custom = pp.custom!.filter((x) => x.code !== code); delete pp.specs[code]; log(pp, `Custom domain ${code} removed`) })}>Remove {code}</Btn>
+    </div>
   )
 }
