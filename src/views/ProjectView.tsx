@@ -5,6 +5,7 @@ import { exportFile, importFile, deleteProject, listProjects, saveProject, downl
 import { importCdmProject } from '../domain/cdmImport'
 import { VERSION_LABEL, DRAFT_CHANGES, CT_INFO, type Version } from '../domain/standards'
 import { Panel, Pill, Btn, Table, ic } from './ui'
+import { TransferSwitch } from './Transfer'
 import { parseCt, applyCt, saveCt } from '../domain/ctload'
 import { CT } from '../domain/standards'
 
@@ -45,6 +46,9 @@ export default function ProjectView() {
         </div>
         {msg && <p className="text-xs text-lab-cdsco" role="status">{msg}</p>}
       </Panel>
+      {!p.imported && <Panel title="Data transfer" sub="The study data arrive more than once. Your mappings stay as they are when you switch: re-run them on the new transfer and account for every change (Raw data and Datasets show what changed).">
+        <TransferSwitch />
+      </Panel>}
       <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_INFO.label}.`}>
         <div className="flex flex-wrap gap-2">
           {(['3.4', '4.0d'] as Version[]).map((v) => <Btn key={v} tone={p.version === v ? 'solid' : 'grey'} onClick={() => setVersion(v)}>{VERSION_LABEL[v]}</Btn>)}

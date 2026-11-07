@@ -4,7 +4,7 @@
 
 import { build, type DomainSpec, type OutRow, type StudyData, type Rule, type Part, type SuppQual } from './engine'
 import { varsOf, type Version } from './standards'
-import { raw } from './seed'
+import { raw, type Transfer } from './seed'
 import { STUDY } from './study'
 
 const e = (expr: string): Rule => ({ kind: 'expr', expr })
@@ -71,7 +71,7 @@ const DS_COMMON: Record<string, Rule> = { STUDYID: c(STUDY.id), DOMAIN: c('DS'),
 const DS_RULES: Record<string, Rule> = { ...DS_COMMON, DSTERM: e('coalesce(DSTERM, upper(DSDECOD))'), DSDECOD: e('upper(DSDECOD)'), DSCAT: c('DISPOSITION EVENT'), EPOCH: e('epoch(DSSTDTC)'), DSSTDTC: e("dtc(DSSTDAT, 'DD-MMM-YYYY')") }
 const DS_IC: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e("dtc(DSSTDAT, 'DD-MMM-YYYY')") }
 const DS_IRT: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('RANDOMIZED'), DSDECOD: c('RANDOMIZED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: cp('RANDDT') }
-const SI = (x: string) => `round(num(${x}) * lab(TESTCODE, 'factor'), lab(TESTCODE, 'decimals'))`
+const SI = (x: string) => `round(num(${x}) * lab(TESTCODE, 'factor', UNITS), lab(TESTCODE, 'decimals'))`
 const LB_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('LB'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), LBSEQ: { kind: 'seq' }, LBREFID: cp('ACCSNUM'),
   LBTESTCD: e("lab(TESTCODE, 'testcd')"), LBTEST: e("ctdecode('LBTESTCD', LBTESTCD)"), LBCAT: c('CHEMISTRY'),
@@ -116,10 +116,10 @@ export function referenceSpec(domain: string, ver: Version): DomainSpec {
   }
 }
 
-let dmCache: Map<string, OutRow> | null = null
-export function refDm(): Map<string, OutRow> {
-  if (dmCache) return dmCache
-  const b = build(referenceSpec('DM', '3.4'), { forms: raw().forms, studyId: STUDY.id })
-  return (dmCache = new Map(b.rows.map((r) => [r.__subj, r])))
+const dmCaches: Partial<Record<Transfer, Map<string, OutRow>>> = {}
+export function refDm(t: Transfer = 1): Map<string, OutRow> {
+  if (dmCaches[t]) return dmCaches[t]!
+  const b = build(referenceSpec('DM', '3.4'), { forms: raw(t).forms, studyId: STUDY.id })
+  return (dmCaches[t] = new Map(b.rows.map((r) => [r.__subj, r])))
 }
-export const studyData = (): StudyData => ({ forms: raw().forms, studyId: STUDY.id, refDm: refDm() })
+export const studyData = (t: Transfer = 1): StudyData => ({ forms: raw(t).forms, studyId: STUDY.id, refDm: refDm(t) })

@@ -39,6 +39,7 @@ function Shell() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Pill tone={p.version === '3.4' ? 'blue' : 'purple'}>{VERSION_LABEL[p.version]}</Pill>
+              {!p.imported && (p.transfer ?? 1) === 2 && <Pill tone="amber">Transfer 2</Pill>}
               <span className="text-[11px] text-lab-text-muted font-mono">{p.name}{saved ? ` · saved ${saved}` : ''}</span>
             </div>
           </div>

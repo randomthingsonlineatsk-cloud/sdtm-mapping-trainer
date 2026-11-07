@@ -100,6 +100,12 @@ rules; no vendor rule text or tool is copied.
   report downloads for the validation file, and sign-off is possible only when the comparison
   is clean. Mission S10 hands you a colleague's VS that passes every check but holds three
   errors only an independent comparison finds.
+- **A second data transfer:** transfer 2 (database lock) brings late-entered adverse events,
+  query corrections, a record deleted in the EDC, the central laboratory's switch to SI units
+  from Week 26, and coding up-versioned to the next dictionary version. The Raw data tab lists
+  every added, removed and changed record; Datasets compares each dataset with transfer 1.
+  Mission S11 re-runs DM, AE and LB on it: a lab conversion that assumed one unit now converts
+  some results twice.
 
 ## Coming next
 

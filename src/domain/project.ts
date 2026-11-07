@@ -7,7 +7,7 @@ import { build } from './engine'
 import type { Version } from './standards'
 import type { RuleSet } from './conformance'
 import type { DesignRow } from './design'
-import type { Row } from './seed'
+import type { Row, Transfer } from './seed'
 import type { Visit } from './study'
 import { STUDY } from './study'
 import { studyData, SORT } from './reference'
@@ -28,6 +28,7 @@ export interface Project {
   missions: MissionRun[]
   quiz: Record<string, Record<string, number>>
   log: LogEntry[]
+  transfer?: Transfer // the data transfer the project works on (1 when absent)
   qc?: Record<string, DomainSpec> // the independent QC programs
   qcLog?: Record<string, Record<string, QcResolution>> // per domain, per difference
   qcSignoff?: Record<string, { utc: string; by: string; note: string }>
@@ -52,7 +53,7 @@ export function emptySpec(domain: string, source: string): DomainSpec {
 // The data the engine works on: the shipped study with its reference DM, or an imported study
 // whose study-day and epoch functions read the learner's own DM.
 export function dataFor(p: Project): StudyData {
-  if (!p.imported) return studyData()
+  if (!p.imported) return studyData(p.transfer ?? 1)
   const base: StudyData = { forms: p.imported.forms, studyId: p.imported.protocol, visits: p.imported.visits }
   const dmSpec = p.specs.DM
   if (dmSpec?.vars.length) {
