@@ -233,6 +233,16 @@ export const TOPICS: Topic[] = [
       { q: 'What links a RELREC row to its record?', options: ['RELID alone', 'RDOMAIN, USUBJID and IDVAR/IDVARVAL', 'The row order', 'QNAM'], answer: 1, why: 'RDOMAIN names the domain; IDVAR (--SEQ) and IDVARVAL find the record of that subject.' },
       { q: 'Which code can a sponsor use for a custom domain?', options: ['ED', 'XE', 'EX', 'QS'], answer: 1, why: 'Codes beginning with X, Y or Z are reserved for sponsor-defined domains; EX and QS are standard.' },
     ] },
+  { id: 'acrf', title: 'The annotated CRF',
+    body: [
+      'The aCRF shows reviewers where every collected field ends up in SDTM. It covers each unique CRF page once, with the domain at the top left of the page, bookmarks by visit and by form, and a linked table of contents.',
+      'Annotations use the variable name alone when the page feeds one domain and DOMAIN.VARIABLE when it feeds several; findings are written as VSORRES when VSTESTCD = SYSBP; supplemental qualifiers as QVAL when QNAM = RACE1 in SUPPDM; fields collected but not submitted as [NOT SUBMITTED]. Each domain on a page has its own colour.',
+      'Only collected data are annotated. Variables derived from a field (standard results, study days, AGE, VISITNUM, EPOCH) are not; their derivations are in define.xml. The origin in define.xml points to the aCRF page for every collected variable, so the two must agree.',
+    ],
+    quiz: [
+      { q: 'The vital signs page collects systolic blood pressure. What is its annotation?', options: ['SYSBP', 'VSORRES when VSTESTCD = SYSBP', 'VS.SYSBP', 'VSSTRESN'], answer: 1, why: 'Findings are annotated as the result variable with the test code that identifies the record.' },
+      { q: 'A field is collected but not used in any dataset. How is it annotated?', options: ['Left blank', '[NOT SUBMITTED]', 'SUPP--', 'NA'], answer: 1, why: 'Every field is annotated; unused ones say so.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

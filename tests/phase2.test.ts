@@ -11,6 +11,7 @@ import { parseCt, applyCt } from '../src/domain/ctload'
 import { specRows } from '../src/domain/spec'
 import { CT, CT_INFO, inCt } from '../src/domain/standards'
 import { PLANTED, PLANTED_LAB, RAW_FIELDS } from '../src/domain/seed'
+import { crfPages, suggest, checkAcrf } from '../src/domain/acrf'
 import { toXpt as xpt } from '../src/domain/exports'
 import { toIso, toIsoTime, anyDate, toEdc } from '../src/domain/rawdate'
 import { raw } from '../src/domain/seed'
@@ -21,6 +22,8 @@ const full = (v: '3.4' | '4.0d' = '3.4') => {
   for (const d of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'IE', 'MH', 'EC', 'DV', 'CO']) p.specs[d] = referenceSpec(d, v)
   p.design = referenceDesign(v)
   p.specs.XE = referenceSpec('XE', v); p.custom = [REF_CUSTOM]; p.relrec = REF_RELREC.map((x) => ({ ...x }))
+  p.specs.SV = referenceSpec('SV', v)
+  p.acrf = Object.fromEntries(crfPages(raw().forms).map((pg) => [pg.form, suggest(pg.form, p.specs, p.relrec!, v)]))
   return p
 }
 
@@ -486,5 +489,29 @@ describe('Phase 3a: RELREC and custom domains', () => {
     expect(customCodeProblem('XE')).toBe(''); expect(customCodeProblem('AE')).toMatch(/standard/); expect(customCodeProblem('ED')).toMatch(/X, Y or Z/)
     expect(standardCandidates('blood pressure readings at home')).toContain('VS')
     expect(standardCandidates('quality of life questionnaire')).toContain('QS')
+  })
+})
+
+describe('Phase 3b: annotated CRF', () => {
+  test('annotations from the reference mapping are clean; a wrong one is caught', () => {
+    const p = full()
+    expect(checkAcrf(crfPages(raw().forms), p.acrf!, p.specs, p.relrec!, '3.4')).toEqual([])
+    expect(p.acrf!.VS.SYSBP).toBe('VSORRES when VSTESTCD = SYSBP; VSORRESU when VSTESTCD = SYSBP')
+    expect(p.acrf!.DM.RACE).toContain('QVAL when QNAM = RACE1 in SUPPDM')
+    expect(p.acrf!.CM.CMAENO).toBe('RELREC')
+    p.acrf!.AE.AESTDAT = 'AESTDT'; p.acrf!.CM.CMDOSE = ''; p.acrf!.AE.AETERM = '[NOT SUBMITTED]'
+    const f = checkAcrf(crfPages(raw().forms), p.acrf!, p.specs, p.relrec!, '3.4').map((x) => `${x.form}.${x.field}`)
+    expect(f).toEqual(expect.arrayContaining(['AE.AESTDAT', 'CM.CMDOSE', 'AE.AETERM']))
+    const r = evaluateMission(p, 'S17'); expect(r.passed).toBe(false); expect(r.score).toBeGreaterThan(90)
+  })
+  test('acrf.pdf has a contents page, the pages and bookmarks', async () => {
+    const { acrfPdf } = await import('../src/domain/acrfPdf')
+    const p = full()
+    const bytes = acrfPdf('GLV-12-301', crfPages(raw().forms), p.acrf!, p.specs)
+    const text = new TextDecoder('latin1').decode(bytes)
+    expect(text.startsWith('%PDF')).toBe(true)
+    expect(text).toContain('/Outlines'); expect(text).toContain('/Link')
+    expect((text.match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(12)
+    expect(evaluateMission(p, 'S17').score).toBe(100)
   })
 })
