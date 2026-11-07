@@ -35,7 +35,7 @@ describe('Phase 2 missions', () => {
   test('every mission scores 100 with the reference, in both standards and every rule set', () => {
     for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
       const p = full(v); p.ruleSet = rs.id
-      for (const m of MISSIONS.filter((x) => !['fix', 'qc', 'spec'].includes(x.kind))) {
+      for (const m of MISSIONS.filter((x) => !['fix', 'qc', 'spec', 'package'].includes(x.kind))) {
         const r = evaluateMission(p, m.id)
         expect(r.score, `${v} ${rs.id} ${m.id}: ${r.detail.join(' | ')}`).toBe(100)
         expect(r.passed).toBe(true)
@@ -613,6 +613,51 @@ describe('Phase 3d: validation, explanations and the reviewer\'s guide', () => {
     const bytes = csdrgPdf('GLV-12-301', g, { author: 'Learner', date: '2026-10-21', title: 'Training study' })
     const head = new TextDecoder().decode(bytes.slice(0, 8))
     expect(head).toBe('%PDF-1.3')
+    registerCustom([])
+  })
+})
+
+describe('Phase 3e: the submission package and mission S18', () => {
+  test('the reference package scores 100; hiding the data issue or explaining a mapping bug fails', async () => {
+    const { planPackage, sdtmFolder } = await import('../src/domain/package')
+    const { packageFiles, zipPackage } = await import('../src/domain/packageBuild')
+    const { packageFindings, toIssues, runSummary } = await import('../src/domain/validation')
+    const { suggestNotes } = await import('../src/domain/csdrg')
+    const { allDatasets } = await import('../src/domain/datasets')
+    const { registerCustom } = await import('../src/domain/standards')
+    const { unzipSync } = await import('fflate')
+    const p = full(); registerCustom(p.custom)
+    startMission(p, 'S18'); expect(p.transfer).toBe(2); expect(p.ruleSet).toBe('FDA')
+    const d2 = studyData(2)
+    const record = () => { const issues = toIssues(packageFindings(p, d2)); (p.validation ??= []).push(runSummary(p, issues)) }
+    p.csdrg = { domains: suggestNotes(p, allDatasets(p, d2)), author: 'Learner' }
+    record()
+    const r = evaluateMission(p, 'S18')
+    expect(r.score, r.detail.join(' | ')).toBe(100); expect(r.passed).toBe(true)
+    const plan = planPackage(p, d2)
+    expect(plan.findings).toEqual([])
+    const files = packageFiles(p, d2, plan)
+    const zip = unzipSync(zipPackage('GLV-12-301', files))
+    const names = Object.keys(zip)
+    expect(names.every((n) => n.startsWith(sdtmFolder('GLV-12-301')))).toBe(true)
+    expect(names.map((n) => n.split('/').pop())).toEqual(expect.arrayContaining(['dm.xpt', 'suppdm.xpt', 'ts.xpt', 'relrec.xpt', 'xe.xpt', 'define.xml', 'define2-1-trainer.xsl', 'acrf.pdf', 'csdrg.pdf']))
+    expect(new TextDecoder().decode(zip[sdtmFolder('GLV-12-301') + 'define.xml']).slice(0, 5)).toBe('<?xml')
+    // A weak explanation costs points.
+    p.explain!['AE|TRN-041|AESTDTC'].text = 'This is a data issue in the database.'
+    expect(evaluateMission(p, 'S18').score).toBe(85)
+    p.explain = structuredClone(EXPLAIN)
+    // Hiding the data issue in the mapping fails the mission.
+    const saved = structuredClone(p.specs.AE)
+    p.specs.AE.rules.AEENDTC = { kind: 'expr', expr: "if(dtc(AEENDAT, 'DD-MMM-YYYY') < dtc(AESTDAT, 'DD-MMM-YYYY'), '', dtc(AEENDAT, 'DD-MMM-YYYY'))" } as never
+    record()
+    expect(build(p.specs.AE, d2).errors).toEqual({})
+    const h = evaluateMission(p, 'S18')
+    expect(h.passed, h.detail.join(' | ')).toBe(false)
+    expect(h.detail.join(' ')).toMatch(/missing from your datasets/)
+    p.specs.AE = saved
+    // Without the explanation it does not pass.
+    delete p.explain; record()
+    expect(evaluateMission(p, 'S18').passed).toBe(false)
     registerCustom([])
   })
 })

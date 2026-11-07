@@ -168,11 +168,17 @@ rules; no vendor rule text or tool is copied.
   subject domains, conformance inputs, the issues summary with your explanations, and the
   inclusion and exclusion criteria), with your own purpose, source and domain notes; guide
   checks; csdrg.pdf with linked contents, bookmarks and page numbers.
+- **Submission package:** the SDTM tabulation folder of an eCTD module 5 dataset folder
+  (`m5/datasets/glv-12-301/tabulations/sdtm/`) with one .xpt per dataset, define.xml and its
+  stylesheet, acrf.pdf and csdrg.pdf, zipped in the browser, with package checks (must-fix and
+  unexplained issues, XPT limits, required datasets, aCRF, guide completeness, a current
+  validation run). Mission S18 (Validate and explain) prepares the FDA package on the locked
+  database: fix what the mapping causes, explain what is true of the data, never change data
+  to make a finding go away, and complete the guide.
 
 ## Coming next
 
-- **Rest of Phase 3:** a submission-style zip with a validate-and-explain mission, and a
-  pharmacokinetics study (PC and PP).
+- **Rest of Phase 3:** a pharmacokinetics study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
