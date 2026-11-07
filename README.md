@@ -122,6 +122,12 @@ rules; no vendor rule text or tool is copied.
   reason, with the change history. The program is checked against the approved version, and
   the Mapping workspace shows the specification line for the variable being programmed.
   Mission S14 runs the whole cycle on CM.
+- **Every finding explained:** each of the 44 rules says why it matters and how to fix the
+  mapping, next to its findings on Datasets and Trial design.
+- **Lab time points and a range change:** Week 12 glucose is drawn before and 2 hours after the
+  dose (LBTPT, LBTPTNUM, LBELTM, LBTPTREF), and the laboratory moves ALT to a new assay with a
+  lower upper limit from Week 12, so LBNRIND has to follow the range on each record. The
+  baseline lesson explains why reviewers rely on --LOBXFL rather than --BLFL.
 
 ## Coming next
 

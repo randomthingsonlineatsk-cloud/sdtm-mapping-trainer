@@ -85,6 +85,7 @@ export const TOPICS: Topic[] = [
     ] },
   { id: 'baseline', title: 'Baseline: --LOBXFL',
     body: [
+      'Why --LOBXFL and not --BLFL: since SDTMIG v3.3, --LOBXFL is Expected in findings domains and has one fixed definition (the last non-missing result on or before the first dose), so reviewers can rely on it across studies. --BLFL is still Permissible in v3.3 and v3.4, but “baseline” is a sponsor or analysis decision (an average of screening values, or a protocol-defined visit) that belongs in ADaM (ABLFL); the SDTMIG v4.0 draft retires --BLFL.',
       '--LOBXFL (Last Observation Before Exposure Flag) is Y on the last non-missing result of each test taken before the first dose (RFXSTDTC). It is the standard pre-treatment flag in SDTMIG v3.4, where --BLFL became permissible; the v4.0 draft retires --BLFL.',
       'Compare to the minute when both have a time. In GLV-12-301 subject 104-005 had Day 1 vital signs recorded 25 minutes after the dose, so the flag stays on the screening values.',
       'A test not done has no result, so it cannot carry the flag: subject 102-004’s Day 1 vital signs were not done, and the flag is on screening.',
@@ -141,6 +142,7 @@ export const TOPICS: Topic[] = [
       'LBORRES, LBORRESU, LBORNRLO and LBORNRHI keep what the lab reported. LBSTRESC (text), LBSTRESN (numeric) and LBSTRESU carry the standardised result, and LBSTNRLO and LBSTNRHI the converted range. Units must be CT values: a vendor’s “mg/dl” is mg/dL.',
       'A result such as “<5” is not a number: LBSTRESC keeps “<5” and LBSTRESN is null. A result never produced (a haemolysed sample) is a record with LBSTAT = NOT DONE and the reason in LBREASND.',
       'LBNRIND says where the result falls against the reference range (NORMAL, LOW, HIGH, ABNORMAL). A file can arrive with records sent twice: remove the duplicates by accession number and test before mapping, and say so in the reviewer’s guide.',
+      'Ranges belong to the record, not the test: a laboratory that changes assay mid-study sends a new range with every result from then on, and LBNRIND follows the range on its own record. A test drawn more than once at a visit (before and after a dose) is told apart by its time point: LBTPT, LBTPTNUM, the planned elapsed time LBELTM (ISO 8601 duration, negative before the reference) and LBTPTREF.',
     ],
     example: { caption: 'Glucose from mg/dL to mmol/L (factor 0.0555, 1 decimal)', head: ['LBTESTCD', 'LBORRES', 'LBORRESU', 'LBSTRESC', 'LBSTRESN', 'LBSTRESU', 'LBNRIND'], rows: [['GLUC', '162', 'mg/dL', '9.0', '9', 'mmol/L', 'HIGH'], ['ALT', '<5', 'U/L', '<5', '', 'U/L', 'NORMAL']] },
     quiz: [
