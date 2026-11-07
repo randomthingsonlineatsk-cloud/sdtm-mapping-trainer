@@ -8,7 +8,7 @@ import { studyDay } from './engine'
 import { ARMS, VISITS, CRITERIA, STUDY, SITES } from './study'
 import { varsOf, type Version } from './standards'
 import { refDm } from './reference'
-import { raw } from './seed'
+import { raw, TRANSFERS, type Transfer } from './seed'
 
 export type DesignRow = Record<string, string>
 export const DESIGN_VARS = (d: string, ver: Version) => varsOf(d, ver).map((v) => v.name)
@@ -23,7 +23,7 @@ export function designKey(d: string, r: DesignRow, rank: number): string {
 }
 export const DESIGN_SORT: Record<string, string[]> = { TA: ['ARMCD', 'TAETORD'], TE: ['ETCD'], TV: ['VISITNUM'], TI: ['IETESTCD'], TS: ['TSPARMCD', 'TSVAL'] }
 export const TEXT_VARS: Record<string, string[]> = { TA: ['TABRANCH'], TE: ['TESTRL', 'TEENRL'], TV: ['TVSTRL', 'TVENRL'], TI: ['IETEST'], TS: ['TSVAL1'] }
-export const TS_TEXT_PARAMS = ['TITLE', 'INDIC', 'SPONSOR', 'TRT']
+export const TS_TEXT_PARAMS = ['TITLE', 'INDIC', 'SPONSOR', 'TRT', 'OBJPRIM', 'OBJSEC', 'OUTMSPRI', 'STOPRULE', 'DCUTDESC', 'PCLAS']
 
 export function designBuilt(d: string, rows: DesignRow[], ver: Version): Built {
   const vars = DESIGN_VARS(d, ver)
@@ -40,7 +40,7 @@ export function designBuilt(d: string, rows: DesignRow[], ver: Version): Built {
 
 // ---------- the reference design ----------
 const base = (d: string) => ({ STUDYID: STUDY.id, DOMAIN: d })
-export function referenceDesign(ver: Version): Record<string, DesignRow[]> {
+export function referenceDesign(ver: Version, transfer: Transfer = 1): Record<string, DesignRow[]> {
   const ta: DesignRow[] = ARMS.flatMap((a) => [
     { ...base('TA'), ARMCD: a.code, ARM: a.name, TAETORD: '1', ETCD: 'SCRN', ELEMENT: 'Screening', TABRANCH: `Randomized to ${a.name}`, TATRANS: '', EPOCH: 'SCREENING' },
     { ...base('TA'), ARMCD: a.code, ARM: a.name, TAETORD: '2', ETCD: a.code, ELEMENT: a.name, TABRANCH: '', TATRANS: '', EPOCH: 'TREATMENT' },
@@ -57,15 +57,22 @@ export function referenceDesign(ver: Version): Record<string, DesignRow[]> {
   const consent = dm.map((r) => r.RFICDTC).filter(Boolean).sort()[0]
   const last = dm.map((r) => r.RFPENDTC).filter(Boolean).sort().pop()!
   const randomised = raw().forms.IRT.length
-  const p = (TSPARMCD: string, TSVAL: string): DesignRow => ({ ...base('TS'), TSSEQ: '', TSGRPID: '', TSPARMCD, TSPARM: '', TSVAL, TSVALNF: '', TSVALCD: '', TSVCDREF: '', TSVCDVER: '' })
+  const p = (TSPARMCD: string, TSVAL: string, TSVALCD = '', TSVCDREF = '', TSVCDVER = ''): DesignRow => ({ ...base('TS'), TSSEQ: '', TSGRPID: '', TSPARMCD, TSPARM: '', TSVAL, TSVALNF: '', TSVALCD, TSVCDREF, TSVCDVER })
   const ts: DesignRow[] = [
-    p('TITLE', STUDY.title), p('TPHASE', 'PHASE III TRIAL'), p('STYPE', 'INTERVENTIONAL'), p('TTYPE', 'EFFICACY'), p('TTYPE', 'SAFETY'), p('INDIC', STUDY.indication),
-    p('TRT', 'GLV-12'), p('COMPTRT', 'PLACEBO'), p('TBLIND', 'DOUBLE BLIND'), p('TCNTRL', 'PLACEBO'), p('TINDTP', 'TREATMENT'), p('RANDOM', 'Y'), p('ADDON', 'Y'),
+    p('TITLE', STUDY.title), p('TPHASE', 'PHASE III TRIAL'), p('STYPE', 'INTERVENTIONAL'), p('TTYPE', 'EFFICACY'), p('TTYPE', 'SAFETY'), p('INDIC', STUDY.indication, '44054006', 'SNOMED', '2026-03-01'),
+    p('TRT', 'GLV-12', 'GLV12TRN01', 'UNII', '2026-09-01'), p('COMPTRT', 'PLACEBO'), p('CURTRT', 'METFORMIN', '9100L32L2N', 'UNII', '2026-09-01'),
+    p('PCLAS', 'Glucose transport modulator', 'GLVPC0001', 'MED-RT', '2026-09-01'), p('TBLIND', 'DOUBLE BLIND'), p('TCNTRL', 'PLACEBO'), p('TINDTP', 'TREATMENT'), p('RANDOM', 'Y'), p('ADDON', 'Y'),
     p('NARMS', '3'), p('PLANSUB', String(STUDY.planned)), p('ACTSUB', String(randomised)), p('AGEMIN', 'P18Y'), p('AGEMAX', 'P75Y'), p('SEXPOP', 'BOTH'), p('HLTSUBJI', 'N'),
     p('LENGTH', 'P33W'), ...SITES.map((s) => p('FCNTRY', s.iso)), p('SPONSOR', 'Glyvant Pharmaceuticals'), p('SSTDTC', consent), p('SENDTC', last),
+    p('REGID', 'NCT99912301'), p('ADAPT', 'N'), p('INTMODEL', 'PARALLEL'), p('INTTYPE', 'DRUG'),
+    p('OBJPRIM', 'To show that GLV-12 lowers HbA1c more than placebo after 26 weeks in adults with type 2 diabetes inadequately controlled on metformin'),
+    p('OBJSEC', 'To assess the safety and tolerability of GLV-12 5 mg and 10 mg over 26 weeks'),
+    p('OUTMSPRI', 'Change from baseline in HbA1c at Week 26'),
+    p('STOPRULE', 'The study stops for a subject at a confirmed fasting glucose above 15 mmol/L or an eGFR below 30 mL/min/1.73 m2'),
+    p('DCUTDTC', TRANSFERS[transfer].date), p('DCUTDESC', transfer === 2 ? 'DATABASE LOCK' : 'LAST SUBJECT LAST VISIT SNAPSHOT'),
     p('SDTMVER', ver === '3.4' ? '2.0' : '3.0'), p('SDTIGVER', ver === '3.4' ? '3.4' : '4.0'),
   ]
-  const decodeParm: Record<string, string> = { TITLE: 'Trial Title', TPHASE: 'Trial Phase Classification', STYPE: 'Study Type', TTYPE: 'Trial Type', INDIC: 'Trial Disease/Condition Indication', TRT: 'Investigational Therapy or Treatment', COMPTRT: 'Comparative Treatment Name', TBLIND: 'Trial Blinding Schema', TCNTRL: 'Control Type', TINDTP: 'Trial Intent Type', RANDOM: 'Trial is Randomized', ADDON: 'Added on to Existing Treatments', NARMS: 'Planned Number of Arms', PLANSUB: 'Planned Number of Subjects', ACTSUB: 'Actual Number of Subjects', AGEMIN: 'Planned Minimum Age of Subjects', AGEMAX: 'Planned Maximum Age of Subjects', SEXPOP: 'Sex of Participants', HLTSUBJI: 'Healthy Subject Indicator', LENGTH: 'Trial Length', FCNTRY: 'Planned Country of Investigational Sites', SPONSOR: 'Clinical Study Sponsor', SSTDTC: 'Study Start Date', SENDTC: 'Study End Date', SDTMVER: 'SDTM Version', SDTIGVER: 'SDTM IG Version' }
+  const decodeParm: Record<string, string> = { TITLE: 'Trial Title', TPHASE: 'Trial Phase Classification', STYPE: 'Study Type', TTYPE: 'Trial Type', INDIC: 'Trial Disease/Condition Indication', TRT: 'Investigational Therapy or Treatment', COMPTRT: 'Comparative Treatment Name', TBLIND: 'Trial Blinding Schema', TCNTRL: 'Control Type', TINDTP: 'Trial Intent Type', RANDOM: 'Trial is Randomized', ADDON: 'Added on to Existing Treatments', NARMS: 'Planned Number of Arms', PLANSUB: 'Planned Number of Subjects', ACTSUB: 'Actual Number of Subjects', AGEMIN: 'Planned Minimum Age of Subjects', AGEMAX: 'Planned Maximum Age of Subjects', SEXPOP: 'Sex of Participants', HLTSUBJI: 'Healthy Subject Indicator', LENGTH: 'Trial Length', FCNTRY: 'Planned Country of Investigational Sites', SPONSOR: 'Clinical Study Sponsor', SSTDTC: 'Study Start Date', SENDTC: 'Study End Date', SDTMVER: 'SDTM Version', SDTIGVER: 'SDTM IG Version', CURTRT: 'Current Therapy or Treatment', PCLAS: 'Pharmacologic Class', REGID: 'Registry Identifier', ADAPT: 'Adaptive Design', INTMODEL: 'Intervention Model', INTTYPE: 'Intervention Type', OBJPRIM: 'Trial Primary Objective', OBJSEC: 'Trial Secondary Objective', OUTMSPRI: 'Primary Outcome Measure', STOPRULE: 'Study Stop Rules', DCUTDTC: 'Data Cutoff Date', DCUTDESC: 'Data Cutoff Description' }
   for (const r of ts) r.TSPARM = decodeParm[r.TSPARMCD]
   // Values over 200 characters continue in TSVAL1 (SDTMIG TS assumption), split at a space.
   for (const r of ts) if (r.TSVAL.length > 200) { const cut = r.TSVAL.lastIndexOf(' ', 200); r.TSVAL1 = r.TSVAL.slice(cut + 1); r.TSVAL = r.TSVAL.slice(0, cut) }

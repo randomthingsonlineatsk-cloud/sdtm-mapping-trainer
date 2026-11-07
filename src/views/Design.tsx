@@ -13,7 +13,7 @@ const HELP: Record<string, string> = {
   TE: 'One record per element: its code, name, start rule (TESTRL), end rule (TEENRL) and planned duration (TEDUR, ISO 8601). Elements are shared by the arms that use them.',
   TV: 'One record per planned visit: VISITNUM, VISIT and the planned study day (VISITDY), with the rule for when it starts. Leave ARMCD empty when every arm has the visit.',
   TI: 'One record per inclusion and exclusion criterion: IETESTCD (up to 8 characters), IETEST (the criterion text) and IECAT. TIVERS is the protocol version of the criteria.',
-  TS: 'One record per value of each trial summary parameter (several countries: several FCNTRY records, numbered by TSSEQ within the parameter). Values are CT where a codelist exists, ISO 8601 for dates and durations. A value over 200 characters continues in TSVAL1.',
+  TS: 'One record per value of each trial summary parameter (several countries: several FCNTRY records, numbered by TSSEQ within the parameter). Values are CT where a codelist exists, ISO 8601 for dates and durations. A value over 200 characters continues in TSVAL1. FDA expects further parameters (REGID, OUTMSPRI, PCLAS, ADAPT, INTMODEL, INTTYPE, DCUTDTC, DCUTDESC…) and codes for the treatment and background therapy (UNII), the indication (SNOMED CT) and the class (MED-RT) in TSVALCD with TSVCDREF. A value that is unknown or not applicable goes in TSVALNF as a null flavor.',
 }
 
 export default function Design() {
