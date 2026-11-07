@@ -202,6 +202,7 @@ export const V11_CHANGES = [
   { kind: 'move-pt', pt: 'Swelling of the legs', toHlt: 'Fluid retention in limbs', toHlgt: 'Fluid balance', toSoc: 'General and site of use', note: 'Moved from Blood vessels and circulation to General and site of use.' },
   { kind: 'demote', pt: 'Muscle cramps', toPt: 'Muscle pain', note: 'Muscle cramps is now an LLT under Muscle pain; LLT codes keep, PT changes.' },
   { kind: 'add', pt: 'Upper respiratory tract infection', llt: 'Upper airway infection', note: 'New LLT.' },
+  { kind: 'move-pt', pt: 'Light-headedness', toHlt: 'Dizziness and giddiness', toHlgt: 'Balance and consciousness', toSoc: 'Brain and nerves', note: 'Moved to a new high-level term, Dizziness and giddiness; system class unchanged.' },
   { kind: 'add', pt: 'Head pain', llt: 'Headache worse in morning', note: 'New LLT.' },
 ] as const
 

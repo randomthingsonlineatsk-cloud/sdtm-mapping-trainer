@@ -298,3 +298,41 @@ describe('independent QC (mission S10)', () => {
     expect(same('1', '1.0')).toBe(true); expect(same('1', '1.1')).toBe(false); expect(same('', '0')).toBe(false)
   })
 })
+
+describe('data transfer 2 (mission S11)', () => {
+  test('the raw changes are the planted ones', async () => {
+    const { rawChanges, byField } = await import('../src/domain/delivery')
+    const { TRANSFER2 } = await import('../src/domain/seed')
+    const ch = rawChanges(raw(1).forms, raw(2).forms)
+    const f = (n: string) => ch.find((x) => x.form === n)!
+    expect(f('AE').added.map((r) => r.AETERM)).toEqual(['Muscle cramps', 'Swelling of the legs'])
+    expect(f('CM').removed).toHaveLength(1)
+    expect(f('DM').changed.map((c) => [c.subj, c.field])).toEqual([[TRANSFER2.birthCorrected, 'BRTHDAT']])
+    expect(byField(f('LBC').changed).map((x) => x.field).sort()).toEqual(['REFHIGH', 'REFLOW', 'RESULT', 'UNITS'])
+    expect(f('AE').changed.some((c) => c.field === 'AEHLT' && c.to === 'Dizziness and giddiness')).toBe(true)
+    expect(f('VS').changed).toHaveLength(1)
+  })
+  test('the reference handles transfer 2; a fixed lab factor converts SI results twice', () => {
+    const d2 = studyData(2)
+    for (const k of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'SV']) expect(build(referenceSpec(k, '3.4'), d2).errors, k).toEqual({})
+    const p = createProject()
+    for (const d of ['DM', 'AE', 'LB']) p.specs[d] = referenceSpec(d, '3.4')
+    p.specs.AE.supp = undefined
+    startMission(p, 'S11'); expect(p.transfer).toBe(2)
+    expect(evaluateMission(p, 'S11').score).toBe(100)
+    p.specs.LB.rules.LBSTRESC = { kind: 'expr', expr: "if(isblank(RESULT), '', if(substr(RESULT, 1, 1) = '<', RESULT, str(round(num(RESULT) * lab(TESTCODE, 'factor'), lab(TESTCODE, 'decimals')))))" }
+    const r = evaluateMission(p, 'S11')
+    expect(r.domains.find((x) => x.domain === 'LB')!.comparison.perVar.find((x) => x.v === 'LBSTRESC')!.credit).toBeLessThan(1)
+    // On transfer 1 the same rule was right.
+    p.transfer = 1
+    expect(evaluateMission(p, 'S11').domains.find((x) => x.domain === 'LB')!.comparison.perVar.find((x) => x.v === 'LBSTRESC')!.credit).toBe(1)
+  })
+  test('delivery comparison: AE gains two records and DM one changed age', async () => {
+    const { compareDatasets } = await import('../src/domain/qc')
+    const { SORT } = await import('../src/domain/reference')
+    const ae = compareDatasets(build(referenceSpec('AE', '3.4'), studyData(1)), build(referenceSpec('AE', '3.4'), studyData(2)), SORT.AE)
+    expect(ae.obsOnlyCompare).toHaveLength(2)
+    const dm = compareDatasets(build(referenceSpec('DM', '3.4'), studyData(1)), build(referenceSpec('DM', '3.4'), studyData(2)), SORT.DM)
+    expect(dm.diffs.map((d) => d.v).sort()).toEqual(['AGE', 'BRTHDTC'])
+  })
+})

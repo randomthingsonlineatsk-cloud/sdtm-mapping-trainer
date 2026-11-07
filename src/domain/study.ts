@@ -87,13 +87,15 @@ export const CONVENTIONS: { topic: string; rule: string }[] = [
 // The study's laboratory standards table: vendor code to SDTM test code, standard unit and
 // conversion (what the central laboratory data transfer agreement and the sponsor's lab
 // standards say).
-export const LAB_STANDARDS: { vendor: string; testcd: string; stdunit: string; factor: number; decimals: number; spec: string }[] = [
-  { vendor: 'A1C', testcd: 'HBA1C', stdunit: '%', factor: 1, decimals: 1, spec: 'BLOOD' },
-  { vendor: 'FPG', testcd: 'GLUC', stdunit: 'mmol/L', factor: 0.0555, decimals: 1, spec: 'SERUM' },
-  { vendor: 'CREA', testcd: 'CREAT', stdunit: 'umol/L', factor: 88.42, decimals: 0, spec: 'SERUM' },
-  { vendor: 'ALT', testcd: 'ALT', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
-  { vendor: 'AST', testcd: 'AST', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
-  { vendor: 'CHOL', testcd: 'CHOL', stdunit: 'mmol/L', factor: 0.02586, decimals: 2, spec: 'SERUM' },
+// factor converts the conventional unit (conv) to the standard unit; a result already in the
+// standard unit has factor 1.
+export const LAB_STANDARDS: { vendor: string; testcd: string; conv: string; stdunit: string; factor: number; decimals: number; spec: string }[] = [
+  { vendor: 'A1C', conv: '%', testcd: 'HBA1C', stdunit: '%', factor: 1, decimals: 1, spec: 'BLOOD' },
+  { vendor: 'FPG', conv: 'mg/dL', testcd: 'GLUC', stdunit: 'mmol/L', factor: 0.0555, decimals: 1, spec: 'SERUM' },
+  { vendor: 'CREA', conv: 'mg/dL', testcd: 'CREAT', stdunit: 'umol/L', factor: 88.42, decimals: 0, spec: 'SERUM' },
+  { vendor: 'ALT', conv: 'U/L', testcd: 'ALT', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
+  { vendor: 'AST', conv: 'U/L', testcd: 'AST', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
+  { vendor: 'CHOL', conv: 'mg/dL', testcd: 'CHOL', stdunit: 'mmol/L', factor: 0.02586, decimals: 2, spec: 'SERUM' },
 ]
 
 // Eligibility criteria (for TI), and the protocol facts behind TS.

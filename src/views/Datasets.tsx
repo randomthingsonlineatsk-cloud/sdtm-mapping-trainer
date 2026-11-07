@@ -13,6 +13,8 @@ import { log } from '../domain/project'
 import { download } from '../domain/store'
 import { Panel, Pill, Btn, Select, Table, Stat, Tabs, ic } from './ui'
 import { useData, fieldsOf } from './shared'
+import { compareDatasets } from '../domain/qc'
+import { studyData } from '../domain/reference'
 
 const SEV_TONE = { Reject: 'purple', Error: 'red', Warning: 'amber' } as const
 function saveBytes(name: string, bytes: Uint8Array) {
@@ -62,6 +64,7 @@ export default function Datasets() {
         </div>
         <Tabs tabs={[{ id: 'data' as const, label: 'Datasets and findings' }, { id: 'spec' as const, label: 'Mapping specification' }]} value={tab} onChange={setTab} />
       </Panel>
+      {tab === 'data' && !p.imported && (p.transfer ?? 1) === 2 && p.specs[domain]?.vars.length ? <SinceT1 domain={domain} built={built} /> : null}
       {tab === 'data' ? <DataTab built={built} findings={findings} /> : <SpecTab all={all} />}
     </div>
   )
@@ -141,5 +144,20 @@ function SpecTab({ all }: { all: Map<string, Built> }) {
         <Table head={ns ? ['Dataset', 'Variable', 'Label', 'Origin', 'Evaluator', 'Derivation'] : ['Dataset', 'QNAM', 'QLABEL', 'QORIG', 'QEVAL', 'Derivation']} rows={supp.map(({ d, q }) => [relName(d, p.version), <span className="font-mono">{q.qnam}</span>, q.qlabel, q.qorig, q.qeval ?? '', <span className="font-mono text-[11px]">{q.expr}</span>])} empty="None." />
       </Panel>
     </>
+  )
+}
+
+// The delivery comparison: this dataset built from the same mapping on transfer 1, against the
+// dataset now. New, removed and changed records should each trace back to a change in the raw
+// data (Raw data tab); anything else means the mapping behaves differently on the new data.
+function SinceT1({ domain, built }: { domain: string; built: Built }) {
+  const { p } = useStore()
+  const c = useMemo(() => compareDatasets(build(p.specs[domain], studyData(1), p.version), built, SORT[domain] ?? ['USUBJID']), [built])
+  return (
+    <Panel title={`Changes since transfer 1 · ${domain}`} sub="Your mapping run on transfer 1 against the same mapping on transfer 2, matched by the key variables. Every change should trace back to a change in the raw data.">
+      <p className="text-sm">{c.baseObs} records in transfer 1, {c.compareObs} now: {c.obsOnlyCompare.length} new, {c.obsOnlyBase.length} no longer present, {c.diffs.length ? `${c.unequalValues} changed values in ${c.diffs.map((d) => `${d.v} (${d.count})`).join(', ')}` : 'no changed values'}.</p>
+      {(c.obsOnlyCompare.length > 0 || c.obsOnlyBase.length > 0) && <Table head={['Key', 'Change']} rows={[...c.obsOnlyCompare.slice(0, 10).map((k) => [<span className="font-mono text-[11px]">{k}</span>, 'New in transfer 2']), ...c.obsOnlyBase.slice(0, 10).map((k) => [<span className="font-mono text-[11px]">{k}</span>, 'Not in transfer 2'])]} />}
+      {c.diffs.length > 0 && <Table head={['Variable', 'Key', 'Transfer 1', 'Transfer 2']} rows={c.diffs.flatMap((d) => d.examples.slice(0, 3).map((e) => [<span className="font-mono">{d.v}</span>, <span className="font-mono text-[11px]">{e.key}</span>, <span className="font-mono">{e.base || '(null)'}</span>, <span className="font-mono">{e.compare || '(null)'}</span>]))} />}
+    </Panel>
   )
 }

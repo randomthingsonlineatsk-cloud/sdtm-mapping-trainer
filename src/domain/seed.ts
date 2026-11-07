@@ -8,10 +8,10 @@
 // vital signs taken after the dose at one subject, vital signs not done at one Day 1 visit,
 // unscheduled visits, and a missing screening temperature.
 
-import { toEdc, toYmd } from './rawdate'
+import { toEdc, toYmd, anyDate } from './rawdate'
 import { rng, addDays, type Rng } from './util'
-import { SITES, VISITS, ARMS, STUDY } from './study'
-import { SMD_10, exactLlt, path } from './dictmed'
+import { SITES, VISITS, ARMS, STUDY, LAB_STANDARDS } from './study'
+import { SMD_10, SMD_11, V11_CHANGES, exactLlt, path } from './dictmed'
 import { exactDrug, atcByCode, DRUGS } from './dictdrug'
 
 export type Row = Record<string, string> & { __id: string }
@@ -194,7 +194,15 @@ export function generate(seed = 1230301): RawData {
 }
 
 let cache: RawData | null = null
-export const raw = () => (cache ??= generate())
+let cache2: RawData | null = null
+// Data transfers. Transfer 1 is the snapshot every mission was written on. Transfer 2 is the next
+// delivery from the same database: SDTM is re-run on it, and what changed has to be understood.
+export type Transfer = 1 | 2
+export const TRANSFERS: Record<Transfer, { label: string; date: string; note: string }> = {
+  1: { label: 'Transfer 1', date: '2026-09-15', note: 'Database snapshot after the last subject’s last visit; coding with Study Medical Dictionary 1.0.' },
+  2: { label: 'Transfer 2', date: '2026-10-20', note: 'Database lock: late data entry, query corrections, a deleted record, the central laboratory’s switch to SI units from Week 26, and coding up-versioned to Study Medical Dictionary 1.1.' },
+}
+export const raw = (t: Transfer = 1): RawData => (t === 2 ? (cache2 ??= transfer2(raw(1))) : (cache ??= generate()))
 
 // The data are generated with ISO dates, then written out the way each source system exports
 // them: the EDC as DD-MMM-YYYY with UN/UNK for unknown parts, the central laboratory as YYYYMMDD
@@ -288,4 +296,56 @@ function phase2(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
   }
   lab.forEach((x, i) => { x.__id = `LBC-${String(i + 1).padStart(5, '0')}` })
   forms.LBC = lab
+}
+
+// ---------- Transfer 2 ----------
+// What changed between the two transfers, planted so the missions can describe it.
+export const TRANSFER2 = {
+  lateAe: [{ site: '101', subj: '', term: 'Muscle cramps' }, { site: '103', subj: '', term: 'Swelling of the legs' }], // subj: the site's first completer
+  birthCorrected: '102-005',
+  aeResolved: true,
+  sysbpCorrected: { subj: '101-002', visit: 'Week 2' },
+  cmDeleted: true,
+  unitSwitch: { visit: 'Week 26', tests: ['FPG', 'CHOL'] },
+}
+function transfer2(t1: RawData): RawData {
+  const forms: Record<string, Row[]> = JSON.parse(JSON.stringify(t1.forms))
+  const subjects = t1.subjects
+  const fromEdc = (x: string) => anyDate(x) ?? ''
+  // Late data entry: two adverse events entered after transfer 1.
+  for (const late of TRANSFER2.lateAe) {
+    const s = subjects.find((x) => x.site === late.site && x.fate === 'completed')!
+    const subj = (late.subj = s.subj), term = late.term
+    const st = addDays(s.d1!, 40), en = addDays(st, 9)
+    const n = forms.AE.filter((x) => x.SUBJID === subj).length + 1
+    forms.AE.push({ __id: `AE-T2-${subj}`, SUBJID: subj, SITEID: s.site, AESPID: String(n), AETERM: term, AESTDAT: toEdc(st), AEENDAT: toEdc(en), AEONGO: 'N', AESEV: 'Moderate', AESER: 'N', AEREL: 'Not related', AEACN: 'Dose not changed', AEOUT: 'Recovered/resolved', AESDTH: '', AESHOSP: '' })
+  }
+  // Query corrections.
+  const dm = forms.DM.find((x) => x.SUBJID === TRANSFER2.birthCorrected)!
+  const b = fromEdc(dm.BRTHDAT); dm.BRTHDAT = toEdc(`${Number(b.slice(0, 4)) - 1}${b.slice(4)}`)
+  const ongoing = forms.AE.find((x) => x.AEONGO === 'Y' && subjects.find((s) => s.subj === x.SUBJID)?.fate === 'completed')
+  if (ongoing) { const st = fromEdc(ongoing.AESTDAT); Object.assign(ongoing, { AEENDAT: toEdc(addDays(st.length === 10 ? st : subjects.find((s) => s.subj === ongoing.SUBJID)!.end, 20)), AEONGO: 'N', AEOUT: 'Recovered/resolved' }) }
+  const vs = forms.VS.find((x) => x.SUBJID === TRANSFER2.sysbpCorrected.subj && x.VISIT === TRANSFER2.sysbpCorrected.visit && x.SYSBP)
+  if (vs) vs.SYSBP = String(Number(vs.SYSBP) + 10)
+  // A medication entered in error, deleted in the EDC after a query.
+  const del = forms.CM.findIndex((x) => x.CMTRT !== 'Metformin')
+  if (del >= 0) forms.CM.splice(del, 1)
+  // The central laboratory reports glucose and cholesterol in SI units from Week 26.
+  for (const r of forms.LBC) {
+    if (r.VISIT !== TRANSFER2.unitSwitch.visit || !TRANSFER2.unitSwitch.tests.includes(r.TESTCODE)) continue
+    const std = LAB_STANDARDS.find((x) => x.vendor === r.TESTCODE)!
+    const conv = (x: string) => (x === '' || x.startsWith('<') ? x : (Number(x) * std.factor).toFixed(std.decimals))
+    Object.assign(r, { RESULT: conv(r.RESULT), UNITS: std.stdunit, REFLOW: conv(r.REFLOW), REFHIGH: conv(r.REFHIGH) })
+  }
+  // Coding up-versioned to SMD 1.1 for every event; retired lowest-level terms are re-coded to
+  // the term the dictionary names instead.
+  for (const ae of forms.AE) {
+    const verbatim = ae.AETERM === 'Acute myocardial infarction' ? 'Myocardial infarction' : ae.AETERM
+    let llt = exactLlt(SMD_11, verbatim)
+    if (!llt) { const ch = V11_CHANGES.find((c) => c.kind === 'retire' && c.llt.toLowerCase() === verbatim.toLowerCase()); const to = ch && /use ([^;.]+?)( or [^.]+)?\./.exec(ch.note)?.[1]; if (to) llt = exactLlt(SMD_11, to) }
+    if (!llt) continue
+    const p = path(SMD_11, llt.code), at = (lv: string) => p.find((t) => t.level === lv)!
+    Object.assign(ae, { AELLT: llt.name, AELLTCD: llt.code, AEDECOD: at('PT').name, AEPTCD: at('PT').code, AEHLT: at('HLT').name, AEHLTCD: at('HLT').code, AEHLGT: at('HLGT').name, AEHLGTCD: at('HLGT').code, AESOC: at('SOC').name, AESOCCD: at('SOC').code })
+  }
+  return { forms, subjects }
 }

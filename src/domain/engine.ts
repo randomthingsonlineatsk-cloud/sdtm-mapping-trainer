@@ -131,7 +131,18 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     },
     stdunit: (testcd) => STD_UNIT[S(testcd)] ?? '',
     ctdecode: (list, value) => decode(S(list), S(value)),
-    lab: (code, what) => { const t = LAB_STANDARDS.find((x) => x.vendor === S(code)); if (!t) return ''; const w = S(what) || 'testcd'; return w === 'factor' ? t.factor : w === 'decimals' ? t.decimals : w === 'stdunit' ? t.stdunit : w === 'spec' ? t.spec : t.testcd },
+    lab: (code, what, unit) => {
+      const t = LAB_STANDARDS.find((x) => x.vendor === S(code)); if (!t) return ''
+      const w = S(what) || 'testcd'
+      if (w === 'factor') {
+        // With the reported unit, the factor from that unit: 1 when it is already the standard unit.
+        const u = S(unit).toLowerCase(); if (!u) return t.factor
+        if (u === t.stdunit.toLowerCase()) return 1
+        if (u === t.conv.toLowerCase()) return t.factor
+        throw new Error(`No conversion for ${S(code)} from ${S(unit)} in the lab standards`)
+      }
+      return w === 'decimals' ? t.decimals : w === 'stdunit' ? t.stdunit : w === 'conv' ? t.conv : w === 'spec' ? t.spec : t.testcd
+    },
     inct: (list, value) => !!CT[S(list)]?.terms.some((t) => t.value === S(value)),
   }
 }
@@ -158,7 +169,7 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: 'stdunit(testcd), ctdecode(codelist, value), inct(codelist, value)', what: 'Standard unit of a vital sign; CT decode (ctdecode(\'VSTESTCD\', \'SYSBP\') is Systolic Blood Pressure); is a value in a codelist' },
   { sig: 'num(x), str(x), round(x, d), min(…), max(…)', what: 'Numbers and conversions' },
   { sig: 'isdup(a, b, …)', what: 'True when an earlier row of this raw form had the same values: use in a filter to drop resent records, e.g. not isdup(ACCSNUM, TESTCODE)' },
-  { sig: 'lab(code, what)', what: "Lab test facts for a vendor test code: lab('FPG', 'testcd') is GLUC; what = 'testcd', 'stdunit', 'factor', 'decimals'" },
+  { sig: 'lab(code, what, unit)', what: "Lab test facts for a vendor test code: lab('FPG', 'testcd') is GLUC; what = 'testcd', 'stdunit', 'conv', 'factor', 'decimals'. lab(TESTCODE, 'factor', UNITS) is the factor from the unit the lab reported: 1 when it is already the standard unit, an error for a unit the standards do not know." },
 ]
 export const STUDY_FN_NAMES = [...Object.keys(studyFns({ forms: {}, studyId: '' }, {}, '')), 'isdup']
 export const PSEUDO = ['__TESTCD', '__RESULT', '__UNIT', '__FIELD']

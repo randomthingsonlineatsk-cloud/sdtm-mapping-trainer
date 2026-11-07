@@ -14,7 +14,7 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
@@ -48,6 +48,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S10', domains: ['VS'], kind: 'qc', phase: 2, title: 'Independent QC of a colleague’s VS', pass: 'Production and QC VS each 70% or more against the reference with no blocking finding, the comparison clean, and your QC sign-off',
     brief: 'A colleague has programmed VS and it passes every conformance check. As the QC programmer, write your own VS independently on the QC side of the Mapping workspace, from the study conventions and without reading their rules. Compare the two on the QC compare tab, find out who is right for every difference, correct production where it is wrong, and sign off when the comparison is clean. Starting replaces your production VS with the colleague’s and clears your QC VS.',
     watch: ['Clean conformance checks do not mean correct data: the compare finds what the checks cannot', 'Investigate each difference before fixing either side; QC can be wrong too', 'Independence: write the QC rules from the conventions, not from the production rules'] },
+  { id: 'S11', domains: ['DM', 'AE', 'LB'], kind: 'rerun', phase: 2, title: 'Re-run on the final transfer', pass: PASS,
+    brief: 'Transfer 2 has arrived at database lock. Starting this mission switches the project to it; your mappings stay as they are. Review what changed on the Raw data tab, re-run DM, AE and LB, and make every change land correctly: a mapping that worked on transfer 1 is not guaranteed to work on transfer 2.',
+    watch: ['The central laboratory changed units part-way through: a conversion that assumes one unit converts some results twice', 'Late-entered events and a corrected date of birth', 'The coding was up-versioned: a hard-coded term would now be wrong', 'Compare each dataset with transfer 1 on the Datasets tab and explain every change'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -86,6 +89,7 @@ export function startMission(p: Project, id: string): MissionRun {
   const def = MISSIONS.find((m) => m.id === id)!
   const run: MissionRun = { id, startedUtc: new Date().toISOString(), version: p.version, ruleSet: p.ruleSet }
   if (def.kind === 'fix') { p.specs.AE = brokenSpec('AE', p.version); p.specs.LB = brokenSpec('LB', p.version) }
+  if (def.kind === 'rerun') p.transfer = 2
   if (def.kind === 'qc') { p.specs.VS = brokenSpec('VS', p.version); if (p.qc) delete p.qc.VS; if (p.qcLog) delete p.qcLog.VS; if (p.qcSignoff) delete p.qcSignoff.VS }
   p.missions.push(run)
   log(p, `Mission ${id} started (${p.version === '3.4' ? 'SDTMIG v3.4' : 'SDTMIG v4.0 draft'}, ${p.ruleSet} rules)`)
@@ -98,7 +102,7 @@ export interface DomainResult { domain: string; score: number; passed: boolean; 
 export function evaluateMission(p: Project, id: string): { score: number; passed: boolean; domains: DomainResult[]; detail: string[] } {
   const def = MISSIONS.find((m) => m.id === id)!
   if (p.imported) throw new Error('Missions run on GLV-12-301. Open or start a GLV-12-301 project.')
-  const data = studyData()
+  const data = studyData(p.transfer ?? 1)
   const ver = p.version
   const refDesign = referenceDesign(ver)
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
