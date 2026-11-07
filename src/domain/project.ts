@@ -18,6 +18,7 @@ import { PK_STUDY, pkData, pkReferenceSpec, PK_DOMAINS } from './pk'
 import { hash } from './util'
 import type { Explanation, ValidationRun } from './validation'
 import type { CsdrgNotes } from './csdrg'
+import type { RResult } from './rlib'
 
 export interface ImportedStudy { protocol: string; title: string; source: string; importedUtc: string; forms: Record<string, Row[]>; visits: Visit[]; notes: string[] }
 export type Level = 'guided' | 'standard' | 'expert'
@@ -47,6 +48,8 @@ export interface Project {
   explain?: Record<string, Explanation> // validation issues explained for the reviewer's guide, by dataset|check|variable
   validation?: ValidationRun[] // the validation runs, newest last
   csdrg?: CsdrgNotes // what the learner wrote in the reviewer's guide
+  rCode?: Record<string, string> // R programs being written, by domain
+  rOut?: Record<string, RResult> // the data frame each R program produced, saved for scoring
 }
 
 const newId = () => `p_${Date.now().toString(36)}_${hash(String(Math.random())).slice(-6)}`

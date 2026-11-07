@@ -35,7 +35,7 @@ describe('Phase 2 missions', () => {
   test('every mission scores 100 with the reference, in both standards and every rule set', () => {
     for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
       const p = full(v); p.ruleSet = rs.id
-      for (const m of MISSIONS.filter((x) => !x.study && !['fix', 'qc', 'spec', 'package', 'capstone'].includes(x.kind))) {
+      for (const m of MISSIONS.filter((x) => !x.study && !['fix', 'qc', 'spec', 'package', 'capstone', 'r'].includes(x.kind))) {
         const r = evaluateMission(p, m.id)
         expect(r.score, `${v} ${rs.id} ${m.id}: ${r.detail.join(' | ')}`).toBe(100)
         expect(r.passed).toBe(true)

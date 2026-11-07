@@ -14,3 +14,15 @@ CDISC SDTM, SDTMIG, CDASH and Controlled Terminology are standards published by 
 publishes them, for education. The SDTMIG v4.0 mode follows a public-review draft and is not
 the final standard. MedDRA and WHODrug are not included; coded values in the data are
 fictional look-alikes.
+
+The studies PKX-07-101 (drug PKX-07, sponsor Altamira Therapeutics) and its laboratory are
+fictional too.
+
+Third-party software served with the site:
+- webR 0.6.0 (https://github.com/r-wasm/webr): R compiled to WebAssembly. The webR binaries
+  are distributed under the GNU GPL version 3; the webR JavaScript library under the MIT
+  licence. They are copied unmodified from the webr npm package into webr/ when the site is
+  built, with webR's LICENSE.md, which lists the components (R, PCRE2, XZ Utils, libgfortran,
+  LLVM Flang, Noto fonts and others) and where to obtain their source code. R itself is
+  available from https://www.r-project.org (GNU GPL 2 and 3).
+- jsPDF (MIT) and fflate (MIT), bundled.

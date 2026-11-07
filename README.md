@@ -202,9 +202,15 @@ rules; no vendor rule text or tool is copied.
   `handoff.json` (format `sdtm-trainer-handoff`, version 1): study, standards, transfer, each
   dataset's label, class, structure, keys, records and variable metadata (label, type, length,
   role, codelist, origin, derivation), and the validation status with every issue's explanation.
+- **Real R in the browser (R tab):** webR, R compiled to WebAssembly, served from this site
+  (about 45 MB, downloaded on the first run and cached). Base R with the study's raw forms loaded
+  as `raw`, the study's `dm` and visit schedule, and helper functions (`dtc_iso`, `study_day`,
+  `epoch_of`, `visit_num`, `visit_name`, `iso_dur`, `seq_within`) that do what the trainer's
+  functions do. Mission S23 scores a CM program written in R like any other CM. The helpers
+  are tested against the trainer's functions with the same webR build in Node.
 
 ## Coming next
-- **Rest of Phase 4:** writing real R in the browser, and an oncology study (RECIST 1.1: TU, TR, RS).
+- **Rest of Phase 4:** an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
   (RE, QS) and the vaccine study's CE, FACE and IS domains.
 

@@ -16,6 +16,9 @@ import { compareDatasets } from './qc'
 import { refSpecFor, studyIdOf, isPk, type Level } from './project'
 import { pkData, PK_RELREC } from './pk'
 import { STUDY } from './study'
+import { rBuilt, rekey } from './rlib'
+// Natural keys that match an R program's rows to the reference's.
+export const R_KEYS: Record<string, string[]> = { CM: ['USUBJID', 'CMSPID'] }
 import { TRIAL_DESIGN } from './standards'
 import { canExplain, explanationOf, issueKey, findingKey, packageFindings, toIssues, statusOf } from './validation'
 import { planPackage } from './package'
@@ -26,7 +29,7 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package' | 'capstone'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package' | 'capstone' | 'r'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string; study?: string }
 // The missions of the project's study (GLV-12-301 unless a mission names another).
 export const missionsFor = (p: Project) => MISSIONS.filter((m) => (m.study ?? STUDY.id) === studyIdOf(p))
@@ -89,6 +92,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S22', domains: ['DM', 'SUPPDM', 'VS', 'AE', 'SUPPAE', 'CM', 'EX', 'DS', 'LB', 'IE', 'MH', 'EC', 'DV', 'CO', 'SV', 'XE', 'RELREC', 'TA', 'TE', 'TV', 'TI', 'TS'], kind: 'capstone', phase: 4, title: 'Capstone: the full submission package', pass: '70% or more, with every dataset passing, mission S18’s conditions met and no package check that stops the package',
     brief: 'The whole job, as a study programmer does it at database lock: every domain of GLV-12-301 from transfer 2 (with SUPPDM, SUPPAE, the custom XE and RELREC), the trial design, the annotated CRF, define.xml, a clean FDA validation run with every data issue explained, and the reviewer’s guide; then the package on the Submission tab. Datasets count 60%, the package 40%.',
     watch: ['Start from the mappings you built in the earlier missions; transfer 2 changes the data, not the conventions', 'Every dataset is scored as in its own mission', 'Annotate every CRF page again if the mapping changed', 'Fix, then explain, then run validation last', 'The Submission tab lists anything that would stop the package'] },
+  { id: 'S23', domains: ['CM'], kind: 'r', phase: 4, title: 'Program CM in R', pass: PASS,
+    brief: 'Write CM as a clinical programmer does, in real R running in your browser (base R, with the study’s helper functions for dates, study days and epochs). Build a data frame called cm from raw$CM, save its result, and it is scored like any other CM: variable by variable against the reference, with the conformance checks.',
+    watch: ['Every raw column is character, blanks are ""', 'dtc_iso() keeps partial dates partial (UN-MAR-2026 is 2026-03)', 'Sort by the CM keys before numbering CMSEQ with seq_within()', 'Ongoing medications: CMENRTPT ONGOING with CMENTPT END OF STUDY', 'Rows are matched to the reference by USUBJID and CMSPID'] },
   { id: 'S19', study: 'PKX-07-101', domains: ['DM', 'EX'], kind: 'map', phase: 3, title: 'PK study: DM and EX with exact dose times', pass: PASS,
     brief: 'PKX-07-101 is a first-in-human study: every concentration is timed from a dose, so the dose times matter. Map DM (reference dates to the minute, arms from the IRT, screen failures) and EX (one record per dose, unblinded from the IRT kit arm, with the clock time from the dosing log).',
     watch: ['RFSTDTC and RFXSTDTC carry the time of the first dose; RFENDTC the last dose', 'Part A doses once (EXDOSFRQ ONCE), Part B daily for 7 days (QD)', 'Placebo: EXTRT PLACEBO, EXDOSE 0', 'The dosing log time is 24-hour HH:MM'] },
@@ -167,7 +173,13 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   for (const { d, qc } of tracks) {
     let mine: Built, ref: Built, relFindings: Finding[] | null = null
     let refKeys = new Set<string>()
-    if (def.kind === 'design' || (def.kind === 'capstone' && TRIAL_DESIGN.includes(d))) {
+    if (def.kind === 'r') {
+      const out = p.rOut?.[d]
+      if (!out) throw new Error(`Run your R program for ${d} on the R tab and save its result first.`)
+      const keys = R_KEYS[d] ?? ['USUBJID']
+      mine = rBuilt(d, out, keys); ref = rekey(build(referenceSpec(d, ver), data, ver), keys)
+      refKeys = new Set(check(ref, ver, ctxBase).map(findingKey))
+    } else if (def.kind === 'design' || (def.kind === 'capstone' && TRIAL_DESIGN.includes(d))) {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
     } else if (d === 'RELREC') {
       const need = isPk(p) ? ['PC', 'PP'] : ['AE', 'CM', 'LB']
