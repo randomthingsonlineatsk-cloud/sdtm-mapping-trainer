@@ -12,9 +12,8 @@ import { checkRelrec } from './relrec'
 import { buildDefine, checkDefine, DEFINE_RULES } from './define'
 import { crfPages, layoutAcrf } from './acrf'
 import { allDatasets } from './datasets'
-import { referenceSpec } from './reference'
 import { TRIAL_DESIGN, isRel } from './standards'
-import type { Project } from './project'
+import { isGlv, refSpecFor, type Project } from './project'
 
 export const MUST_FIX = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 export interface Explanation { text: string; by: string; utc: string }
@@ -38,7 +37,7 @@ export const explanationOf = (p: Project, key: string) => { const e = p.explain?
 
 // Every finding of the package under the project's rule set.
 export function packageFindings(p: Project, data: StudyData, all: Map<string, Built> = allDatasets(p, data)): Finding[] {
-  const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(referenceSpec('DM', p.version), data, p.version)
+  const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(refSpecFor(p, 'DM'), data, p.version)
   const ctx = { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), set: p.ruleSet }
   const out: Finding[] = []
   for (const [name, b] of all) {
@@ -46,7 +45,7 @@ export function packageFindings(p: Project, data: StudyData, all: Map<string, Bu
     if (name === 'RELREC') { out.push(...checkRelrec(b, Object.fromEntries([...all].filter(([k]) => p.specs[k])))); continue }
     out.push(...check(b, p.version, name === 'DM' ? { ...ctx, dm: undefined } : ctx))
   }
-  if (!p.imported && all.size) {
+  if (isGlv(p) && all.size) {
     const model = buildDefine({ builts: all, specs: p.specs, version: p.version, laid: layoutAcrf(crfPages(data.forms), p.acrf ?? {}), designDomains: TRIAL_DESIGN })
     for (const f of checkDefine(model, all)) out.push({ rule: f.rule, sev: f.sev, domain: 'define.xml', variable: f.where, msg: f.msg })
   }

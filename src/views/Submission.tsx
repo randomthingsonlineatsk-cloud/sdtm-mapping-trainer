@@ -3,7 +3,7 @@ import { useStore } from '../state'
 import { useNav, type View } from '../App'
 import { planPackage, sdtmFolder, PKG_RULES, type PkgFile } from '../domain/package'
 import { TRANSFERS } from '../domain/seed'
-import { log } from '../domain/project'
+import { log, isGlv } from '../domain/project'
 import { STUDY } from '../domain/study'
 import { Panel, Pill, Btn, Table, Stat } from './ui'
 import { useData } from './shared'
@@ -18,7 +18,7 @@ export default function Submission() {
   const plan = useMemo(() => planPackage(p, data), [data, tick])
   const [files, setFiles] = useState<PkgFile[] | null>(null)
   const [busy, setBusy] = useState(false)
-  if (p.imported) return <Panel title="Submission package" sub="Built for GLV-12-301."><p className="text-sm">Open a GLV-12-301 project to build its package.</p></Panel>
+  if (!isGlv(p)) return <Panel title="Submission package" sub="Built for GLV-12-301."><p className="text-sm">Open a GLV-12-301 project to build its package.</p></Panel>
   if (!plan.all.size) return <Panel title="Submission package" sub="Nothing to package yet."><p className="text-sm">Map a domain first.</p></Panel>
   const errors = plan.findings.filter((f) => f.sev === 'Error').length
   const dir = sdtmFolder(STUDY.id)

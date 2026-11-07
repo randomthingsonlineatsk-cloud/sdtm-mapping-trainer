@@ -13,6 +13,9 @@ import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM, REF_DO
 import { buildRelrec, checkRelrec } from './relrec'
 import { crfPages, suggest, checkAcrf, domainsOf, namedVars, NOT_SUBMITTED } from './acrf'
 import { compareDatasets } from './qc'
+import { refSpecFor, studyIdOf, isPk } from './project'
+import { pkData, PK_RELREC } from './pk'
+import { STUDY } from './study'
 import { canExplain, explanationOf, issueKey, findingKey, packageFindings, toIssues, statusOf } from './validation'
 import { planPackage } from './package'
 import { currentVersion, mismatches } from './plan'
@@ -23,7 +26,9 @@ import type { MissionRun, Project } from './project'
 import { log } from './project'
 
 export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package'
-export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
+export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string; study?: string }
+// The missions of the project's study (GLV-12-301 unless a mission names another).
+export const missionsFor = (p: Project) => MISSIONS.filter((m) => (m.study ?? STUDY.id) === studyIdOf(p))
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
   { id: 'S1', domains: ['DM', 'SUPPDM'], kind: 'map', phase: 1, title: 'Map DM end to end, with SUPPDM', pass: PASS,
@@ -80,6 +85,15 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S18', domains: ['Package'], kind: 'package', phase: 3, title: 'Validate and explain: the FDA package', pass: '70% or more, with nothing left to fix, every Error explained, no mapping finding explained away, and the data issue left as collected',
     brief: 'The database is locked (transfer 2) and the package goes to the FDA. Run validation under the FDA rule set; fix what the mapping causes; explain, in the words a reviewer needs, what is true of the data; complete the reviewer’s guide; then build the submission folder on the Submission tab. Map the core domains (DM, AE, CM, DS, EX, LB, VS) and the trial design first.',
     watch: ['Reject findings stop the package at the gateway: fix them', 'Some findings come from the data, not the mapping: read the site’s comments (CO) before explaining', 'Never change data in the mapping to make a finding go away', 'An explanation says what the records show, why, and what was done', 'Run validation again after the last change'] },
+  { id: 'S19', study: 'PKX-07-101', domains: ['DM', 'EX'], kind: 'map', phase: 3, title: 'PK study: DM and EX with exact dose times', pass: PASS,
+    brief: 'PKX-07-101 is a first-in-human study: every concentration is timed from a dose, so the dose times matter. Map DM (reference dates to the minute, arms from the IRT, screen failures) and EX (one record per dose, unblinded from the IRT kit arm, with the clock time from the dosing log).',
+    watch: ['RFSTDTC and RFXSTDTC carry the time of the first dose; RFENDTC the last dose', 'Part A doses once (EXDOSFRQ ONCE), Part B daily for 7 days (QD)', 'Placebo: EXTRT PLACEBO, EXDOSE 0', 'The dosing log time is 24-hour HH:MM'] },
+  { id: 'S20', study: 'PKX-07-101', domains: ['PC'], kind: 'map', phase: 3, title: 'PK study: PC with nominal and actual times', pass: PASS,
+    brief: 'Map the bioanalytical file to PC: one record per reportable sample result, with the planned time point (PCTPT, PCTPTNUM, PCELTM), what it is timed from (PCTPTREF and PCRFTDTC from the dosing log), and the actual collection time (PCDTC). Results below the LLOQ stay BLQ.',
+    watch: ['Only the reportable run (FINAL = Y): one sample was reassayed', 'VISIT is when the sample was drawn; PCTPTREF is the dose it is timed from: the 24 h sample of a Day 1 dose is drawn on Day 2', 'PCELTM is an ISO 8601 duration: PT30M, PT24H, −PT15M', 'BLQ: character result, PCSTRESN null, PCLLOQ on every record', 'A sample the lab never received is kept with PCSTAT NOT DONE', 'One pre-dose trough was drawn after the dose: keep both times as recorded'] },
+  { id: 'S21', study: 'PKX-07-101', domains: ['PP', 'RELREC'], kind: 'map', phase: 3, title: 'PK study: PP, related to PC', pass: PASS,
+    brief: 'Map the NCA output to PP with CT parameter codes and units, then relate each profile’s parameters to the concentrations they came from on the Relationships tab: PPGRPID and PCGRPID name the profile, and RELREC relates the two groups. PC must be mapped first.',
+    watch: ['PPTESTCD and PPTEST from the PKPARMCD and PKPARM codelists', 'NCA units hr and hr*ng/mL become h and h*ng/mL', 'A parameter not calculated: PPSTAT NOT DONE with the reason', 'PPRFTDTC is the dose the profile follows', 'RELREC by group: IDVAR PPGRPID and PCGRPID, not --SEQ'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -132,13 +146,15 @@ export const bestRun = (p: Project, id: string) => p.missions.filter((m) => m.id
 export interface DomainResult { domain: string; score: number; passed: boolean; comparison: Comparison; findings: Finding[]; counted?: number }
 export function evaluateMission(p: Project, id: string): { score: number; passed: boolean; domains: DomainResult[]; detail: string[] } {
   const def = MISSIONS.find((m) => m.id === id)!
-  if (p.imported) throw new Error('Missions run on GLV-12-301. Open or start a GLV-12-301 project.')
-  const data = studyData(p.transfer ?? 1)
+  if (p.imported) throw new Error('Missions run on the trainer’s studies. Open or start a GLV-12-301 or PKX-07-101 project.')
+  if ((def.study ?? STUDY.id) !== studyIdOf(p)) throw new Error(`Mission ${id} runs on ${def.study ?? STUDY.id}: open a project on that study.`)
+  const data = isPk(p) ? pkData() : studyData(p.transfer ?? 1)
+  const referenceSpec = (d: string, _v: Version) => refSpecFor(p, d)
   const ver = p.version
   if (def.kind === 'acrf') return evaluateAcrf(p, data)
   if (def.kind === 'package') return evaluatePackage(p, data)
   const refDesign = referenceDesign(ver, p.transfer ?? 1)
-  const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
+  const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ...(isPk(p) ? {} : { ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver) }), set: p.ruleSet }
   const results: DomainResult[] = []
   const errs: string[] = []
   const explainedOk: string[] = [], explainedWrongly: string[] = []
@@ -149,11 +165,11 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
     if (def.kind === 'design') {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
     } else if (d === 'RELREC') {
-      const need = ['AE', 'CM', 'LB']
+      const need = isPk(p) ? ['PC', 'PP'] : ['AE', 'CM', 'LB']
       for (const x of need) if (!p.specs[x]?.vars.length) throw new Error(`Map ${x} first: RELREC points to its records.`)
       const mineB = Object.fromEntries(need.map((x) => [x, build(p.specs[x], data, ver)]))
       const refB = Object.fromEntries(need.map((x) => [x, build(referenceSpec(x, ver), data, ver)]))
-      mine = buildRelrec(p.relrec ?? [], mineB, data); ref = buildRelrec(REF_RELREC, refB, data)
+      mine = buildRelrec(p.relrec ?? [], mineB, data); ref = buildRelrec(isPk(p) ? PK_RELREC : REF_RELREC, refB, data)
       relFindings = checkRelrec(mine, mineB)
     } else if (isRel(d)) {
       const parent = relParent(d)

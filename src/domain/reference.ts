@@ -120,6 +120,7 @@ const SV_RULES: Record<string, Rule> = {
   EPOCH: e('epoch(SVSTDTC)'), SVSTDTC: e("dtc(VISDAT, 'DD-MMM-YYYY')"), SVENDTC: e("dtc(VISDAT, 'DD-MMM-YYYY')"), SVSTDY: e('studyday(SVSTDTC)'), SVENDY: e('studyday(SVENDTC)'),
 }
 export const SORT: Record<string, string[]> = {
+  PC: ['USUBJID', 'PCTESTCD', 'PCRFTDTC', 'PCTPTNUM'], PP: ['USUBJID', 'PPCAT', 'PPRFTDTC', 'PPTESTCD'],
   DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'], AE: ['USUBJID', 'AEDECOD', 'AESTDTC'], CM: ['USUBJID', 'CMTRT', 'CMSTDTC'],
   EX: ['USUBJID', 'EXSTDTC'], DS: ['USUBJID', 'DSSTDTC', 'DSCAT'], LB: ['USUBJID', 'LBTESTCD', 'VISITNUM', 'LBDTC'], SV: ['USUBJID', 'VISITNUM'],
   IE: ['USUBJID', 'IETESTCD'], MH: ['USUBJID', 'MHCAT', 'MHTERM', 'MHSTDTC'], EC: ['USUBJID', 'ECSTDTC'], DV: ['USUBJID', 'DVSTDTC', 'DVREFID'], CO: ['USUBJID', 'CODTC', 'RDOMAIN'], SE: ['USUBJID', 'SESTDTC', 'ETCD'], XE: ['USUBJID', 'XESTDTC', 'XETRT'],
@@ -159,7 +160,7 @@ export const REF_RELREC: RelDef[] = [
   { id: 'AELB', label: 'Abnormal-lab adverse event and the ALT result behind it', a: { domain: 'AE', key: 'AELBACC' }, b: { domain: 'LB', key: 'LBREFID', filter: "LBTESTCD = 'ALT'" } },
 ]
 // The raw form a domain is mapped from when it is not the form of the same name.
-export const DEFAULT_SOURCE: Record<string, string> = { LB: 'LBC', EC: 'EX', DV: 'DVL', XE: 'EDU' }
+export const DEFAULT_SOURCE: Record<string, string> = { LB: 'LBC', EC: 'EX', DV: 'DVL', XE: 'EDU', PC: 'PCL', PP: 'PKP' }
 export function referenceSpec(domain: string, ver: Version): DomainSpec {
   const r = REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain}`)
   const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name)) && r.rules[m.name]).map((m) => m.name)

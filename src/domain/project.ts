@@ -13,7 +13,8 @@ import type { RelDef } from './relrec'
 import type { CustomDomain } from './standards'
 import type { Visit } from './study'
 import { STUDY } from './study'
-import { studyData, SORT } from './reference'
+import { studyData, SORT, referenceSpec, REF_DOMAINS } from './reference'
+import { PK_STUDY, pkData, pkReferenceSpec, PK_DOMAINS } from './pk'
 import { hash } from './util'
 import type { Explanation, ValidationRun } from './validation'
 import type { CsdrgNotes } from './csdrg'
@@ -47,9 +48,10 @@ export interface Project {
 }
 
 const newId = () => `p_${Date.now().toString(36)}_${hash(String(Math.random())).slice(-6)}`
-export function createProject(userId = 'local-user', classId = 'none', version: Version = '3.4'): Project {
+export const STUDIES = [STUDY.id, PK_STUDY.id] as const
+export function createProject(userId = 'local-user', classId = 'none', version: Version = '3.4', study: string = STUDY.id): Project {
   const now = new Date().toISOString()
-  return { schema: 1, id: newId(), name: `${STUDY.id} SDTM mapping`, userId, classId, createdUtc: now, updatedUtc: now, version, study: STUDY.id, specs: {}, design: {}, ruleSet: 'CDISC', missions: [], quiz: {}, log: [{ utc: now, what: 'Project created' }] }
+  return { schema: 1, id: newId(), name: `${study} SDTM mapping`, userId, classId, createdUtc: now, updatedUtc: now, version, study, specs: {}, design: {}, ruleSet: 'CDISC', missions: [], quiz: {}, log: [{ utc: now, what: 'Project created' }] }
 }
 export function migrate(p: Project): Project {
   p.specs ??= {}; p.design ??= {}; p.ruleSet ??= 'CDISC'; p.missions ??= []; p.quiz ??= {}; p.log ??= []; p.version ??= '3.4'; p.study ??= STUDY.id
@@ -64,7 +66,16 @@ export function emptySpec(domain: string, source: string): DomainSpec {
 
 // The data the engine works on: the shipped study with its reference DM, or an imported study
 // whose study-day and epoch functions read the learner's own DM.
+// Which study a project works on: the phase 3 study GLV-12-301, the phase 1 PK study PKX-07-101,
+// or a study imported from the CDM Console.
+export const isPk = (p: Project) => !p.imported && p.study === PK_STUDY.id
+export const isGlv = (p: Project) => !p.imported && p.study !== PK_STUDY.id
+export const studyIdOf = (p: Project) => (p.imported ? p.imported.protocol : isPk(p) ? PK_STUDY.id : STUDY.id)
+export const refSpecFor = (p: Project, domain: string): DomainSpec => (isPk(p) ? pkReferenceSpec(domain, p.version) : referenceSpec(domain, p.version))
+export const refDomainsFor = (p: Project): string[] => (p.imported ? [] : isPk(p) ? PK_DOMAINS : REF_DOMAINS)
+
 export function dataFor(p: Project): StudyData {
+  if (isPk(p)) return pkData()
   if (!p.imported) return studyData(p.transfer ?? 1)
   const base: StudyData = { forms: p.imported.forms, studyId: p.imported.protocol, visits: p.imported.visits }
   const dmSpec = p.specs.DM

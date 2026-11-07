@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../state'
 import { crfPages, suggest, checkAcrf, domainsOf, namedVars, DOMAIN_COLOURS, NOT_SUBMITTED } from '../domain/acrf'
 import { domainInfo } from '../domain/standards'
-import { log } from '../domain/project'
+import { log, isGlv } from '../domain/project'
 import { raw } from '../domain/seed'
 import { STUDY } from '../domain/study'
 import { Panel, Pill, Btn, Table, ic } from './ui'
@@ -17,7 +17,7 @@ export default function Acrf() {
   const pages = useMemo(() => crfPages(raw(p.transfer ?? 1).forms), [p.transfer])
   const [form, setForm] = useState(pages[0]?.form ?? '')
   const [busy, setBusy] = useState(false)
-  if (p.imported) return <Panel title="Annotated CRF" sub="The aCRF is built for GLV-12-301."><p className="text-sm">This project holds an imported CDM Console study; open a GLV-12-301 project to annotate its CRF.</p></Panel>
+  if (!isGlv(p)) return <Panel title="Annotated CRF" sub="The aCRF is built for GLV-12-301."><p className="text-sm">This project works on another study; open a GLV-12-301 project to annotate its CRF.</p></Panel>
   const notes = p.acrf ?? {}
   const relrec = p.relrec ?? []
   const findings = checkAcrf(pages, notes, p.specs, relrec, p.version)

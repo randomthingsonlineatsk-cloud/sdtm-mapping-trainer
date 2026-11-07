@@ -3,7 +3,7 @@ import { useStore } from '../state'
 import { useNav } from '../App'
 import { buildCsdrg, suggestNotes, needsNote, CSDRG_RULES, type CsdrgSection } from '../domain/csdrg'
 import { isRel, TRIAL_DESIGN, domainInfo } from '../domain/standards'
-import { log } from '../domain/project'
+import { log, isGlv } from '../domain/project'
 import { STUDY } from '../domain/study'
 import { Panel, Pill, Btn, Table, Stat, TextArea } from './ui'
 import { useData } from './shared'
@@ -22,7 +22,7 @@ export default function Csdrg() {
   const [busy, setBusy] = useState(false)
   const last = (p.validation ?? []).at(-1)
   const g = useMemo(() => buildCsdrg(p, data, all, issues, last), [all, issues, last, p.csdrg, p.explain])
-  if (p.imported) return <Panel title="Reviewer’s guide" sub="Built for GLV-12-301."><p className="text-sm">Open a GLV-12-301 project to write its reviewer’s guide.</p></Panel>
+  if (!isGlv(p)) return <Panel title="Reviewer’s guide" sub="Built for GLV-12-301."><p className="text-sm">Open a GLV-12-301 project to write its reviewer’s guide.</p></Panel>
   if (!all.size) return <Panel title="Reviewer’s guide" sub="Nothing to describe yet."><p className="text-sm">Map a domain first.</p></Panel>
   const n = p.csdrg ?? {}
   const set = (f: (c: NonNullable<typeof p.csdrg>) => void, what: string) => act((pp) => { f(pp.csdrg ??= {}); log(pp, `Reviewer’s guide: ${what}`) })

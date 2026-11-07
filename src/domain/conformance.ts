@@ -60,6 +60,9 @@ export const RULES: Rule[] = [
   { id: 'TRN-034', sev: 'Error', text: 'EPOCH value is not an epoch in TA', basis: 'SDTMIG: EPOCH values come from TA' },
   { id: 'TRN-040', sev: 'Warning', text: 'AEBODSYS differs from AESOC', basis: 'SDTMIG AE: AEBODSYS is the primary system organ class' },
   { id: 'TRN-041', sev: 'Error', text: 'Start date/time is after end date/time', basis: 'SDTMIG: --STDTC on or before --ENDTC' },
+  { id: 'TRN-057', sev: 'Warning', text: 'Pre-dose sample (negative planned elapsed time) collected after the reference dose', basis: 'SDTMIG timing: --ELTM and --TPTNUM are planned, --DTC actual; --DTC after --RFTDTC for a pre-dose time point' },
+  { id: 'TRN-058', sev: 'Warning', text: '--TPTREF is given but --RFTDTC is null', basis: 'SDTMIG timing: --RFTDTC is the date/time of the reference time point named in --TPTREF' },
+  { id: 'TRN-059', sev: 'Error', text: 'Concentration below the LLOQ given as a number, or a BLQ result without the LLOQ', basis: 'SDTMIG PC: results below the lower limit of quantitation are not numeric; --LLOQ gives the limit' },
   { id: 'TRN-042', sev: 'Warning', text: 'AESER is Y but no seriousness criterion is Y', basis: 'SDTMIG AE: a serious event has at least one criterion' },
   { id: 'TRN-043', sev: 'Warning', text: '--NRIND does not agree with the standard result and range', basis: 'SDTMIG findings: --NRIND against --STNRLO and --STNRHI' },
   { id: 'TRN-044', sev: 'Error', text: '--STRESC is numeric but --STRESN is null', basis: 'SDTMIG findings' },
@@ -130,6 +133,14 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
     if (has(`${p}ORRESU`) && r[`${p}ORRES`] && !r[`${p}ORRESU`]) add('TRN-018', `${p}ORRESU`, `${p}ORRES "${r[`${p}ORRES`]}" has no unit`, i)
     const st = r[`${p}STDTC`], en = r[`${p}ENDTC`]
     if (st && en && isIso8601(st) && isIso8601(en) && cmpDtc(st, en) > 0) add('TRN-041', `${p}STDTC`, `${p}STDTC ${st} is after ${p}ENDTC ${en}`, i)
+    const tr = r[`${p}TPTREF`], rf = r[`${p}RFTDTC`], dtc = r[`${p}DTC`]
+    if (tr && has(`${p}RFTDTC`) && !rf) add('TRN-058', `${p}RFTDTC`, `${p}TPTREF "${tr}" with no ${p}RFTDTC`, i)
+    if (((r[`${p}ELTM`] ?? '').startsWith('-') || Number(r[`${p}TPTNUM`]) < 0) && rf && dtc && isIso8601(rf) && isIso8601(dtc) && dtc.length > 10 && cmpDtc(dtc, rf) > 0) add('TRN-057', `${p}DTC`, `${r[`${p}TPT`] || 'Pre-dose'} sample at ${dtc}, after the dose at ${rf}`, i)
+    if (d === 'PC' && has('PCLLOQ')) {
+      const lloq = Number(r.PCLLOQ), n = r.PCSTRESN === '' || r.PCSTRESN === undefined ? NaN : Number(r.PCSTRESN)
+      if (!Number.isNaN(n) && r.PCLLOQ && n < lloq) add('TRN-059', 'PCSTRESN', `${n} is below the LLOQ ${lloq}`, i)
+      if (r.PCSTRESC && !isNum(r.PCSTRESC) && !r.PCLLOQ) add('TRN-059', 'PCLLOQ', `"${r.PCSTRESC}" with no PCLLOQ`, i)
+    }
     if (d === 'AE') {
       if (has('AEBODSYS') && has('AESOC') && r.AEBODSYS !== r.AESOC) add('TRN-040', 'AEBODSYS', `AEBODSYS "${r.AEBODSYS}" vs AESOC "${r.AESOC}"`, i)
       const crit = ['AESDTH', 'AESHOSP', 'AESLIFE', 'AESDISAB', 'AESCONG', 'AESMIE'].filter((c) => has(c))

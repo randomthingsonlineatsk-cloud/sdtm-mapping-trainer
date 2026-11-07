@@ -31,7 +31,7 @@ export type OutRow = Record<string, string> & { __trace: string; __subj: string 
 export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[]; supp?: Built; labels?: Record<string, string>; origins?: Record<string, string> }
 
 // ---------- the study context the functions read ----------
-export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[] }
+export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[]; arms?: { code: string; name: string }[]; sites?: { id: string; iso: string }[] }
 const UNSCHEDULED = new Set(['Unscheduled', 'UNS'])
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -100,10 +100,22 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     subj: (form, field, how) => agg(mine(S(form)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     subjwhere: (form, field, wf, wv, how) => agg(mine(S(form)).filter((r) => (r[S(wf)] ?? '') === S(wv)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     irt: (field) => mine('IRT')[0]?.[S(field)] ?? '',
-    country: (site) => SITES.find((s) => s.id === S(site))?.iso ?? '',
+    country: (site) => (data.sites ?? SITES).find((s) => s.id === S(site))?.iso ?? '',
     // The protocol's eligibility criteria (as in TI): ti('IN02', 'text') or ti('IN02', 'cat').
     ti: (code, what) => { const c = CRITERIA.find((x) => x.code === S(code)); return !c ? '' : S(what) === 'cat' ? c.cat : c.text },
-    armname: (code) => ARMS.find((a) => a.code === S(code))?.name ?? '',
+    armname: (code) => (data.arms ?? ARMS).find((a) => a.code === S(code))?.name ?? '',
+    // Hours as an ISO 8601 duration: 2 is PT2H, 0.5 is PT30M, -0.25 is -PT15M, 1.5 is PT1H30M.
+    isodur: (hours) => {
+      const n = toNum(hours); if (n === null) return ''
+      const m = Math.round(Math.abs(n) * 60), h = Math.floor(m / 60), mm = m % 60
+      return `${n < 0 ? '-' : ''}PT${h ? `${h}H` : ''}${mm || !h ? `${mm}M` : ''}`.replace('PT0M', 'PT0H')
+    },
+    // Hours between two ISO 8601 date/times (b minus a), to 2 decimals.
+    hours: (a, b) => {
+      const t = (x: string) => (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(x) ? Date.parse(`${x}${x.length === 16 ? ':00' : ''}Z`) : NaN)
+      const x = t(S(a)), y = t(S(b))
+      return Number.isNaN(x) || Number.isNaN(y) ? '' : Math.round(((y - x) / 3600000) * 100) / 100
+    },
     age: (birth, ref) => {
       const b = fullDate(anyDate(S(birth)) ?? ''), r = fullDate(anyDate(S(ref)) ?? ''); if (!b || !r) return ''
       let a = Number(r.slice(0, 4)) - Number(b.slice(0, 4))
@@ -163,6 +175,7 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: "irt(field)", what: "The subject's value in the IRT randomisation file: irt('RANDARM')" },
   { sig: "ti(code, what)", what: "A protocol eligibility criterion, as in TI: ti('IN02', 'text') is its text, ti('IN02', 'cat') INCLUSION or EXCLUSION" },
   { sig: 'armname(code), country(siteid)', what: 'Arm description from TA; ISO 3166 alpha-3 country of a site' },
+  { sig: 'isodur(hours), hours(dtc1, dtc2)', what: "Hours as an ISO 8601 duration (isodur(0.5) is PT30M, isodur(-0.25) is -PT15M, isodur(24) is PT24H); hours from one ISO date/time to another" },
   { sig: 'age(birthdate, refdate)', what: 'Completed years between two full dates' },
   { sig: "dm(var)", what: "A variable of this subject's record in the study's reference DM: dm('RFSTDTC')" },
   { sig: 'studyday(dtc, ref)', what: 'Study day of dtc relative to ref (default: RFSTDTC). No day 0; blank for partial dates.' },

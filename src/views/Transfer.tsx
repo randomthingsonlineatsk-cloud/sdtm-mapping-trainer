@@ -1,13 +1,13 @@
 import { useStore } from '../state'
 import { TRANSFERS, type Transfer } from '../domain/seed'
-import { log } from '../domain/project'
+import { log, isGlv } from '../domain/project'
 import { Btn } from './ui'
 
 // Which data transfer the project works on. Switching keeps every mapping: re-running them on
 // the new transfer is the point.
 export function TransferSwitch() {
   const { p, act } = useStore()
-  if (p.imported) return null
+  if (!isGlv(p)) return null
   const t = p.transfer ?? 1
   return (
     <div className="space-y-1">

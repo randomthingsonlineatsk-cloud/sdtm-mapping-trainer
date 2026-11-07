@@ -5,7 +5,7 @@ import { build, ruleError, fieldsFor, FN_HELP, RULE_LABEL, PSEUDO, type Rule, ty
 import { toR, toSAS } from '../domain/codegen'
 import { MISSIONS } from '../domain/missions'
 import { varsOf, DETAIL_DOMAINS, domainInfo, CT, customVars, customCodeProblem, standardCandidates, type VarMeta, type CustomDomain } from '../domain/standards'
-import { emptySpec, log, type Project } from '../domain/project'
+import { emptySpec, log, type Project, isGlv } from '../domain/project'
 import { currentVersion } from '../domain/plan'
 import { SORT, DEFAULT_SOURCE } from '../domain/reference'
 import { Panel, Pill, Btn, Select, Table, TextArea, Tabs, ic } from './ui'
@@ -40,7 +40,7 @@ export default function Mapping() {
         <p className="text-xs text-lab-text-muted">{domainInfo(domain)?.cls} · {domainInfo(domain)?.structure}. {(() => { const ms = MISSIONS.filter((m) => m.domains.includes(domain)); return ms.length ? `Scored by mission${ms.length > 1 ? 's' : ''} ${ms.map((m) => m.id).join(', ')} against a hidden reference.` : 'Free practice: no mission scores this domain.' })()} Trial design domains (TA, TE, TV, TI, TS) are built as tables on the Trial design tab.</p>
         <div className="flex flex-wrap gap-2">
           {!spec && <Btn tone="solid" onClick={start}>{track === 'qc' ? `Start QC programming of ${domain}` : `Start mapping ${domain}`}</Btn>}
-          {!p.imported && <Btn tone="grey" onClick={() => setDefining(!defining)}>{defining ? 'Close' : 'Define a custom domain…'}</Btn>}
+          {isGlv(p) && <Btn tone="grey" onClick={() => setDefining(!defining)}>{defining ? 'Close' : 'Define a custom domain…'}</Btn>}
         </div>
         {(p.custom ?? []).some((c) => c.code === domain) && <CustomInfo code={domain} />}
       </Panel>

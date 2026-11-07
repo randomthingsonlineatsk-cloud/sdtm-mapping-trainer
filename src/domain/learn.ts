@@ -264,6 +264,18 @@ export const TOPICS: Topic[] = [
       { q: 'A Reject finding remains in a dataset for an FDA submission. What do you do?', options: ['Explain it in the cSDRG', 'Fix it before the package goes out', 'Ignore it if fewer than 5 records', 'Move it to SUPP--'], answer: 1, why: 'Reject findings stop the package at the gateway; they cannot be explained.' },
       { q: 'One AE ends before it starts; the site confirmed both dates against the source. What goes into the cSDRG?', options: ['Nothing: change the end date', 'An explanation in the issues summary of the data conformance section', 'A note in define.xml only', 'A protocol deviation'], answer: 1, why: 'The data stay as collected, and the issue is explained in section 4 of the reviewer’s guide.' },
     ] },
+  { id: 'pk', title: 'Pharmacokinetics: EX, PC and PP',
+    body: [
+      'In a PK study every concentration is timed from a dose, so the dose time in EX must be exact: EXSTDTC to the minute, from the dosing log. RFSTDTC carries the time of the first dose as well.',
+      'PC has one record per sample result. Its timing variables say two things. Planned: PCTPT (PRE-DOSE, 2 H POST-DOSE), PCTPTNUM, PCELTM (the planned elapsed time as an ISO 8601 duration: PT2H, −PT15M) and PCTPTREF (the dose the time point refers to). Actual: PCDTC (when the sample was drawn) and PCRFTDTC (when the reference dose was taken). The actual elapsed time is PCDTC minus PCRFTDTC; analysis derives it, SDTM does not.',
+      'VISIT is when the sample was drawn, which is not always the day of the dose: the 24 h sample of a Day 1 dose is drawn on Day 2. Results below the lower limit of quantitation are kept as reported (BLQ), with PCSTRESN null and PCLLOQ populated. A sample that was planned but not analysed stays as a record with PCSTAT = NOT DONE. Bioanalytical files can hold more than one run for a sample; only the reportable result goes to SDTM.',
+      'PP holds the parameters calculated from the concentrations (Cmax, Tmax, AUC, half-life), coded with the PKPARMCD and PKPARM codelists, units from PKUNIT, and PPRFTDTC the dose of the profile. A parameter that could not be calculated is kept with PPSTAT = NOT DONE and the reason. RELREC relates the PP records of a profile to the PC records they came from; with --GRPID naming the profile, one RELREC record on each side stands for the whole group.',
+    ],
+    quiz: [
+      { q: 'The 24 h sample after the Day 1 dose is drawn on Day 2. What are VISIT and PCTPTREF?', options: ['DAY 2 and DAY 2 DOSE', 'DAY 1 and DAY 1 DOSE', 'DAY 2 and DAY 1 DOSE', 'DAY 1 and DAY 2 DOSE'], answer: 2, why: 'VISIT is when it was drawn; PCTPTREF names the dose it is timed from.' },
+      { q: 'A concentration is below the LLOQ of 1.00 ng/mL. What goes into PCSTRESN?', options: ['0', '0.5 (half the LLOQ)', 'Null; PCSTRESC keeps BLQ and PCLLOQ is 1', '1'], answer: 2, why: 'SDTM keeps what was reported; imputing values for BLQ is an analysis rule (ADaM), not SDTM.' },
+      { q: 'What is PCELTM for a sample planned 30 minutes after the dose?', options: ['0.5', 'PT30M', '00:30', '30 MIN'], answer: 1, why: 'PCELTM is an ISO 8601 duration.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

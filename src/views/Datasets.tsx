@@ -3,13 +3,12 @@ import { useStore } from '../state'
 import { useNav } from '../App'
 import { build, csv, type Built } from '../domain/engine'
 import { check, summarise, RULES, RULE_SETS, severityIn, type RuleSet } from '../domain/conformance'
-import { referenceSpec } from '../domain/reference'
 import { designBuilt, deriveSE, DESIGN_SORT } from '../domain/design'
 import { domainInfo, TRIAL_DESIGN, isRel, relLabel, relName } from '../domain/standards'
 import { toXpt, toDatasetJson } from '../domain/exports'
 import { specRows, specCsv, valueLevel } from '../domain/spec'
 import { SORT } from '../domain/reference'
-import { log } from '../domain/project'
+import { log, refSpecFor } from '../domain/project'
 import { download } from '../domain/store'
 import { Panel, Pill, Btn, Select, Table, Stat, Tabs, ic } from './ui'
 import { useData, fieldsOf } from './shared'
@@ -36,7 +35,7 @@ export default function Datasets() {
   const names = [...all.keys()]
   const [domain, setDomain] = useState(nav.arg && names.includes(nav.arg) ? nav.arg : names.find((n) => n !== 'SE') ?? names[0] ?? '')
   const ctx = useMemo(() => {
-    const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(referenceSpec('DM', p.version), data, p.version)
+    const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(refSpecFor(p, 'DM'), data, p.version)
     return { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), set: p.ruleSet }
   }, [all, p.ruleSet])
   const built = all.get(domain)
