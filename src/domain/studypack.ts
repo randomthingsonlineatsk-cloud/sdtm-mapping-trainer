@@ -1,0 +1,19 @@
+// A study besides GLV-12-301 that the trainer ships with its own raw data, conventions,
+// reference mapping and missions (the phase 1 PK study, the oncology study). GLV-12-301 keeps
+// its own, richer modules (transfers, trial design, aCRF, define.xml, submission package).
+import type { DomainSpec, StudyData } from './engine'
+import type { RelDef } from './relrec'
+import type { Version } from './standards'
+import type { Visit } from './study'
+
+export interface StudyPack {
+  id: string; short: string; title: string; sponsor: string; phase: string; indication: string; design: string
+  domains: string[] // domains with a reference mapping
+  refSpec(domain: string, ver: Version): DomainSpec
+  data(): StudyData
+  formInfo: Record<string, { name: string; source: string; note: string }>
+  rawFields: Record<string, { name: string; label: string }[]>
+  relrec: RelDef[]; relNeed: string[] // the reference RELREC and the domains it relates
+  facts: { what: string; value: string }[]; conventions: { topic: string; rule: string }[]
+  arms: { code: string; name: string }[]; sites: { id: string; name: string; country: string; iso: string }[]; visits: Visit[]
+}

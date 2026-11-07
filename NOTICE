@@ -15,8 +15,9 @@ publishes them, for education. The SDTMIG v4.0 mode follows a public-review draf
 the final standard. MedDRA and WHODrug are not included; coded values in the data are
 fictional look-alikes.
 
-The studies PKX-07-101 (drug PKX-07, sponsor Altamira Therapeutics) and its laboratory are
-fictional too.
+The studies PKX-07-101 (drug PKX-07, sponsor Altamira Therapeutics) and ONK-44-302 (drug
+ONK-44, sponsor Meridale Oncology), their laboratory and imaging vendors and sites are fictional
+too. Docetaxel is named as the comparator only.
 
 Third-party software served with the site:
 - webR 0.6.0 (https://github.com/r-wasm/webr): R compiled to WebAssembly. The webR binaries

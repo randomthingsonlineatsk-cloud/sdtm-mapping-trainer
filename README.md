@@ -208,9 +208,20 @@ rules; no vendor rule text or tool is copied.
   `epoch_of`, `visit_num`, `visit_name`, `iso_dur`, `seq_within`) that do what the trainer's
   functions do. Mission S23 scores a CM program written in R like any other CM. The helpers
   are tested against the trainer's functions with the same webR build in Node.
+- **A third study, ONK-44-302 (phase 3 oncology, RECIST 1.1):** a fictional randomised,
+  open-label study of ONK-44 against docetaxel in advanced non-small cell lung cancer (48
+  screened, 42 randomised). Lesions identified at screening and new lesions on study, each
+  lesion measured every 6 weeks (short axis for lymph nodes, too small to measure, a scan not
+  done), the site's sum of diameters, the investigator's responses and a blinded independent
+  central review's, prior surgery and radiotherapy, deaths with partial dates, and scans that
+  continue in follow-up after treatment stops. Responses follow the RECIST 1.1 rules from the
+  measurements, with the discrepancies real data has (an investigator PR at a 26% decrease, a
+  sum of diameters 10 mm off). Missions S24 (TU and TR), S25 (RS from two assessors, and
+  dataset-level RELREC: TU to TR, TR to RS) and S26 (DM with deaths, DD and PR). New checks:
+  measurements of lesions not in TU, death details without DTHFL, new lesions before the first
+  dose, new lesions without PD, and a sum of diameters that does not add up.
 
 ## Coming next
-- **Rest of Phase 4:** an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
   (RE, QS) and the vaccine study's CE, FACE and IS domains.
 

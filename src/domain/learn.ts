@@ -276,6 +276,18 @@ export const TOPICS: Topic[] = [
       { q: 'A concentration is below the LLOQ of 1.00 ng/mL. What goes into PCSTRESN?', options: ['0', '0.5 (half the LLOQ)', 'Null; PCSTRESC keeps BLQ and PCLLOQ is 1', '1'], answer: 2, why: 'SDTM keeps what was reported; imputing values for BLQ is an analysis rule (ADaM), not SDTM.' },
       { q: 'What is PCELTM for a sample planned 30 minutes after the dose?', options: ['0.5', 'PT30M', '00:30', '30 MIN'], answer: 1, why: 'PCELTM is an ISO 8601 duration.' },
     ] },
+  { id: 'onc', title: 'Oncology: TU, TR and RS by RECIST 1.1',
+    body: [
+      'Solid tumour studies assess response by RECIST 1.1. At baseline the investigator picks up to five target lesions (two per organ), measurable at 10 mm or more (lymph nodes at 15 mm short axis or more), and lists other disease as non-target lesions. Each assessment measures the targets, adds them up to the sum of diameters, judges the non-target lesions and looks for new lesions.',
+      'TU identifies each lesion once per assessor: TUTESTCD TUMIDENT with TUORRES TARGET, NON-TARGET or NEW, its location, method and evaluator, and TULNKID, the lesion’s ID. TR holds every assessment of a lesion, linked by TRLNKID: the longest diameter (LDIAM), the short axis for a node (SAXIS), or the state of a non-target or new lesion (TUMSTATE), plus the sum of diameters (SUMDIAM). A lesion too small to measure is given 5 mm by RECIST 1.1; the collected text stays in TRORRES.',
+      'RS holds the responses: target (TRGRESP), non-target (NTRGRESP), new lesion progression (NEWLPROG) and overall (OVRLRESP), one record per test per visit per assessor. A phase 3 study usually has two assessors: the investigator and a blinded independent central review; RSEVAL tells them apart. Each keeps its own judgement, and SDTM keeps both as collected.',
+      'TR and RS are linked by a link group (--LNKGRP) naming the assessment; RELREC then relates the datasets as a whole: TU to TR by TULNKID and TRLNKID (ONE to MANY), TR to RS by the link groups (MANY to ONE), with USUBJID and IDVARVAL null. Deaths go to DD (the cause) and DM (DTHFL, DTHDTC); prior surgery and radiotherapy to PR. EPOCH separates treatment from follow-up, where scans go on after treatment stops.',
+    ],
+    quiz: [
+      { q: 'A target lymph node measures 8 mm short axis. Which TRTESTCD?', options: ['LDIAM', 'SAXIS', 'TUMSTATE', 'SUMDIAM'], answer: 1, why: 'RECIST 1.1 measures lymph nodes by their short axis; below 10 mm a node counts as normal.' },
+      { q: 'The investigator recorded PR; the measurements show a 26% decrease. What goes into RSORRES?', options: ['SD, recalculated', 'PR, as collected', 'NE', 'Nothing until the query is answered'], answer: 1, why: 'SDTM keeps the assessor’s judgement; the discrepancy is a data review question, and the independent review has its own record.' },
+      { q: 'How is TU related to TR in RELREC?', options: ['Record by record through --SEQ', 'Dataset level through TULNKID and TRLNKID, ONE to MANY', 'Through VISITNUM', 'It is not related'], answer: 1, why: 'One lesion has many assessments; the link ID carries the relationship.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

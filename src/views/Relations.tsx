@@ -38,14 +38,16 @@ export default function Relations() {
   return (
     <div className="space-y-4">
       <Panel title="Relationships (RELREC)" sub="RELREC records which records of different domains belong together. Each rule links records of two domains whose keys are equal for the same subject; a key can be an SDTM variable or a raw field of the record’s source row, since CRFs often link records with fields that are not submitted themselves (here CMAENO, the AE number on a medication, and AELBACC, the lab accession on an abnormal-lab AE).">
-        <p className="text-xs text-lab-text-muted">Each related group gets one RELID; IDVAR is the --SEQ of each record and IDVARVAL its value, or, for a rule that relates groups, IDVAR is the --GRPID and one record stands for the whole group. RELTYPE is used only for dataset-level relationships, so it stays null here. Mapped domains: {mapped.join(', ') || 'none yet'}.</p>
+        <p className="text-xs text-lab-text-muted">Each related group gets one RELID; IDVAR is the --SEQ of each record and IDVARVAL its value, or, for a rule that relates groups, IDVAR is the --GRPID and one record stands for the whole group; a dataset-level rule relates two datasets as a whole through --LNKID or --LNKGRP (USUBJID and IDVARVAL null, RELTYPE ONE or MANY). RELTYPE is used only for dataset-level relationships, so it stays null here. Mapped domains: {mapped.join(', ') || 'none yet'}.</p>
         <Btn tone="solid" onClick={() => upd((d) => { d.push({ id: `R${d.length + 1}`, label: '', a: { domain: mapped.includes('AE') ? 'AE' : mapped.includes('PP') ? 'PP' : mapped[0] ?? '', key: '' }, b: { domain: '', key: '' } }) }, 'added a rule')}>+ Add a relationship rule</Btn>
       </Panel>
       {defs.map((d, i) => (
         <Panel key={i} title={`Rule ${i + 1}${d.label ? ` · ${d.label}` : ''}`} right={<div className="flex gap-1 items-center"><Pill tone={per(d.id) ? 'green' : 'amber'}>{per(d.id)} groups</Pill><Btn tone="red" className="py-0.5" onClick={() => upd((x) => { x.splice(i, 1) }, `removed rule ${d.id}`)}>Remove</Btn></div>}>
           <div className="flex flex-wrap gap-2 items-center">
             <input aria-label={`Rule ${i + 1} RELID prefix`} className={ic('w-24 font-mono text-xs py-1')} defaultValue={d.id} onBlur={(e) => upd((x) => { x[i].id = e.target.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || x[i].id })} />
-            <label className="flex items-center gap-1 text-xs"><input type="checkbox" aria-label={`Rule ${i + 1} relates groups`} checked={!!d.group} onChange={(e) => upd((x) => { x[i].group = e.target.checked || undefined }, `rule ${d.id} ${e.target.checked ? 'relates groups' : 'relates records'}`)} /> Relate groups (keys are --GRPID)</label>
+            <Select aria-label={`Rule ${i + 1} level`} className="w-56 text-xs py-1" value={d.dataset ? `ds:${d.dataset.a}:${d.dataset.b}` : d.group ? 'group' : 'record'}
+              onChange={(e) => upd((x) => { const v = e.target.value; x[i].group = v === 'group' || undefined; x[i].dataset = v.startsWith('ds:') ? { a: v.split(':')[1] as 'ONE' | 'MANY', b: v.split(':')[2] as 'ONE' | 'MANY' } : undefined }, `rule ${d.id} relates ${e.target.value}`)}
+              options={[{ value: 'record', label: 'Records (by --SEQ)' }, { value: 'group', label: 'Groups (keys are --GRPID)' }, { value: 'ds:ONE:MANY', label: 'Datasets: ONE to MANY' }, { value: 'ds:MANY:ONE', label: 'Datasets: MANY to ONE' }, { value: 'ds:ONE:ONE', label: 'Datasets: ONE to ONE' }]} />
             <input aria-label={`Rule ${i + 1} description`} className={ic('flex-1 min-w-48 text-xs py-1')} defaultValue={d.label} onBlur={(e) => upd((x) => { x[i].label = e.target.value })} placeholder="What the relationship is, e.g. AE and the medication given for it" />
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
@@ -58,7 +60,7 @@ export default function Relations() {
       {defs.length > 0 && <Panel title={`RELREC · ${rel.rows.length} records`} right={<Btn tone="grey" className="py-0.5" onClick={() => download('relrec.csv', csv(rel), 'text/csv')}>CSV</Btn>} sub="RELREC is also on the Datasets tab with the XPT and Dataset-JSON downloads.">
         <Table head={['Rule', 'Severity', 'Records', 'First example']} rows={[...new Set(findings.map((f) => f.rule))].map((r) => { const fs = findings.filter((f) => f.rule === r); return [<span className="font-mono">{r}</span>, <Pill tone="red">{fs[0].sev}</Pill>, fs.length, fs[0].msg] })} empty="No findings." />
         <Table head={rel.vars} rows={rel.rows.slice(0, 30).map((r) => rel.vars.map((v) => <span className="font-mono whitespace-nowrap">{r[v]}</span>))} />
-        <Btn tone="grey" onClick={() => go('missions')}>{isPk(p) ? 'Mission S21' : 'Mission S15'}</Btn>
+        <Btn tone="grey" onClick={() => go('missions')}>{isPk(p) ? 'Mission S21' : p.study === 'ONK-44-302' ? 'Mission S25' : 'Mission S15'}</Btn>
       </Panel>}
     </div>
   )

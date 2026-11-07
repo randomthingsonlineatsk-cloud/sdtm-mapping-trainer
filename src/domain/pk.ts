@@ -16,6 +16,7 @@ import type { RelDef } from './relrec'
 import type { Visit } from './study'
 import type { Row } from './seed'
 import { SORT } from './reference'
+import type { StudyPack } from './studypack'
 
 export const PK_STUDY = {
   id: 'PKX-07-101',
@@ -319,4 +320,9 @@ const base = (): StudyData => ({ forms: pkRaw().forms, studyId: PK_STUDY.id, vis
 export function pkData(): StudyData {
   dmCache ??= new Map(build(pkReferenceSpec('DM', '3.4'), base()).rows.map((r) => [r.__subj, r]))
   return { ...base(), refDm: dmCache }
+}
+
+export const PK_PACK: StudyPack = {
+  ...PK_STUDY, domains: PK_DOMAINS, refSpec: pkReferenceSpec, data: pkData, formInfo: PK_FORM_INFO, rawFields: PK_RAW_FIELDS,
+  relrec: PK_RELREC, relNeed: ['PC', 'PP'], facts: PK_FACTS, conventions: PK_CONVENTIONS, arms: PK_ARMS, sites: PK_SITES, visits: PK_VISITS,
 }

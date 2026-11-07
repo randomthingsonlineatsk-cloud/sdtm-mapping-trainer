@@ -6,6 +6,39 @@ import { CT_INFO, VERSION_LABEL } from '../domain/standards'
 import { raw } from '../domain/seed'
 import { Panel, Table, Stat, Pill } from './ui'
 import { isPk } from '../domain/project'
+import { ONK_STUDY, ONK_ARMS, ONK_SITES, ONK_VISITS, ONK_FACTS, ONK_CONVENTIONS, ONK_IRC, ONK_CUT, onkRaw } from '../domain/onc'
+
+function OnkStudy() {
+  const { p } = useStore()
+  const { forms, subjects } = onkRaw()
+  const rand = subjects.filter((s) => s.arm)
+  return (
+    <div className="space-y-4">
+      <Panel title={ONK_STUDY.title} sub={`Protocol ${ONK_STUDY.id} · ${ONK_STUDY.sponsor} · ${ONK_STUDY.phase} · ${ONK_STUDY.indication}`} right={<Pill tone="blue">Fictional</Pill>}>
+        <p className="text-sm">{ONK_STUDY.design}.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <Stat label="Screened" value={subjects.length} /><Stat label="Randomised" value={rand.length} tone="blue" />
+          <Stat label="Lesions" value={forms.TUI.length} /><Stat label="Assessments" value={forms.RSP.length} /><Stat label="Deaths" value={forms.DTH.length} tone="red" />
+        </div>
+        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {ONK_SITES.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. Independent review: {ONK_IRC}. Data cut-off {ONK_CUT}.</p>
+      </Panel>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Panel title="Arms" sub="Planned arms, as they appear in DM."><Table head={['ARMCD', 'ARM']} rows={ONK_ARMS.map((a) => [<span className="font-mono">{a.code}</span>, a.name])} /></Panel>
+        <Panel title="RECIST 1.1 in brief" sub="How the responses in the data are worked out.">
+          <Table head={['Response', 'Target lesions (sum of diameters)']} rows={[
+            ['CR', 'All target lesions gone; lymph nodes below 10 mm short axis'], ['PR', 'At least 30% below the baseline sum'],
+            ['PD', 'At least 20% and 5 mm above the smallest sum so far, or any new lesion, or unequivocal progression of non-target disease'], ['SD', 'Neither PR nor PD'], ['NE', 'Not evaluable (scan not done or incomplete)'],
+          ]} />
+        </Panel>
+      </div>
+      <Panel title="Schedule (visits)" sub="Tumour assessments every 6 weeks from randomisation, whether or not the subject is still on treatment."><Table head={['Visit (raw)', 'VISITNUM', 'VISIT', 'Planned day']} rows={ONK_VISITS.map((v) => [v.raw, v.num, <span className="font-mono">{v.name}</span>, v.day])} /></Panel>
+      <Panel title="Protocol facts"><Table head={['Item', 'Protocol']} rows={ONK_FACTS.map((f) => [<span className="whitespace-nowrap">{f.what}</span>, f.value])} /></Panel>
+      <Panel title="SDTM conventions for this study" sub="The sponsor’s rules for what the SDTMIG leaves to the sponsor. The reference mappings that score the missions follow them exactly.">
+        <Table head={['Topic', 'Convention']} rows={ONK_CONVENTIONS.map((c) => [<span className="font-mono whitespace-nowrap">{c.topic}</span>, c.rule])} />
+      </Panel>
+    </div>
+  )
+}
 import { PK_STUDY, PK_ARMS, PK_SITES, PK_VISITS, PK_FACTS, PK_CONVENTIONS, PK_SCHEDULE, PK_LAB, PK_LLOQ, pkRaw } from '../domain/pk'
 
 function PkStudy() {
@@ -49,6 +82,7 @@ export default function StudyView() {
   const { p } = useStore()
   if (p.imported) return <Imported />
   if (isPk(p)) return <PkStudy />
+  if (p.study === ONK_STUDY.id) return <OnkStudy />
   const subs = raw().subjects
   return (
     <div className="space-y-4">

@@ -41,7 +41,7 @@ export const RULES: Rule[] = [
   { id: 'TRN-015', sev: 'Error', text: '--ORRES is populated but --STRESC is null', basis: 'SDTMIG findings: every original result has a standard result' },
   { id: 'TRN-016', sev: 'Error', text: '--STRESN does not equal the numeric value of --STRESC', basis: 'SDTMIG findings' },
   { id: 'TRN-017', sev: 'Error', text: '--STAT is NOT DONE but a result is present (warning: no --REASND)', basis: 'SDTMIG findings: not-done records carry no result' },
-  { id: 'TRN-018', sev: 'Warning', text: '--ORRES is populated but --ORRESU is null', basis: 'SDTMIG findings: units for results that have them' },
+  { id: 'TRN-018', sev: 'Warning', text: 'A numeric --ORRES has no --ORRESU', basis: 'SDTMIG findings: units for results that have them' },
   { id: 'TRN-019', sev: 'Error', text: 'A numeric variable holds a non-numeric value', basis: 'SDTMIG variable type Num' },
   { id: 'TRN-020', sev: 'Warning', text: 'More than one standard unit for the same test', basis: 'SDTMIG findings: one standard unit per test' },
   { id: 'TRN-021', sev: 'Error', text: 'Reference start is after reference end', basis: 'SDTMIG DM: RFSTDTC on or before RFENDTC' },
@@ -63,6 +63,11 @@ export const RULES: Rule[] = [
   { id: 'TRN-057', sev: 'Warning', text: 'Pre-dose sample (negative planned elapsed time) collected after the reference dose', basis: 'SDTMIG timing: --ELTM and --TPTNUM are planned, --DTC actual; --DTC after --RFTDTC for a pre-dose time point' },
   { id: 'TRN-058', sev: 'Warning', text: '--TPTREF is given but --RFTDTC is null', basis: 'SDTMIG timing: --RFTDTC is the date/time of the reference time point named in --TPTREF' },
   { id: 'TRN-059', sev: 'Error', text: 'Concentration below the LLOQ given as a number, or a BLQ result without the LLOQ', basis: 'SDTMIG PC: results below the lower limit of quantitation are not numeric; --LLOQ gives the limit' },
+  { id: 'TRN-060', sev: 'Error', text: 'TR record points to a lesion that is not in TU', basis: 'SDTMIG TU/TR: --LNKID links each measurement to an identified tumour or lesion' },
+  { id: 'TRN-061', sev: 'Error', text: 'Death details for a subject not flagged as dead in DM', basis: 'SDTMIG DD and DM: a subject with DD records has DTHFL = Y' },
+  { id: 'TRN-062', sev: 'Warning', text: 'A new lesion identified at or before the first dose', basis: 'RECIST 1.1 and SDTMIG TU: lesions at baseline are target or non-target; new lesions appear on study' },
+  { id: 'TRN-063', sev: 'Warning', text: 'A new lesion without an overall response of PD at the same visit and evaluator', basis: 'RECIST 1.1: the appearance of new lesions is progression' },
+  { id: 'TRN-064', sev: 'Warning', text: 'The sum of diameters differs from the sum of the target lesion results at that visit', basis: 'RECIST 1.1: the sum of diameters is the sum of the target lesions (short axes for nodes)' },
   { id: 'TRN-042', sev: 'Warning', text: 'AESER is Y but no seriousness criterion is Y', basis: 'SDTMIG AE: a serious event has at least one criterion' },
   { id: 'TRN-043', sev: 'Warning', text: '--NRIND does not agree with the standard result and range', basis: 'SDTMIG findings: --NRIND against --STNRLO and --STNRHI' },
   { id: 'TRN-044', sev: 'Error', text: '--STRESC is numeric but --STRESN is null', basis: 'SDTMIG findings' },
@@ -71,7 +76,7 @@ export const RULES: Rule[] = [
   { id: 'TRN-047', sev: 'Error', text: 'More than one disposition event for a subject in the same epoch', basis: 'SDTMIG DS: one disposition event per epoch' },
   { id: 'TRN-048', sev: 'Error', text: 'DSDECOD not in the codelist for its DSCAT (NCOMPLT for disposition events, PROTMLST for milestones)', basis: 'CDISC CT: DSDECOD codelist depends on DSCAT' },
   { id: 'TRN-049', sev: 'Error', text: 'SUPP-- or NS--: a qualifier or non-standard variable name that is not a valid SAS V5 name or reuses a standard variable, a label over 40 characters, or a record with no parent record', basis: 'SDTMIG v3.4 supplemental qualifiers; SDTMIG v4.0 draft non-standard variable datasets; SAS V5 transport limits' },
-  { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, visit and date/time)', basis: 'FDA validator rules: duplicate records' },
+  { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, visit, date/time, link ID, evaluator and time point)', basis: 'FDA validator rules: duplicate records' },
   { id: 'TRN-052', sev: 'Error', text: 'Value longer than 200 characters', basis: 'SAS V5 transport format limit (Study Data Technical Conformance Guide)' },
   { id: 'TRN-053', sev: 'Error', text: '--TESTCD over 8 characters or not starting with a letter, or --TEST over 40 (IETEST over 200)', basis: 'SDTMIG findings; SAS V5 transport limits' },
 ]
@@ -80,7 +85,7 @@ const ISO = /^(\d{4})(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01])(T([01]\d|2[0-3])(:
 export const isIso8601 = (s: string) => ISO.test(s)
 const isNum = (s: string) => /^-?\d+(\.\d+)?(e-?\d+)?$/i.test(s)
 
-export interface CheckContext { dm?: Built; ta?: Built; tv?: Built; ts?: Built; set?: RuleSet }
+export interface CheckContext { dm?: Built; ta?: Built; tv?: Built; ts?: Built; tu?: Built; set?: RuleSet }
 export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): Finding[] {
   const ctx: CheckContext = dmOrCtx && 'rows' in dmOrCtx ? { dm: dmOrCtx } : (dmOrCtx as CheckContext) ?? {}
   const dm = ctx.dm
@@ -130,7 +135,7 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
       if (r[`${p}ORRES`]) add('TRN-017', `${p}STAT`, `NOT DONE with ${p}ORRES "${r[`${p}ORRES`]}"`, i)
       else if (has(`${p}REASND`) && !r[`${p}REASND`]) add('TRN-017', `${p}REASND`, 'NOT DONE without a reason', i, 'Warning')
     }
-    if (has(`${p}ORRESU`) && r[`${p}ORRES`] && !r[`${p}ORRESU`]) add('TRN-018', `${p}ORRESU`, `${p}ORRES "${r[`${p}ORRES`]}" has no unit`, i)
+    if (has(`${p}ORRESU`) && r[`${p}ORRES`] && isNum(r[`${p}ORRES`]) && !r[`${p}ORRESU`]) add('TRN-018', `${p}ORRESU`, `${p}ORRES "${r[`${p}ORRES`]}" has no unit`, i)
     const st = r[`${p}STDTC`], en = r[`${p}ENDTC`]
     if (st && en && isIso8601(st) && isIso8601(en) && cmpDtc(st, en) > 0) add('TRN-041', `${p}STDTC`, `${p}STDTC ${st} is after ${p}ENDTC ${en}`, i)
     const tr = r[`${p}TPTREF`], rf = r[`${p}RFTDTC`], dtc = r[`${p}DTC`]
@@ -163,8 +168,28 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
   })
   if (has(`${d}TESTCD`) && has(`${d}DTC`)) {
     const seen = new Map<string, number>()
-    b.rows.forEach((r, i) => { if (r[`${d}STAT`] === 'NOT DONE') return; const k = `${r.USUBJID}|${r[`${d}TESTCD`]}|${r.VISITNUM ?? ''}|${r[`${d}DTC`]}`; if (seen.has(k)) add('TRN-050', `${d}TESTCD`, `${r[`${d}TESTCD`]} for ${r.USUBJID} at ${r[`${d}DTC`]} repeats record ${seen.get(k)! + 1}`, i); else seen.set(k, i) })
+    b.rows.forEach((r, i) => { if (r[`${d}STAT`] === 'NOT DONE') return; const k = `${r.USUBJID}|${r[`${d}TESTCD`]}|${r.VISITNUM ?? ''}|${r[`${d}DTC`]}|${['LNKID', 'EVAL', 'EVALID', 'TPTREF', 'TPTNUM'].map((x) => r[`${d}${x}`] ?? '').join('|')}`; if (seen.has(k)) add('TRN-050', `${d}TESTCD`, `${r[`${d}TESTCD`]} for ${r.USUBJID} at ${r[`${d}DTC`]} repeats record ${seen.get(k)! + 1}`, i); else seen.set(k, i) })
   }
+  // Oncology: TU, TR, RS and DD against each other.
+  if (d === 'TR' && ctx.tu && has('TRLNKID')) {
+    const ids = new Set(ctx.tu.rows.map((t) => `${t.USUBJID}|${t.TULNKID}`))
+    b.rows.forEach((r, i) => { if (r.TRLNKID && !ids.has(`${r.USUBJID}|${r.TRLNKID}`)) add('TRN-060', 'TRLNKID', `Lesion ${r.TRLNKID} of ${r.USUBJID} is not in TU`, i) })
+  }
+  if (d === 'TR' && has('TRTESTCD') && has('TRSTRESN')) {
+    const sums = new Map<string, number>(), meas = new Map<string, number>()
+    b.rows.forEach((r) => {
+      const k = `${r.USUBJID}|${r.VISITNUM}|${r.TREVAL ?? ''}`, n = Number(r.TRSTRESN)
+      if (r.TRSTRESN === '' || Number.isNaN(n)) return
+      if (r.TRTESTCD === 'SUMDIAM') sums.set(k, n); else if (r.TRTESTCD === 'LDIAM' || r.TRTESTCD === 'SAXIS') meas.set(k, (meas.get(k) ?? 0) + n)
+    })
+    b.rows.forEach((r, i) => { if (r.TRTESTCD !== 'SUMDIAM') return; const k = `${r.USUBJID}|${r.VISITNUM}|${r.TREVAL ?? ''}`; const m = meas.get(k); if (sums.has(k) && m !== undefined && Math.abs(m - sums.get(k)!) > 0.5) add('TRN-064', 'TRSTRESN', `${r.USUBJID} ${r.VISIT}: SUMDIAM ${sums.get(k)} mm, target lesions add up to ${m} mm`, i) })
+  }
+  if (d === 'TU' && dm && has('TUSTRESC')) b.rows.forEach((r, i) => { const rf = dm.rows.find((x) => x.USUBJID === r.USUBJID)?.RFSTDTC ?? ''; if (r.TUSTRESC === 'NEW' && rf && r.TUDTC && cmpDtc(r.TUDTC, rf) <= 0) add('TRN-062', 'TUSTRESC', `New lesion ${r.TULNKID ?? ''} of ${r.USUBJID} on ${r.TUDTC}, before the first dose`, i) })
+  if (d === 'RS' && has('RSTESTCD')) {
+    const ov = new Map(b.rows.filter((r) => r.RSTESTCD === 'OVRLRESP').map((r) => [`${r.USUBJID}|${r.VISITNUM}|${r.RSEVAL ?? ''}`, r.RSSTRESC]))
+    b.rows.forEach((r, i) => { if (r.RSTESTCD === 'NEWLPROG' && r.RSSTRESC === 'Y') { const o = ov.get(`${r.USUBJID}|${r.VISITNUM}|${r.RSEVAL ?? ''}`); if (o !== undefined && o !== 'PD') add('TRN-063', 'RSSTRESC', `${r.USUBJID} ${r.VISIT}: new lesion with overall response ${o || 'missing'}`, i) } })
+  }
+  if (d === 'DD' && dm) b.rows.forEach((r, i) => { const m = dm.rows.find((x) => x.USUBJID === r.USUBJID); if (m && m.DTHFL !== 'Y') add('TRN-061', 'USUBJID', `${r.USUBJID} has death details but DTHFL is "${m.DTHFL ?? ''}"`, i) })
   if (d === 'DS' && has('DSCAT') && has('EPOCH')) {
     const seen = new Set<string>()
     b.rows.forEach((r, i) => { if (r.DSCAT !== 'DISPOSITION EVENT') return; const k = `${r.USUBJID}|${r.EPOCH}`; if (seen.has(k)) add('TRN-047', 'DSDECOD', `Second disposition event for ${r.USUBJID} in ${r.EPOCH || 'null epoch'}`, i); seen.add(k) })

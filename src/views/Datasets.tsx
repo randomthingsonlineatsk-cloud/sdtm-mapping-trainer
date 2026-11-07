@@ -36,7 +36,7 @@ export default function Datasets() {
   const [domain, setDomain] = useState(nav.arg && names.includes(nav.arg) ? nav.arg : names.find((n) => n !== 'SE') ?? names[0] ?? '')
   const ctx = useMemo(() => {
     const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(refSpecFor(p, 'DM'), data, p.version)
-    return { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), set: p.ruleSet }
+    return { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), tu: all.get('TU'), set: p.ruleSet }
   }, [all, p.ruleSet])
   const built = all.get(domain)
   const findings = useMemo(() => {

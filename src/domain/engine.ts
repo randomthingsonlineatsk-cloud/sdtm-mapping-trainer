@@ -31,7 +31,7 @@ export type OutRow = Record<string, string> & { __trace: string; __subj: string 
 export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[]; supp?: Built; labels?: Record<string, string>; origins?: Record<string, string> }
 
 // ---------- the study context the functions read ----------
-export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[]; arms?: { code: string; name: string }[]; sites?: { id: string; iso: string }[] }
+export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[]; arms?: { code: string; name: string }[]; sites?: { id: string; iso: string }[]; epochTail?: number /* days the TREATMENT epoch runs past the last dose */ }
 const UNSCHEDULED = new Set(['Unscheduled', 'UNS'])
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -129,7 +129,8 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
       const st = dm('RFXSTDTC'), en = dm('RFXENDTC')
       if (!st) return 'SCREENING'
       if (cmpDtc(d, st) < 0) return 'SCREENING'
-      return !en || d.slice(0, 10) <= en.slice(0, 10) ? 'TREATMENT' : 'FOLLOW-UP'
+      const end = en && data.epochTail ? new Date(Date.parse(`${en.slice(0, 10)}T00:00:00Z`) + data.epochTail * 86400000).toISOString().slice(0, 10) : en.slice(0, 10)
+      return !en || d.slice(0, 10) <= end ? 'TREATMENT' : 'FOLLOW-UP'
     },
     visitnum: (visit, date) => visitInfo(S(visit), S(date)).num,
     visitname: (visit, date) => visitInfo(S(visit), S(date)).name,

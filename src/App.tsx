@@ -2,8 +2,7 @@ import { createContext, useContext, useState } from 'react'
 import { StoreProvider, useStore } from './state'
 import { VERSION_LABEL } from './domain/standards'
 import { STUDY } from './domain/study'
-import { PK_STUDY } from './domain/pk'
-import { isPk, isGlv } from './domain/project'
+import { packOf, isGlv } from './domain/project'
 import { Pill } from './views/ui'
 import Learn from './views/Learn'
 import StudyView from './views/Study'
@@ -47,7 +46,7 @@ function Shell() {
           <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h1 className="font-mono text-sm text-lab-fda">SDTM Mapping Trainer</h1>
-              <p className="text-[11px] text-lab-text-muted">{p.imported ? `${p.imported.protocol} · imported from the CDM Console` : isPk(p) ? `${PK_STUDY.id} · ${PK_STUDY.short}` : `${STUDY.id} · ${STUDY.short}`} · fictional study for training</p>
+              <p className="text-[11px] text-lab-text-muted">{p.imported ? `${p.imported.protocol} · imported from the CDM Console` : packOf(p) ? `${packOf(p)!.id} · ${packOf(p)!.short}` : `${STUDY.id} · ${STUDY.short}`} · fictional study for training</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Pill tone={p.version === '3.4' ? 'blue' : 'purple'}>{VERSION_LABEL[p.version]}</Pill>

@@ -13,8 +13,7 @@ import { referenceSpec, studyData, AETRTEM, SORT, REF_RELREC, REF_CUSTOM, REF_DO
 import { buildRelrec, checkRelrec } from './relrec'
 import { crfPages, suggest, checkAcrf, domainsOf, namedVars, NOT_SUBMITTED } from './acrf'
 import { compareDatasets } from './qc'
-import { refSpecFor, studyIdOf, isPk, type Level } from './project'
-import { pkData, PK_RELREC } from './pk'
+import { refSpecFor, studyIdOf, packOf, type Level } from './project'
 import { STUDY } from './study'
 import { rBuilt, rekey } from './rlib'
 // Natural keys that match an R program's rows to the reference's.
@@ -95,6 +94,15 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S23', domains: ['CM'], kind: 'r', phase: 4, title: 'Program CM in R', pass: PASS,
     brief: 'Write CM as a clinical programmer does, in real R running in your browser (base R, with the study’s helper functions for dates, study days and epochs). Build a data frame called cm from raw$CM, save its result, and it is scored like any other CM: variable by variable against the reference, with the conformance checks.',
     watch: ['Every raw column is character, blanks are ""', 'dtc_iso() keeps partial dates partial (UN-MAR-2026 is 2026-03)', 'Sort by the CM keys before numbering CMSEQ with seq_within()', 'Ongoing medications: CMENRTPT ONGOING with CMENTPT END OF STUDY', 'Rows are matched to the reference by USUBJID and CMSPID'] },
+  { id: 'S24', study: 'ONK-44-302', domains: ['TU', 'TR'], kind: 'map', phase: 4, title: 'Oncology: TU and TR by RECIST 1.1', pass: PASS,
+    brief: 'Map the investigator’s lesions to TU (target and non-target at screening, new lesions when they appear) and every assessment to TR: each lesion’s diameter (the short axis for a lymph node), the state of non-target and new lesions, and the sum of diameters from the response form, linked to TU by lesion ID and to RS by visit.',
+    watch: ['TRTESTCD depends on the lesion: LDIAM, SAXIS for a node, TUMSTATE for non-target and new lesions', 'Too small to measure is 5 mm by RECIST 1.1, but TRORRES keeps what was recorded', 'The sum of diameters is a second source: one SUMDIAM record per visit', 'A scan not done stays as NOT DONE records', 'Scans after treatment stopped are in the FOLLOW-UP epoch', 'Do not correct the site’s sum of diameters'] },
+  { id: 'S25', study: 'ONK-44-302', domains: ['RS', 'RELREC'], kind: 'map', phase: 4, title: 'Oncology: RS from two assessors, related to TU and TR', pass: PASS,
+    brief: 'Map the responses to RS from both assessors: the investigator’s (response form) and the independent central review’s (vendor file), one record per test per visit per assessor. Then relate the datasets on the Relationships tab: TU to TR by lesion ID, TR to RS by visit link group (dataset level). TU and TR must be mapped first.',
+    watch: ['Two sources in one domain: add the IRC file as a second source', 'RSEVAL tells the assessors apart; the vendor’s reader goes in RSEVALID', 'Recode the vendor’s Non-CR/Non-PD and Not evaluable', 'No non-target record when a subject had no non-target lesions', 'Keep the investigator’s response even where the measurements suggest another', 'RELREC here is dataset level: RELTYPE ONE and MANY, USUBJID null'] },
+  { id: 'S26', study: 'ONK-44-302', domains: ['DM', 'DD', 'PR'], kind: 'map', phase: 4, title: 'Oncology: DM with death, DD and PR', pass: PASS,
+    brief: 'Map DM with the treatment dates of two very different regimens and the deaths (DTHFL, DTHDTC), DD from the death form, and PR from the prior cancer procedures (surgery, radiotherapy with its dose, biopsies).',
+    watch: ['RFENDTC is the end of the last ONK-44 cycle or the last docetaxel infusion', 'A date of death can be partial', 'RFPENDTC is the last contact, which may be the death', 'Radiotherapy dose in Gy goes to PRDOSE and PRDOSU', 'Screen failures have prior procedures too'] },
   { id: 'S19', study: 'PKX-07-101', domains: ['DM', 'EX'], kind: 'map', phase: 3, title: 'PK study: DM and EX with exact dose times', pass: PASS,
     brief: 'PKX-07-101 is a first-in-human study: every concentration is timed from a dose, so the dose times matter. Map DM (reference dates to the minute, arms from the IRT, screen failures) and EX (one record per dose, unblinded from the IRT kit arm, with the clock time from the dosing log).',
     watch: ['RFSTDTC and RFXSTDTC carry the time of the first dose; RFENDTC the last dose', 'Part A doses once (EXDOSFRQ ONCE), Part B daily for 7 days (QD)', 'Placebo: EXTRT PLACEBO, EXDOSE 0', 'The dosing log time is 24-hour HH:MM'] },
@@ -158,14 +166,16 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const def = MISSIONS.find((m) => m.id === id)!
   if (p.imported) throw new Error('Missions run on the trainer’s studies. Open or start a GLV-12-301 or PKX-07-101 project.')
   if ((def.study ?? STUDY.id) !== studyIdOf(p)) throw new Error(`Mission ${id} runs on ${def.study ?? STUDY.id}: open a project on that study.`)
-  const data = isPk(p) ? pkData() : studyData(p.transfer ?? 1)
+  const pack = packOf(p)
+  const data = pack ? pack.data() : studyData(p.transfer ?? 1)
   const cost = levelOf(p, id) === 'expert' ? 2 : 1
   const referenceSpec = (d: string, _v: Version) => refSpecFor(p, d)
   const ver = p.version
   if (def.kind === 'acrf') return evaluateAcrf(p, data)
   if (def.kind === 'package') return evaluatePackage(p, data)
   const refDesign = referenceDesign(ver, p.transfer ?? 1)
-  const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ...(isPk(p) ? {} : { ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver) }), set: p.ruleSet }
+  const tu = pack?.domains.includes('TU') ? build(p.specs.TU?.vars.length ? p.specs.TU : referenceSpec('TU', ver), data, ver) : undefined
+  const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), tu, ...(pack ? {} : { ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver) }), set: p.ruleSet }
   const results: DomainResult[] = []
   const errs: string[] = []
   const explainedOk: string[] = [], explainedWrongly: string[] = []
@@ -182,11 +192,11 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
     } else if (def.kind === 'design' || (def.kind === 'capstone' && TRIAL_DESIGN.includes(d))) {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
     } else if (d === 'RELREC') {
-      const need = isPk(p) ? ['PC', 'PP'] : ['AE', 'CM', 'LB']
+      const need = pack ? pack.relNeed : ['AE', 'CM', 'LB']
       for (const x of need) if (!p.specs[x]?.vars.length) throw new Error(`Map ${x} first: RELREC points to its records.`)
       const mineB = Object.fromEntries(need.map((x) => [x, build(p.specs[x], data, ver)]))
       const refB = Object.fromEntries(need.map((x) => [x, build(referenceSpec(x, ver), data, ver)]))
-      mine = buildRelrec(p.relrec ?? [], mineB, data); ref = buildRelrec(isPk(p) ? PK_RELREC : REF_RELREC, refB, data)
+      mine = buildRelrec(p.relrec ?? [], mineB, data); ref = buildRelrec(pack ? pack.relrec : REF_RELREC, refB, data)
       relFindings = checkRelrec(mine, mineB)
     } else if (isRel(d)) {
       const parent = relParent(d)

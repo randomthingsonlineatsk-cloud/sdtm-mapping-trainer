@@ -15,9 +15,8 @@ import { allDatasets } from './datasets'
 import { packageFindings, toIssues, statusOf, explanationOf } from './validation'
 import { TRIAL_DESIGN, CT_INFO, VERSION_LABEL } from './standards'
 import { STUDY } from './study'
-import { PK_STUDY, PK_RAW_FIELDS, PK_FORM_INFO } from './pk'
 import { TRANSFERS } from './seed'
-import { isPk, studyIdOf, type Project } from './project'
+import { packOf, studyIdOf, type Project } from './project'
 
 export const HANDOFF_FORMAT = 'sdtm-trainer-handoff'
 export interface HandoffVariable { name: string; label: string; type: string; length?: number; key?: number; role?: string; mandatory: boolean; codelist?: string; origin: string; derivation?: string }
@@ -33,10 +32,10 @@ export interface Handoff {
 }
 
 export function defineFor(p: Project, data: StudyData, all: Map<string, Built>): DefineModel {
-  const pk = isPk(p)
+  const pack = packOf(p)
   return buildDefine({
-    builts: all, specs: p.specs, version: p.version, laid: pk ? [] : layoutAcrf(crfPages(data.forms), p.acrf ?? {}), designDomains: TRIAL_DESIGN,
-    ...(pk ? { study: { id: PK_STUDY.id, title: PK_STUDY.title }, rawFields: PK_RAW_FIELDS, formSource: Object.fromEntries(Object.entries(PK_FORM_INFO).map(([k, v]) => [k, v.source === 'EDC' ? 'Investigator' : 'Vendor'])) } : {}),
+    builts: all, specs: p.specs, version: p.version, laid: pack ? [] : layoutAcrf(crfPages(data.forms), p.acrf ?? {}), designDomains: TRIAL_DESIGN,
+    ...(pack ? { study: { id: pack.id, title: pack.title }, rawFields: pack.rawFields, formSource: Object.fromEntries(Object.entries(pack.formInfo).map(([k, v]) => [k, v.source === 'EDC' ? 'Investigator' : 'Vendor'])) } : {}),
   })
 }
 
@@ -65,12 +64,12 @@ export function buildHandoff(p: Project, data: StudyData, now = new Date()): { m
   })
   files['define.xml'] = strToU8(toDefineXml(m))
   files[STYLESHEET] = strToU8(DEFINE_XSL)
-  const t = isPk(p) ? null : TRANSFERS[p.transfer ?? 1]
+  const t = packOf(p) ? null : TRANSFERS[p.transfer ?? 1]
   const count = (s: string) => issues.filter((i) => statusOf(i, p) === s).length
   const manifest: Handoff = {
     format: HANDOFF_FORMAT, version: 1, createdUtc: now.toISOString(),
     producer: { app: 'SDTM Mapping Trainer', project: p.name, userId: p.userId, classId: p.classId },
-    study: { id: studyIdOf(p), title: isPk(p) ? PK_STUDY.title : STUDY.title, transfer: t ? { number: p.transfer ?? 1, label: t.label, date: t.date } : null },
+    study: { id: studyIdOf(p), title: packOf(p)?.title ?? STUDY.title, transfer: t ? { number: p.transfer ?? 1, label: t.label, date: t.date } : null },
     standards: { model: VERSION_LABEL[p.version], ct: CT_INFO.label, define: 'Define-XML 2.1', datasetJson: 'Dataset-JSON 1.1', xpt: 'SAS V5 transport' },
     validation: {
       ruleSet: p.ruleSet, lastRunUtc: last?.utc ?? null, mustFix: count('Must fix'), open: count('Open'), explained: count('Explained'),
