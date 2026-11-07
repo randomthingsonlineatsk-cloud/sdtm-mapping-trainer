@@ -116,6 +116,12 @@ rules; no vendor rule text or tool is copied.
   TSVALCD (metformin by its FDA SRS UNII, the indication by SNOMED CT 44054006, and fictional
   codes for the fictional product and its class); null flavors. Five new checks (TRN-035 to
   TRN-039) are errors under the FDA rule set and warnings under CDISC.
+- **Specification first:** a Specification tab where each domain's mapping specification is
+  written before programming (origin, raw field as FORM.FIELD, derivation), submitted for
+  review, approved by someone other than its author, and revised only as a new version with a
+  reason, with the change history. The program is checked against the approved version, and
+  the Mapping workspace shows the specification line for the variable being programmed.
+  Mission S14 runs the whole cycle on CM.
 
 ## Coming next
 

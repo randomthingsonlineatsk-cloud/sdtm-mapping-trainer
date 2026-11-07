@@ -9,12 +9,14 @@ import { build, type Built, type DomainSpec } from './engine'
 import { check, summarise, type Finding } from './conformance'
 import { referenceSpec, studyData, AETRTEM, SORT } from './reference'
 import { compareDatasets } from './qc'
+import { currentVersion, mismatches } from './plan'
+import { RAW_FIELDS } from './seed'
 import { designBuilt, referenceDesign, TEXT_VARS, TS_TEXT_PARAMS } from './design'
 import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } from './standards'
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
@@ -57,6 +59,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S13', domains: ['EC', 'DV', 'CO'], kind: 'map', phase: 2, title: 'Map EC, DV and CO', pass: PASS,
     brief: 'Build EC (exposure as collected, still blinded) from the dosing form, DV from the protocol deviation log exported from the CTMS, and CO from the sites’ comments.',
     watch: ['EC records what the site saw: a blinded kit, in tablets; EX records what was given', 'The deviation log comes from another system, with its own date format', 'Each comment links to the domain of the form it was written on', 'A comment over 200 characters continues in COVAL1, split between words'] },
+  { id: 'S14', domains: ['CM'], kind: 'spec', phase: 2, title: 'Specification first: CM', pass: 'CM 70% or more with no blocking finding, a specification approved by a reviewer other than its author, and a program that follows the approved version',
+    brief: 'Work the way a sponsor or CRO does. Write the CM specification on the Specification tab, have it reviewed and approved by someone else, then program CM against it. When the program has to differ, revise the specification with a reason and approve the new version. Starting clears your CM specification and program.',
+    watch: ['Name the raw field of every collected variable as FORM.FIELD', 'Describe each derivation in words someone else could program from', 'The author cannot approve their own specification', 'A change after approval is a new version with a reason, not an edit'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -96,6 +101,7 @@ export function startMission(p: Project, id: string): MissionRun {
   const run: MissionRun = { id, startedUtc: new Date().toISOString(), version: p.version, ruleSet: p.ruleSet }
   if (def.kind === 'fix') { p.specs.AE = brokenSpec('AE', p.version); p.specs.LB = brokenSpec('LB', p.version) }
   if (def.kind === 'rerun') p.transfer = 2
+  if (def.kind === 'spec') for (const d of def.domains) { delete p.specs[d]; if (p.plan) delete p.plan[d] }
   if (def.kind === 'qc') { p.specs.VS = brokenSpec('VS', p.version); if (p.qc) delete p.qc.VS; if (p.qcLog) delete p.qcLog.VS; if (p.qcSignoff) delete p.qcSignoff.VS }
   p.missions.push(run)
   log(p, `Mission ${id} started (${p.version === '3.4' ? 'SDTMIG v3.4' : 'SDTMIG v4.0 draft'}, ${p.ruleSet} rules)`)
@@ -143,6 +149,15 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const score = Math.round(results.reduce((a, r) => a + r.score, 0) / results.length)
   let passed = results.every((r) => r.passed)
   const qcNotes: string[] = []
+  if (def.kind === 'spec') for (const d of def.domains) {
+    const plan = p.plan?.[d], cur = plan && currentVersion(plan)
+    if (!cur) { passed = false; qcNotes.push(`${d}: no approved specification`); continue }
+    if (cur.approver === cur.author) { passed = false; qcNotes.push(`${d}: specification approved by its own author`) }
+    const forms = Object.keys(data.forms)
+    const mm = mismatches(cur.rows, p.specs[d], Object.fromEntries(forms.map((f) => [f, RAW_FIELDS[f]?.map((x) => x.name) ?? []])))
+    if (mm.length) { passed = false; qcNotes.push(`${d}: the program differs from specification ${cur.version} in ${mm.length} place${mm.length === 1 ? '' : 's'}: ${mm.slice(0, 3).map((x) => `${x.variable} (${x.what})`).join('; ')}`) }
+    else qcNotes.push(`${d}: the program follows specification ${cur.version}`)
+  }
   if (def.kind === 'qc') for (const d of def.domains) {
     const c = compareDatasets(build(p.specs[d], data, ver), build(p.qc![d], data, ver), SORT[d] ?? ['USUBJID'])
     const run = activeRun(p, id) ?? [...p.missions].reverse().find((m) => m.id === id)
