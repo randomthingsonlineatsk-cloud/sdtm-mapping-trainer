@@ -9,6 +9,7 @@ import { FORM_INFO } from './seed'
 
 export interface SpecRow { dataset: string; variable: string; label: string; type: string; length: string; core: string; codelist: string; origin: string; source: string; method: string }
 const COLLECTED_FNS = new Set(['iso', 'dtc', 'upper', 'trim', 'replace'])
+export const CODING = /^(AE|MH)(LLT|LLTCD|DECOD|PTCD|HLT|HLTCD|HLGT|HLGTCD|SOC|SOCCD|BODSYS)$|^CM(DECOD|DRN|CLAS|CLASCD)$/
 
 function onlyRaw(n: Node, raw: Set<string>): boolean {
   if (n.k === 'lit') return true
@@ -20,6 +21,10 @@ export function originOf(rule: Rule | undefined, source: string, rawFields: stri
   const who = FORM_INFO[source]?.source === 'EDC' || !FORM_INFO[source] ? 'Investigator' : 'Vendor'
   if (!rule) return { origin: 'Not Available', source: '' }
   if (rule.kind === 'const') return { origin: 'Assigned', source: 'Sponsor' }
+  // Dictionary coding (the coding team's export) is assigned by the sponsor, not collected.
+  if ((rule.kind === 'copy' || rule.kind === 'recode') && CODING.test(rule.field)) return { origin: 'Assigned', source: 'Sponsor' }
+  // The test a findings record is for is printed on the CRF, not entered: assigned.
+  if ((rule.kind === 'copy' || rule.kind === 'recode') && (rule.field === '__TESTCD' || rule.field === '__FIELD')) return { origin: 'Assigned', source: 'Sponsor' }
   if (rule.kind === 'copy' || rule.kind === 'recode') return { origin: 'Collected', source: who }
   if (rule.kind === 'expr') { try { if (onlyRaw(parse(rule.expr), new Set(rawFields))) return { origin: 'Collected', source: who } } catch { /* fall through */ } }
   return { origin: 'Derived', source: 'Sponsor' }

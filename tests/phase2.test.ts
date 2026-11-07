@@ -410,6 +410,7 @@ describe('specification first (mission S14)', () => {
     pl.rows = spec.vars.map((v) => {
       const r = spec.rules[v]
       if (r.kind === 'const') return { variable: v, origin: 'Assigned' as const, source: '', method: `“${r.value}”` }
+      if (r.kind === 'copy' && /^CM(DECOD|CLAS|CLASCD)$/.test(r.field)) return { variable: v, origin: 'Assigned' as const, source: '', method: 'From the drug coding export' }
       if (r.kind === 'copy') return { variable: v, origin: 'Collected' as const, source: `CM.${r.field}`, method: '' }
       return { variable: v, origin: 'Derived' as const, source: '', method: 'See conventions' }
     })
@@ -513,5 +514,35 @@ describe('Phase 3b: annotated CRF', () => {
     expect(text).toContain('/Outlines'); expect(text).toContain('/Link')
     expect((text.match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(12)
     expect(evaluateMission(p, 'S17').score).toBe(100)
+  })
+})
+
+describe('Phase 3c: define.xml', () => {
+  test('generated from the reference project with no define findings, well formed, with origins and methods', async () => {
+    const { allDatasets } = await import('../src/domain/datasets')
+    const { buildDefine, toDefineXml, checkDefine } = await import('../src/domain/define')
+    const { layoutAcrf } = await import('../src/domain/acrf')
+    const { TRIAL_DESIGN, registerCustom } = await import('../src/domain/standards')
+    const p = full(); registerCustom(p.custom)
+    const all = allDatasets(p, data)
+    const m = buildDefine({ builts: all, specs: p.specs, version: '3.4', laid: layoutAcrf(crfPages(raw().forms), p.acrf!), designDomains: TRIAL_DESIGN })
+    expect(checkDefine(m, all)).toEqual([])
+    const item = (o: string) => m.items.find((x) => x.oid === o)!
+    expect(item('IT.DM.BRTHDTC').origin).toMatchObject({ type: 'Collected', source: 'Investigator' })
+    expect(item('IT.DM.BRTHDTC').origin.pages!.length).toBe(1)
+    expect(item('IT.DM.AGE').method).toBe('MT.DM.AGE')
+    expect(item('IT.AE.AEDECOD').origin.type).toBe('Assigned')
+    expect(item('IT.VS.VSTESTCD').origin.type).toBe('Assigned')
+    expect(item('IT.TS.TSVAL').origin.type).toBe('Protocol')
+    expect(m.valueLists.map((v) => v.oid)).toEqual(expect.arrayContaining(['VL.VS.VSORRES', 'VL.LB.LBORRES', 'VL.SUPPDM.QVAL']))
+    const xml = toDefineXml(m)
+    expect(xml).toContain('def:DefineVersion="2.1.0"'); expect(xml).toContain('<def:PDFPageRef'); expect(xml).toContain('<def:Class Name="SPECIAL PURPOSE"/>')
+    // Elements stay balanced (a cheap well-formedness check; the build also runs xmllint in development).
+    for (const t of ['ItemGroupDef', 'ItemDef', 'CodeList', 'MethodDef', 'def:ValueListDef']) expect((xml.match(new RegExp(`<${t}[ >]`, 'g')) ?? []).length).toBe((xml.match(new RegExp(`</${t}>`, 'g')) ?? []).length)
+    // An unannotated collected variable is reported.
+    const p2 = full(); delete p2.acrf!.DM.BRTHDAT
+    const m2 = buildDefine({ builts: all, specs: p2.specs, version: '3.4', laid: layoutAcrf(crfPages(raw().forms), p2.acrf!), designDomains: TRIAL_DESIGN })
+    expect(checkDefine(m2, all).some((f) => f.rule === 'DEF-001' && f.where === 'DM.BRTHDTC')).toBe(true)
+    registerCustom([])
   })
 })

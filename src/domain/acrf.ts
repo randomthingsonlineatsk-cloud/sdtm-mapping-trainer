@@ -21,7 +21,7 @@ export function crfPages(forms: Record<string, Row[]>): CrfPage[] {
   return Object.keys(FORM_INFO).filter((f) => FORM_INFO[f].source === 'EDC').map((form) => {
     const rows = forms[form] ?? []
     const visits = rows.some((r) => r.VISIT) ? [...new Set(rows.map((r) => r.VISIT).filter(Boolean))].sort((a, b) => VISIT_ORDER.indexOf(a) - VISIT_ORDER.indexOf(b)) : ['DM', 'IC', 'IE', 'MH'].includes(form) ? ['Screening'] : form === 'DS' ? ['End of study'] : ['Log (any visit)']
-    const fields = (RAW_FIELDS[form] ?? []).filter((f) => f.name !== 'SITEID' && !/^(AE|MH)(LLT|LLTCD|DECOD|PTCD|HLT|HLTCD|HLGT|HLGTCD|SOC|SOCCD|BODSYS|SOCCD)$/.test(f.name) && !/^CM(DECOD|DRN|CLAS|CLASCD)$/.test(f.name)).map((f) => {
+    const fields = (RAW_FIELDS[form] ?? []).filter((f) => (f.name !== 'SITEID' || form === 'DM') && !/^(AE|MH)(LLT|LLTCD|DECOD|PTCD|HLT|HLTCD|HLGT|HLGTCD|SOC|SOCCD|BODSYS|SOCCD)$/.test(f.name) && !/^CM(DECOD|DRN|CLAS|CLASCD)$/.test(f.name)).map((f) => {
       const vals = [...new Set(rows.map((r) => r[f.name]).filter(Boolean))]
       const date = /DAT$/.test(f.name)
       return { name: f.name, label: f.label, date, options: !date && vals.length > 0 && vals.length <= 6 && vals.every((v) => v.length < 40 && !/^\d/.test(v)) ? vals.sort() : [] }
@@ -121,3 +121,51 @@ export function checkAcrf(pages: CrfPage[], notes: Record<string, Record<string,
 // One colour per domain on a page, in the order of the header (the convention most sponsors use).
 export const DOMAIN_COLOURS = ['#BFDBFE', '#FDE68A', '#BBF7D0', '#FBCFE8', '#DDD6FE']
 export const headerOf = (form: string, specs: Record<string, DomainSpec>) => domainsOf(form, specs).map((d) => `${d} (${domainInfo(d)?.name ?? d})`)
+
+// ---------- page layout shared by acrf.pdf and define.xml ----------
+// Text is wrapped by character count so the layout (and so the page each form starts on, which
+// define.xml points to) is the same wherever it is computed.
+export function wrap(text: string, max: number): string[] {
+  const out: string[] = []; let line = ''
+  for (const w of text.split(/\s+/).filter(Boolean)) {
+    if (!line) line = w
+    else if ((line + ' ' + w).length <= max) line += ' ' + w
+    else { out.push(line); line = w }
+    while (line.length > max) { out.push(line.slice(0, max)); line = line.slice(max) }
+  }
+  if (line) out.push(line)
+  return out.length ? out : ['']
+}
+export const PAGE_H = 842, TOP = 118, BOTTOM = 792
+export interface LaidField { name: string; label: string; date: boolean; ann: string[]; opts: string[]; page: number; y: number; h: number; text: string }
+export interface LaidPage { form: string; first: number; last: number; fields: LaidField[] }
+export function layoutAcrf(pages: CrfPage[], notes: Record<string, Record<string, string>>): LaidPage[] {
+  let page = 1 // page 1 is the contents
+  return pages.map((pg) => {
+    page++; const first = page; let y = TOP
+    const fields = pg.fields.map((f) => {
+      const text = notes[pg.form]?.[f.name] ?? ''
+      const ann = wrap(text || '(not annotated)', 46)
+      const opts = f.options.length ? wrap(f.options.map((o) => `( ) ${o}`).join('   '), 52) : []
+      const h = Math.max(30, 12 + ann.length * 10, 22 + opts.length * 9)
+      if (y + h > BOTTOM) { page++; y = 50 }
+      const laid = { name: f.name, label: f.label, date: f.date, ann, opts, page, y, h, text }
+      y += h + 6
+      return laid
+    })
+    return { form: pg.form, first, last: page, fields }
+  })
+}
+// The acrf.pdf pages where a variable is annotated, for define.xml origins. For a supplemental
+// qualifier, pass SUPPDM (or NSDM) and the QNAM.
+export function acrfPageOf(laid: LaidPage[], specs: Record<string, DomainSpec>, domain: string, variable: string): number[] {
+  const pages = new Set<number>()
+  for (const lp of laid) {
+    const doms = domainsOf(lp.form, specs)
+    for (const f of lp.fields) {
+      if (!f.text || f.text === NOT_SUBMITTED) continue
+      if (namedVars(f.text, doms).some((n) => n.domain === domain && n.variable === variable)) pages.add(f.page)
+    }
+  }
+  return [...pages].sort((a, b) => a - b)
+}

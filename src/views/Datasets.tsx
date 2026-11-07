@@ -15,6 +15,7 @@ import { Panel, Pill, Btn, Select, Table, Stat, Tabs, ic } from './ui'
 import { useData, fieldsOf } from './shared'
 import { compareDatasets } from '../domain/qc'
 import { RuleHelp } from './RuleHelp'
+import { allDatasets } from '../domain/datasets'
 import { buildRelrec, checkRelrec } from '../domain/relrec'
 import { studyData } from '../domain/reference'
 
@@ -31,16 +32,7 @@ export default function Datasets() {
   const data = useData()
   const [tab, setTab] = useState<'data' | 'spec'>('data')
   // Every dataset the project has: mapped domains and their SUPP--, the trial design tables, and SE.
-  const all = useMemo(() => {
-    const m = new Map<string, Built>()
-    for (const d of Object.keys(p.specs).sort()) { const s = p.specs[d]; if (!s.vars.length) continue; const b = build(s, data, p.version); m.set(d, b); if (b.supp) m.set(b.supp.domain, b.supp) }
-    if (p.relrec?.length) { const rel = buildRelrec(p.relrec, Object.fromEntries([...m].filter(([k]) => p.specs[k])), data); if (rel.rows.length) m.set('RELREC', rel) }
-    if (!p.imported) {
-      for (const d of TRIAL_DESIGN) if (p.design[d]?.length) m.set(d, designBuilt(d, p.design[d], p.version))
-      m.set('SE', deriveSE())
-    }
-    return m
-  }, [data, tick])
+  const all = useMemo(() => allDatasets(p, data), [data, tick])
   const names = [...all.keys()]
   const [domain, setDomain] = useState(nav.arg && names.includes(nav.arg) ? nav.arg : names.find((n) => n !== 'SE') ?? names[0] ?? '')
   const ctx = useMemo(() => {

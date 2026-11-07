@@ -146,11 +146,19 @@ rules; no vendor rule text or tool is copied.
   from your own mapping; checks that every field is annotated, every variable exists and
   every annotation matches the mapping. acrf.pdf is written in the browser with a linked table
   of contents and bookmarks by form and by visit. Mission S17.
+- **define.xml v2.1:** generated from the datasets, mapping, aCRF and trial design, with
+  def:Standards, class and structure, key sequences, origins of type and source (collected
+  variables point to their acrf.pdf page; dictionary coding and printed test names are
+  Assigned; trial design is Protocol), methods for every derivation, value-level metadata for
+  findings results and supplemental qualifiers, codelists with extended values, comments, and
+  leaf links. A readable preview with working links, the app's own stylesheet for opening the
+  file in a browser, and define checks (origins against the aCRF, codelists against the data,
+  methods, labels, keys).
 
 ## Coming next
 
-- **Rest of Phase 3:** define.xml v2.1 with a preview, the reviewer's guide, a
-  submission-style zip, and a pharmacokinetics study (PC and PP).
+- **Rest of Phase 3:** the reviewer's guide, a submission-style zip, and a pharmacokinetics
+  study (PC and PP).
 - **Phase 4:** a full submission package mission, a certificate, writing real R in the browser,
   and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
