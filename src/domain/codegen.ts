@@ -12,7 +12,7 @@ import { relName, type Version } from './standards'
 type Lang = 'R' | 'SAS'
 const PSEUDO_R: Record<string, string> = { __TESTCD: '.testcd', __RESULT: '.result', __UNIT: '.unit', __FIELD: '.field' }
 const HELPERS: Record<string, string> = {
-  iso: 'iso8601', subj: 'subj_value', subjwhere: 'subj_value_where', irt: 'irt_value', country: 'site_country', armname: 'arm_name', age: 'age_years', dm: 'dm_value',
+  iso: 'iso8601', dtc: 'dtc_iso', subj: 'subj_value', subjwhere: 'subj_value_where', irt: 'irt_value', country: 'site_country', armname: 'arm_name', age: 'age_years', dm: 'dm_value',
   studyday: 'study_day', epoch: 'epoch_of', visitnum: 'visit_num', visitname: 'visit_name', visitdy: 'visit_day', planned: 'is_planned', convert: 'convert_unit',
   stdunit: 'std_unit', ctdecode: 'ct_decode', inct: 'in_ct', lab: 'lab_std',
 }

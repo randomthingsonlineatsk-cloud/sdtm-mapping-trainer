@@ -8,6 +8,7 @@
 // vital signs taken after the dose at one subject, vital signs not done at one Day 1 visit,
 // unscheduled visits, and a missing screening temperature.
 
+import { toEdc, toYmd } from './rawdate'
 import { rng, addDays, type Rng } from './util'
 import { SITES, VISITS, ARMS, STUDY } from './study'
 import { SMD_10, exactLlt, path } from './dictmed'
@@ -27,9 +28,9 @@ export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | '
   EX: { name: 'Study drug administration', source: 'EDC', note: 'One row per kit-dispensing interval, one tablet a day. EXSTTIM is recorded only for the first dose.' },
   DS: { name: 'End of study (disposition)', source: 'EDC', note: 'One row per subject, including screen failures. DSDECOD is the EDC label.' },
   AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event. The coding columns (lowest-level term to system class, with codes) come from the coding team’s export, coded with the Study Medical Dictionary (fictional, MedDRA-shaped).' },
-  CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'One row per medication. CMDECOD and the class come from the coding export (Study Drug Dictionary, fictional, WHODrug-shaped). Start dates may be partial: the EDC exports an unknown day or month by leaving it out.' },
-  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Resent results appear twice.' },
-  IRT: { name: 'IRT randomisation file', source: 'IRT', note: 'External file from the randomisation system: planned arm (RANDARM) and the arm of the kits actually dispensed (KITARM). Screen failures are not in it.' },
+  CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'One row per medication. CMDECOD and the class come from the coding export (Study Drug Dictionary, fictional, WHODrug-shaped). Dates are exported as DD-MMM-YYYY; an unknown day or month is exported as UN or UNK (UN-MAR-2019, UN-UNK-2019).' },
+  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Dates are YYYYMMDD and times HHMM. Resent results appear twice.' },
+  IRT: { name: 'IRT randomisation file', source: 'IRT', note: 'External file from the randomisation system: planned arm (RANDARM) and the arm of the kits actually dispensed (KITARM). Screen failures are not in it. Dates are ISO 8601.' },
 }
 const RAW_FIELD_PAIRS: Record<string, [string, string][]> = {
   DM: [['SUBJID', 'Subject number'], ['SITEID', 'Site'], ['DMDAT', 'Date of collection'], ['BRTHDAT', 'Date of birth'], ['SEX', 'Sex'], ['RACE', 'Race (all that apply, separated by “; ”)'], ['ETHNIC', 'Ethnicity']],
@@ -188,11 +189,20 @@ export function generate(seed = 1230301): RawData {
     }
   })
   phase2(forms, subjects, seed)
+  exportFormats(forms)
   return { forms, subjects }
 }
 
 let cache: RawData | null = null
 export const raw = () => (cache ??= generate())
+
+// The data are generated with ISO dates, then written out the way each source system exports
+// them: the EDC as DD-MMM-YYYY with UN/UNK for unknown parts, the central laboratory as YYYYMMDD
+// with HHMM times, the IRT as ISO 8601.
+function exportFormats(forms: Record<string, Row[]>) {
+  for (const f of ['DM', 'IC', 'SV', 'VS', 'EX', 'DS', 'AE', 'CM']) for (const r of forms[f] ?? []) for (const k of Object.keys(r)) if (/DAT$/.test(k) && r[k]) r[k] = toEdc(r[k])
+  for (const r of forms.LBC ?? []) { r.COLLDATE = toYmd(r.COLLDATE); r.COLLTIME = r.COLLTIME.replace(':', '') }
+}
 
 // ---------- Phase 2 additions (a separate random stream, so the Phase 1 data are unchanged) ----------
 const LAB_TESTS = [

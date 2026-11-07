@@ -12,6 +12,8 @@ import { specRows } from '../src/domain/spec'
 import { CT, CT_INFO, inCt } from '../src/domain/standards'
 import { PLANTED, PLANTED_LAB, RAW_FIELDS } from '../src/domain/seed'
 import { toXpt as xpt } from '../src/domain/exports'
+import { toIso, toIsoTime, anyDate, toEdc } from '../src/domain/rawdate'
+import { raw } from '../src/domain/seed'
 
 const data = studyData()
 const full = (v: '3.4' | '4.0d' = '3.4') => {
@@ -237,5 +239,34 @@ describe('SUPPDM races and the v4.0 draft NS-- datasets', () => {
     const r4 = toR(referenceSpec('DM', '4.0d'), '4.0d'), sas4 = toSAS(referenceSpec('DM', '4.0d'), '4.0d')
     expect(r4).toContain('nsdm <- dm_all'); expect(r4).toContain('IDVARVLN = NA_real_'); expect(r4).not.toContain('pivot_longer')
     expect(sas4).toContain('data nsdm'); expect(sas4).toContain('cmiss(RACE1, RACE2) < 2')
+  })
+})
+
+describe('raw dates as the source systems export them', () => {
+  test('conversion keeps only what was collected', () => {
+    expect(toIso('10-MAR-2026', 'DD-MMM-YYYY')).toBe('2026-03-10')
+    expect(toIso('UN-MAR-2026', 'DD-MMM-YYYY')).toBe('2026-03')
+    expect(toIso('UN-UNK-2019', 'DD-MMM-YYYY')).toBe('2019')
+    expect(toIso('15-UNK-2019', 'DD-MMM-YYYY')).toBe('2019')
+    expect(toIso('20260310', 'YYYYMMDD')).toBe('2026-03-10')
+    expect(() => toIso('31-FEB-2026', 'DD-MMM-YYYY')).toThrow(/calendar/)
+    expect(() => toIso('2026-03-10', 'DD-MMM-YYYY')).toThrow(/not DD-MMM-YYYY/)
+    expect(toIsoTime('0915')).toBe('09:15')
+    expect(anyDate('UN-JAN-2024')).toBe('2024-01')
+    expect(toEdc('2019')).toBe('UN-UNK-2019'); expect(toEdc('2019-03')).toBe('UN-MAR-2019')
+  })
+  test('the raw data uses each system’s format', () => {
+    const f = raw().forms
+    expect(f.EX.every((r) => /^\d{2}-[A-Z]{3}-\d{4}$/.test(r.EXSTDAT))).toBe(true)
+    expect(f.CM.some((r) => /^UN-(UNK|[A-Z]{3})-\d{4}$/.test(r.CMSTDAT))).toBe(true)
+    expect(f.LBC.every((r) => /^\d{8}$/.test(r.COLLDATE) && /^\d{4}$/.test(r.COLLTIME))).toBe(true)
+    expect(f.IRT.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.RANDDT))).toBe(true)
+  })
+  test('the reference builds without errors; copying a raw date fails the ISO 8601 check', () => {
+    for (const k of ['DM', 'VS', 'AE', 'CM', 'EX', 'DS', 'LB', 'SV']) expect(build(referenceSpec(k, '3.4'), data).errors, k).toEqual({})
+    const s = referenceSpec('AE', '3.4'); s.rules.AESTDTC = { kind: 'copy', field: 'AESTDAT' }
+    expect(check(build(s, data), '3.4').some((f) => f.rule === 'TRN-005' && f.variable === 'AESTDTC')).toBe(true)
+    const v = referenceSpec('VS', '3.4'); v.rules.VSDTC = { kind: 'expr', expr: 'iso(VSDAT, VSTIM)' }
+    expect(build(v, data).errors.VSDTC.first).toMatch(/dtc\(field, 'DD-MMM-YYYY'\)/)
   })
 })
