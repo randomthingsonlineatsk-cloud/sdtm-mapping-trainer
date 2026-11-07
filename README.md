@@ -197,10 +197,14 @@ rules; no vendor rule text or tool is copied.
   Datasets count 60% and the package 40%.
 - **Certificate:** pass 12 of the 22 missions, including the capstone, in any of your projects in
   this browser; a verification code from your name, scores, levels and user ID; a PDF.
+- **Hand-off to the TLF Programming Lab** (Datasets & checks tab, both studies): one zip with
+  every dataset as Dataset-JSON v1.1 and XPT v5, define.xml with its stylesheet, and
+  `handoff.json` (format `sdtm-trainer-handoff`, version 1): study, standards, transfer, each
+  dataset's label, class, structure, keys, records and variable metadata (label, type, length,
+  role, codelist, origin, derivation), and the validation status with every issue's explanation.
 
 ## Coming next
-- **Rest of Phase 4:** a hand-off file for the TLF Programming Lab, writing real R in the browser,
-  and an oncology study (RECIST 1.1: TU, TR, RS).
+- **Rest of Phase 4:** writing real R in the browser, and an oncology study (RECIST 1.1: TU, TR, RS).
 - **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
   (RE, QS) and the vaccine study's CE, FACE and IS domains.
 

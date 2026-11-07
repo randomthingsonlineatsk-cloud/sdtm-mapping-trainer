@@ -85,3 +85,25 @@ describe('PKX-07-101', () => {
    }
   })
 })
+
+describe('Phase 4d: hand-off to the TLF Programming Lab', () => {
+  test('both studies: manifest, Dataset-JSON, XPT and define.xml for every dataset', async () => {
+    const { buildHandoff, zipHandoff } = await import('../src/domain/handoff')
+    const { unzipSync } = await import('fflate')
+    const p = createProject('u', 'none', '3.4', 'PKX-07-101')
+    for (const d of PK_DOMAINS) p.specs[d] = pkReferenceSpec(d, '3.4')
+    p.relrec = structuredClone(PK_RELREC)
+    const h = buildHandoff(p, dataFor(p))
+    expect(h.manifest.study.id).toBe('PKX-07-101')
+    expect(h.manifest.datasets.map((d) => d.name)).toEqual(expect.arrayContaining(['DM', 'EX', 'PC', 'PP', 'RELREC']))
+    const pc = h.manifest.datasets.find((d) => d.name === 'PC')!
+    expect(pc.keys).toEqual(['STUDYID', 'USUBJID', 'PCTESTCD', 'PCRFTDTC', 'PCTPTNUM'].filter((k) => pc.keys.includes(k)))
+    expect(pc.variables.find((v) => v.name === 'PCSPEC')!.codelist).toBe('SPECTYPE')
+    expect(h.manifest.validation.issues.map((i) => `${i.dataset} ${i.check}`)).toEqual(['PC TRN-057'])
+    const z = unzipSync(zipHandoff(h.files))
+    expect(Object.keys(z)).toEqual(expect.arrayContaining(['handoff.json', 'define.xml', 'datasets/pc.json', 'datasets/pc.xpt']))
+    const pcj = JSON.parse(new TextDecoder().decode(z['datasets/pc.json']))
+    expect(pcj.studyOID).toBe('PKX-07-101'); expect(pcj.records).toBe(pc.records)
+    expect(new TextDecoder().decode(z['define.xml'])).toContain('<StudyName>PKX-07-101</StudyName>')
+  })
+})

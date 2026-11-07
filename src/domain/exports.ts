@@ -109,14 +109,15 @@ export function toDatasetJson(b: Built, ver: Version, keys: string[] = [], now =
     const k = keys.indexOf(v)
     return { itemOID: `IT.${b.domain}.${v}`, name: v, label: m.label, dataType, ...(len ? { length: len } : {}), ...(k >= 0 ? { keySequence: k + 1 } : {}) }
   })
+  const study = b.rows[0]?.STUDYID || STUDY.id
   return {
     datasetJSONCreationDateTime: now.toISOString().slice(0, 19),
     datasetJSONVersion: '1.1.0',
-    fileOID: `${STUDY.id}.${b.domain}`,
+    fileOID: `${study}.${b.domain}`,
     originator: 'SDTM Mapping Trainer (training data, fictional study)',
     sourceSystem: { name: 'SDTM Mapping Trainer', version: '2' },
-    studyOID: STUDY.id,
-    metaDataVersionOID: `MDV.${STUDY.id}.${ver === '3.4' ? 'SDTMIG.3.4' : 'SDTMIG.4.0.DRAFT'}`,
+    studyOID: study,
+    metaDataVersionOID: `MDV.${study}.${ver === '3.4' ? 'SDTMIG.3.4' : 'SDTMIG.4.0.DRAFT'}`,
     metaDataRef: 'define.xml',
     itemGroupOID: `IG.${b.domain}`,
     records: b.rows.length,
