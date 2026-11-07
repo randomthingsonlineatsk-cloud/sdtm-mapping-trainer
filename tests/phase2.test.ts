@@ -10,7 +10,8 @@ import { toR, toSAS } from '../src/domain/codegen'
 import { parseCt, applyCt } from '../src/domain/ctload'
 import { specRows } from '../src/domain/spec'
 import { CT, CT_INFO, inCt } from '../src/domain/standards'
-import { PLANTED_LAB, RAW_FIELDS } from '../src/domain/seed'
+import { PLANTED, PLANTED_LAB, RAW_FIELDS } from '../src/domain/seed'
+import { toXpt as xpt } from '../src/domain/exports'
 
 const data = studyData()
 const full = (v: '3.4' | '4.0d' = '3.4') => {
@@ -39,7 +40,7 @@ describe('Phase 2 missions', () => {
     p.specs.AE = referenceSpec('AE', '3.4'); p.specs.LB = referenceSpec('LB', '3.4')
     const run = finishMission(p, 'S9')
     expect(run.score).toBe(100); expect(run.passed).toBe(true)
-    expect(run.domainPass).toEqual({ AE: true, LB: true })
+    expect(run.domainPass).toEqual({ AE: true, SUPPAE: true, LB: true })
   })
   test('per-domain scores: a wrong SUPPAE only fails SUPPAE', () => {
     const p = full()
@@ -180,5 +181,61 @@ describe('code view, specification and terminology', () => {
     applyCt(null)
     expect(CT.AESEV.terms).toHaveLength(3); expect(CT.ZZTEST).toBeUndefined(); expect(CT_INFO.loaded).toBe(false)
     expect(() => parseCt('a\tb\n1\t2')).toThrow(/NCI EVS/)
+  })
+})
+
+describe('SUPPDM races and the v4.0 draft NS-- datasets', () => {
+  const dm34 = () => build(referenceSpec('DM', '3.4'), data, '3.4')
+  test('SUPPDM holds RACE1 and RACE2 for the subject with two races, IDVAR null', () => {
+    const b = dm34()
+    expect(b.rows.find((r) => r.USUBJID.endsWith(PLANTED.multiRace))!.RACE).toBe('MULTIPLE')
+    const s = b.supp!
+    expect(s.domain).toBe('SUPPDM')
+    expect(s.rows.map((r) => [r.USUBJID.slice(-7), r.QNAM, r.QVAL, r.IDVAR, r.IDVARVAL, r.QORIG])).toEqual([[PLANTED.multiRace, 'RACE1', 'WHITE', '', '', 'Collected'], [PLANTED.multiRace, 'RACE2', 'ASIAN', '', '', 'Collected']])
+    expect(check(b, '3.4').filter((f) => f.domain === 'SUPPDM')).toHaveLength(0)
+  })
+  test('S1 now scores SUPPDM: a DM without it fails', () => {
+    const p = createProject(); p.specs.DM = { ...referenceSpec('DM', '3.4'), supp: undefined }
+    const r = evaluateMission(p, 'S1')
+    expect(r.domains.find((d) => d.domain === 'DM')!.passed).toBe(true)
+    expect(r.domains.find((d) => d.domain === 'SUPPDM')!.passed).toBe(false)
+    expect(r.passed).toBe(false)
+  })
+  test('v4.0 draft: NSDM is one horizontal record per subject, IDVAR and IDVARVLN null', () => {
+    const b = build(referenceSpec('DM', '4.0d'), data, '4.0d')
+    expect(b.supp!.domain).toBe('NSDM')
+    expect(b.supp!.vars).toEqual(['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVLN', 'RACE1', 'RACE2'])
+    expect(b.supp!.rows).toHaveLength(1)
+    const r = b.supp!.rows[0]
+    expect([r.RDOMAIN, r.IDVAR, r.IDVARVLN, r.RACE1, r.RACE2]).toEqual(['DM', '', '', 'WHITE', 'ASIAN'])
+    expect(b.supp!.labels).toEqual({ RACE1: 'Race 1', RACE2: 'Race 2' })
+  })
+  test('v4.0 draft: NSAE links each record to AESEQ through the numeric IDVARVLN', () => {
+    const ae = build(referenceSpec('AE', '4.0d'), data, '4.0d')
+    const ns = ae.supp!
+    expect(ns.domain).toBe('NSAE')
+    expect(ns.vars).toEqual(['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVLN', 'AETRTEM'])
+    expect(ns.rows.length).toBe(build(referenceSpec('AE', '3.4'), data, '3.4').supp!.rows.length) // one value per record either way
+    expect(ns.rows.every((r) => r.IDVAR === 'AESEQ' && ae.rows.some((a) => a.USUBJID === r.USUBJID && a.AESEQ === r.IDVARVLN))).toBe(true)
+    expect(check(ae, '4.0d').filter((f) => f.domain === 'NSAE')).toHaveLength(0)
+    const x = xpt(ns, '4.0d')
+    const txt = new TextDecoder('latin1').decode(x.bytes)
+    expect(txt).toContain('Non-standard Variables for AE')
+    expect(txt).toContain('Treatment Emergent Flag')
+    expect(txt).toContain('Identifying Variable Numeric Value')
+  })
+  test('v4.0 draft: a non-standard variable reusing a standard name is flagged', () => {
+    const ae = build({ ...referenceSpec('AE', '4.0d'), supp: [{ qnam: 'AESER', qlabel: 'Serious', expr: "'Y'", qorig: 'Assigned' }] }, data, '4.0d')
+    expect(check(ae, '4.0d').some((f) => f.rule === 'TRN-049' && f.domain === 'NSAE' && f.variable === 'AESER')).toBe(true)
+  })
+  test('R and SAS code build SUPPDM from the raw race before RACE becomes MULTIPLE, and NSDM in draft mode', () => {
+    const s = referenceSpec('DM', '3.4')
+    const r = toR(s, '3.4'), sas = toSAS(s, '3.4')
+    expect(r.indexOf('.RACE1 =')).toBeLessThan(r.indexOf('RACE = if_else'))
+    expect(r).toContain('suppdm <- dm_all'); expect(r).toContain('pivot_longer')
+    expect(sas).toContain("QNAM = 'RACE1'"); expect(sas).toContain('scan(RACE, 1')
+    const r4 = toR(referenceSpec('DM', '4.0d'), '4.0d'), sas4 = toSAS(referenceSpec('DM', '4.0d'), '4.0d')
+    expect(r4).toContain('nsdm <- dm_all'); expect(r4).toContain('IDVARVLN = NA_real_'); expect(r4).not.toContain('pivot_longer')
+    expect(sas4).toContain('data nsdm'); expect(sas4).toContain('cmiss(RACE1, RACE2) < 2')
   })
 })

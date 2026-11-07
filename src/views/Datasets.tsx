@@ -5,7 +5,7 @@ import { build, csv, type Built } from '../domain/engine'
 import { check, summarise, RULES, RULE_SETS, severityIn, type RuleSet } from '../domain/conformance'
 import { referenceSpec } from '../domain/reference'
 import { designBuilt, deriveSE, DESIGN_SORT } from '../domain/design'
-import { domainInfo, TRIAL_DESIGN } from '../domain/standards'
+import { domainInfo, TRIAL_DESIGN, isRel, relLabel, relName } from '../domain/standards'
 import { toXpt, toDatasetJson } from '../domain/exports'
 import { specRows, specCsv, valueLevel } from '../domain/spec'
 import { SORT } from '../domain/reference'
@@ -29,7 +29,7 @@ export default function Datasets() {
   // Every dataset the project has: mapped domains and their SUPP--, the trial design tables, and SE.
   const all = useMemo(() => {
     const m = new Map<string, Built>()
-    for (const d of Object.keys(p.specs).sort()) { const s = p.specs[d]; if (!s.vars.length) continue; const b = build(s, data); m.set(d, b); if (b.supp) m.set(b.supp.domain, b.supp) }
+    for (const d of Object.keys(p.specs).sort()) { const s = p.specs[d]; if (!s.vars.length) continue; const b = build(s, data, p.version); m.set(d, b); if (b.supp) m.set(b.supp.domain, b.supp) }
     if (!p.imported) {
       for (const d of TRIAL_DESIGN) if (p.design[d]?.length) m.set(d, designBuilt(d, p.design[d], p.version))
       m.set('SE', deriveSE())
@@ -39,17 +39,22 @@ export default function Datasets() {
   const names = [...all.keys()]
   const [domain, setDomain] = useState(nav.arg && names.includes(nav.arg) ? nav.arg : names.find((n) => n !== 'SE') ?? names[0] ?? '')
   const ctx = useMemo(() => {
-    const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(referenceSpec('DM', p.version), data)
+    const dm = p.imported ? (p.specs.DM?.vars.length ? all.get('DM') : undefined) : build(referenceSpec('DM', p.version), data, p.version)
     return { dm, ta: all.get('TA'), tv: all.get('TV'), ts: all.get('TS'), set: p.ruleSet }
   }, [all, p.ruleSet])
   const built = all.get(domain)
-  const findings = useMemo(() => (built ? check(built, p.version, domain === 'DM' ? { ...ctx, dm: undefined } : ctx) : []), [built, ctx])
+  const findings = useMemo(() => {
+    if (!built) return []
+    const own = isRel(domain) ? domain.replace(/^(SUPP|NS)/, '') : domain
+    const target = all.get(own) ?? built
+    return check(target, p.version, own === 'DM' ? { ...ctx, dm: undefined } : ctx).filter((f) => (isRel(domain) ? f.domain === domain : !isRel(f.domain)))
+  }, [built, ctx])
   const setRules = (r: RuleSet) => act((pp) => { pp.ruleSet = r; log(pp, `Rule set: ${r}`) })
   if (!names.length || !built) return <Panel title="Datasets & checks" sub="No datasets yet."><p className="text-sm">Map a domain on the Mapping tab first.</p></Panel>
   return (
     <div className="space-y-4">
       <Panel title="Datasets & checks" sub="Your datasets as built from your mappings and trial design tables, with the conformance checks of the rule set you choose."
-        right={<Select aria-label="Dataset" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={names.map((d) => ({ value: d, label: `${d} · ${d.startsWith('SUPP') ? `Supplemental Qualifiers for ${d.slice(4)}` : domainInfo(d)?.name ?? d}${d === 'SE' ? ' (derived)' : ''}` }))} />}>
+        right={<Select aria-label="Dataset" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={names.map((d) => ({ value: d, label: `${d} · ${isRel(d) ? relLabel(d) : domainInfo(d)?.name ?? d}${d === 'SE' ? ' (derived)' : ''}` }))} />}>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Rule set">
           <span className="text-xs text-lab-text-muted">Rule set</span>
           {RULE_SETS.map((r) => <Btn key={r.id} tone={p.ruleSet === r.id ? 'solid' : 'grey'} className="py-0.5" aria-pressed={p.ruleSet === r.id} onClick={() => setRules(r.id)}>{r.name}</Btn>)}
@@ -73,7 +78,7 @@ function DataTab({ built, findings }: { built: Built; findings: ReturnType<typeo
   const per = 50, pages = Math.max(1, Math.ceil(rows.length / per))
   const sum = summarise(findings)
   const count = (s: string) => findings.filter((f) => f.sev === s).length
-  const keys = (DESIGN_SORT[domain] ?? SORT[domain] ?? (domain.startsWith('SUPP') ? ['USUBJID', 'IDVAR', 'IDVARVAL', 'QNAM'] : ['USUBJID'])).filter((k) => built.vars.includes(k))
+  const keys = (DESIGN_SORT[domain] ?? SORT[domain] ?? (isRel(domain) ? (domain.startsWith('NS') ? ['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVLN'] : ['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'QNAM']) : ['USUBJID'])).filter((k) => built.vars.includes(k))
   const xpt = () => { const r = toXpt(built, p.version); saveBytes(`${domain.toLowerCase()}.xpt`, r.bytes); setReport(r.report.warnings) }
   return (
     <>
@@ -121,6 +126,7 @@ function SpecTab({ all }: { all: Map<string, Built> }) {
     return specRows(s, all.get(d)!, p.version, raw)
   })
   const supp = Object.keys(p.specs).sort().flatMap((d) => (p.specs[d].supp ?? []).map((q) => ({ d, q })))
+  const ns = p.version !== '3.4'
   const vlm = Object.keys(p.specs).sort().flatMap((d) => valueLevel(p.specs[d]).map((v) => ({ d, ...v })))
   return (
     <>
@@ -131,8 +137,8 @@ function SpecTab({ all }: { all: Map<string, Built> }) {
       <Panel title="Value-level metadata" sub="For findings domains collected wide: where each test’s result comes from.">
         <Table head={['Dataset', 'Test code', 'Raw result', 'Unit']} rows={vlm.map((v) => [v.d, <span className="font-mono">{v.test}</span>, <span className="font-mono">{v.field}</span>, v.unit])} empty="No wide-to-tall mappings." />
       </Panel>
-      <Panel title="Supplemental qualifiers">
-        <Table head={['Dataset', 'QNAM', 'QLABEL', 'QORIG', 'QEVAL', 'Derivation']} rows={supp.map(({ d, q }) => [`SUPP${d}`, <span className="font-mono">{q.qnam}</span>, q.qlabel, q.qorig, q.qeval ?? '', <span className="font-mono text-[11px]">{q.expr}</span>])} empty="None." />
+      <Panel title={ns ? 'Non-standard variables' : 'Supplemental qualifiers'} sub={ns ? 'SDTMIG v4.0 draft: each non-standard variable is a column of its NS-- dataset, with its label, type and origin in define.xml.' : 'Each QNAM in SUPP--, with its label, origin and evaluator.'}>
+        <Table head={ns ? ['Dataset', 'Variable', 'Label', 'Origin', 'Evaluator', 'Derivation'] : ['Dataset', 'QNAM', 'QLABEL', 'QORIG', 'QEVAL', 'Derivation']} rows={supp.map(({ d, q }) => [relName(d, p.version), <span className="font-mono">{q.qnam}</span>, q.qlabel, q.qorig, q.qeval ?? '', <span className="font-mono text-[11px]">{q.expr}</span>])} empty="None." />
       </Panel>
     </>
   )

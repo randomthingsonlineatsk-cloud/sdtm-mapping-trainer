@@ -223,8 +223,22 @@ const META_34: Record<string, VarMeta[]> = {
     v('QNAM', 'Qualifier Variable Name', 'Char', 'Topic', 'Req'), v('QLABEL', 'Qualifier Variable Label', 'Char', 'Synonym Qualifier', 'Req'),
     v('QVAL', 'Data Value', 'Char', 'Result Qualifier', 'Req'), v('QORIG', 'Origin', 'Char', 'Record Qualifier', 'Req'), v('QEVAL', 'Evaluator', 'Char', 'Record Qualifier', 'Exp'),
   ],
+  // SDTMIG v4.0 draft: one horizontal NS-- record per parent record; the non-standard variables
+  // themselves are columns whose metadata (label, type, origin) lives in define.xml.
+  NSQUAL: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('RDOMAIN', 'Related Domain Abbreviation', 'Char', 'Identifier', 'Req'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Req'),
+    v('IDVAR', 'Identifying Variable', 'Char', 'Identifier', 'Exp'), v('IDVARVLN', 'Identifying Variable Numeric Value', 'Num', 'Identifier', 'Exp'),
+  ],
 }
-export const DETAIL_DOMAINS = Object.keys(META_34).filter((d) => !['SE', 'TA', 'TE', 'TV', 'TI', 'TS', 'SUPPQUAL'].includes(d))
+// The dataset that carries a domain's non-standard values: SUPP-- in v3.4, NS-- in the v4.0 draft.
+// Missions name it by its v3.4 name (SUPPAE); relName gives the name for the project's version.
+export const isRel = (d: string) => /^(SUPP|NS)[A-Z]{2}$/.test(d)
+export const relParent = (d: string) => d.replace(/^(SUPP|NS)/, '')
+export const relName = (parent: string, ver: Version) => `${ver === '3.4' ? 'SUPP' : 'NS'}${parent}`
+export const dsName = (d: string, ver: Version) => (isRel(d) ? relName(relParent(d), ver) : d)
+export const relMetaKey = (d: string) => (d.startsWith('NS') ? 'NSQUAL' : 'SUPPQUAL')
+export const relLabel = (d: string) => (d.startsWith('NS') ? `Non-standard Variables for ${relParent(d)}` : `Supplemental Qualifiers for ${relParent(d)}`)
+export const DETAIL_DOMAINS = Object.keys(META_34).filter((d) => !['SE', 'TA', 'TE', 'TV', 'TI', 'TS', 'SUPPQUAL', 'NSQUAL'].includes(d))
 export const TRIAL_DESIGN = ['TA', 'TE', 'TV', 'TI', 'TS']
 export const hasMeta = (d: string) => !!META_34[d]
 
@@ -238,7 +252,7 @@ export const DRAFT_CHANGES: { what: string; where: string }[] = [
   { what: 'SUBJID added after USUBJID in every Interventions, Events and Findings domain', where: 'VS, EX, AE, CM, DS and all other general-class domains' },
   { what: '--BLFL (Baseline Flag) retired; --LOBXFL (Last Observation Before Exposure Flag) carries the pre-treatment flag', where: 'Findings domains, e.g. VSBLFL' },
   { what: 'CRACE (Collected Race) and CETHNIC (Collected Ethnicity) added', where: 'DM' },
-  { what: 'Supplemental qualifiers (SUPP--) replaced by non-standard variable datasets (NS--), with IDVAR always --SEQ', where: 'Relationship datasets (the trainer still builds SUPP-- in draft mode)' },
+  { what: 'Supplemental qualifiers (SUPP--) replaced by non-standard variable datasets (NS--): one horizontal record per parent record, each non-standard variable a column (character or numeric), linked by IDVAR = --SEQ and the numeric IDVARVLN; in NSDM, IDVAR and IDVARVLN are null', where: 'NSAE, NSDM and the other relationship datasets: built by the trainer in draft mode' },
   { what: 'New domains, including DC, EA and GI', where: 'Not used by this study' },
 ]
 

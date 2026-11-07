@@ -5,7 +5,7 @@
 // learner and reference datasets line up record by record.
 
 import { parse, evaluate, validate, fmt, isBlank, toNum, type Node, type Val } from './expr'
-import { CT, decode } from './standards'
+import { CT, decode, type Version } from './standards'
 import { SITES, ARMS, VISITS, LAB_STANDARDS, type Visit } from './study'
 import type { Row } from './seed'
 
@@ -27,7 +27,7 @@ export interface Part { source: string; filter?: string; transpose?: Transpose; 
 export interface DomainSpec { domain: string; source: string; filter?: string; transpose?: Transpose; vars: string[]; rules: Record<string, Rule>; sort: string[]; parts?: Part[]; supp?: SuppQual[] }
 
 export type OutRow = Record<string, string> & { __trace: string; __subj: string }
-export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[]; supp?: Built }
+export interface Built { domain: string; vars: string[]; rows: OutRow[]; errors: Record<string, { count: number; first: string }>; warnings: string[]; supp?: Built; labels?: Record<string, string>; origins?: Record<string, string> }
 
 // ---------- the study context the functions read ----------
 export interface StudyData { forms: Record<string, Row[]>; studyId: string; refDm?: Map<string, OutRow>; visits?: Visit[] }
@@ -121,6 +121,7 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: "concat(a, b, …)", what: 'Joins text: concat(\'GLV-12-301-\', SUBJID)' },
   { sig: 'iso(date, time)', what: 'ISO 8601 from a date and an optional time: 2026-03-10T09:00. Partial dates pass through.' },
   { sig: "upper(x), lower(x), trim(x), substr(x, start, n), replace(x, a, b)", what: 'Text functions' },
+  { sig: "part(x, sep, n)", what: "The nth piece of x split at sep, trimmed: part('White; Asian', ';', 2) is Asian. Blank when there is no nth piece." },
   { sig: "if(condition, a, b)", what: 'a when the condition is true, otherwise b' },
   { sig: 'coalesce(a, b, …)', what: 'The first value that is not blank' },
   { sig: "contains(x, 'text'), present(x), isblank(x), x in ('A', 'B')", what: 'Tests' },
@@ -153,7 +154,7 @@ export function ruleError(rule: Rule, fields: string[]): string {
 }
 const numericSort = (a: string, b: string) => { const x = Number(a), y = Number(b); return a !== '' && b !== '' && !Number.isNaN(x) && !Number.isNaN(y) ? x - y : a.localeCompare(b) }
 
-export function build(spec: DomainSpec, data: StudyData): Built {
+export function build(spec: DomainSpec, data: StudyData, ver: Version = '3.4'): Built {
   const errors: Built['errors'] = {}
   const warnings: string[] = []
   const fail = (v: string, msg: string) => { const e = (errors[v] ??= { count: 0, first: msg }); e.count++ }
@@ -230,7 +231,7 @@ export function build(spec: DomainSpec, data: StudyData): Built {
     }
   }
   const out: Built = { domain: spec.domain, vars: spec.vars, rows, errors, warnings }
-  if (spec.supp?.length || spec.parts?.some((p) => p.supp?.length)) out.supp = suppDataset(spec, supp)
+  if (spec.supp?.length || spec.parts?.some((p) => p.supp?.length)) out.supp = ver === '3.4' ? suppDataset(spec, supp) : nsDataset(spec, supp)
   return out
 }
 
@@ -243,6 +244,26 @@ function suppDataset(spec: DomainSpec, items: { row: OutRow; q: SuppQual; value:
   const rows = items.map(({ row, q, value }, i) => ({ __trace: `${row.__trace}#${q.qnam}`, __subj: row.__subj, __i: String(i), STUDYID: row.STUDYID ?? '', RDOMAIN: spec.domain, USUBJID: row.USUBJID ?? '', IDVAR: idvar, IDVARVAL: idvar ? row[seq] ?? '' : '', QNAM: q.qnam, QLABEL: q.qlabel, QVAL: value, QORIG: q.qorig, QEVAL: q.qeval ?? '' } as OutRow))
   rows.sort((a, b) => a.USUBJID.localeCompare(b.USUBJID) || numericSort(a.IDVARVAL, b.IDVARVAL) || a.QNAM.localeCompare(b.QNAM))
   return { domain: `SUPP${spec.domain}`, vars: SUPP_VARS, rows, errors: {}, warnings: [] }
+}
+
+// SDTMIG v4.0 draft: NS-- holds the same values horizontally, one record per parent record that
+// has at least one non-standard value. IDVAR is --SEQ and IDVARVLN its numeric value, except in
+// NSDM (one record per subject), where both are null. Each non-standard variable is a column,
+// named by its QNAM; its label and origin go to define.xml rather than into the data.
+export const NS_KEYS = ['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVLN']
+function nsDataset(spec: DomainSpec, items: { row: OutRow; q: SuppQual; value: string }[]): Built {
+  const seq = `${spec.domain}SEQ`
+  const idvar = spec.vars.includes(seq) ? seq : ''
+  const quals = [...(spec.supp ?? []), ...(spec.parts ?? []).flatMap((p) => p.supp ?? [])].filter((q, i, a) => q.qnam && a.findIndex((x) => x.qnam === q.qnam) === i)
+  const names = quals.map((q) => q.qnam)
+  const byParent = new Map<OutRow, OutRow>()
+  for (const { row, q, value } of items) {
+    let r = byParent.get(row)
+    if (!r) { r = { __trace: row.__trace, __subj: row.__subj, STUDYID: row.STUDYID ?? '', RDOMAIN: spec.domain, USUBJID: row.USUBJID ?? '', IDVAR: idvar, IDVARVLN: idvar ? row[seq] ?? '' : '', ...Object.fromEntries(names.map((n) => [n, ''])) } as OutRow; byParent.set(row, r) }
+    r[q.qnam] = value
+  }
+  const rows = [...byParent.values()].sort((a, b) => a.USUBJID.localeCompare(b.USUBJID) || numericSort(a.IDVARVLN, b.IDVARVLN))
+  return { domain: `NS${spec.domain}`, vars: [...NS_KEYS, ...names], rows, errors: {}, warnings: [], labels: Object.fromEntries(quals.map((q) => [q.qnam, q.qlabel])), origins: Object.fromEntries(quals.map((q) => [q.qnam, q.qorig])) }
 }
 
 // Rules run in an order where a variable is derived before any expression that uses it

@@ -4,19 +4,20 @@
 // format FDA asked for comments on in 2025 as a possible successor.
 
 import type { Built } from './engine'
-import { metaOf, domainInfo, type Version } from './standards'
+import { metaOf, domainInfo, isRel, relMetaKey, relLabel, type Version } from './standards'
 import { STUDY } from './study'
 
 const ASCII = /^[\x20-\x7e]*$/
 export interface ExportReport { warnings: string[] }
 
 function varMeta(b: Built, v: string, ver: Version) {
-  const base = b.domain.startsWith('SUPP') ? 'SUPPQUAL' : b.domain
+  const base = isRel(b.domain) ? relMetaKey(b.domain) : b.domain
   const m = metaOf(base, v, ver)
+  // A non-standard variable of an NS-- dataset is numeric when every value is a number.
   const type = m?.type ?? (b.rows.every((r) => r[v] === '' || /^-?\d+(\.\d+)?$/.test(r[v])) && b.rows.some((r) => r[v] !== '') ? 'Num' : 'Char')
-  return { type, label: (m?.label ?? v).slice(0, 40) }
+  return { type, label: (m?.label ?? b.labels?.[v] ?? v).slice(0, 40) }
 }
-const datasetLabel = (b: Built) => (b.domain.startsWith('SUPP') ? `Supplemental Qualifiers for ${b.domain.slice(4)}` : domainInfo(b.domain)?.name ?? b.domain).slice(0, 40)
+const datasetLabel = (b: Built) => (isRel(b.domain) ? relLabel(b.domain) : domainInfo(b.domain)?.name ?? b.domain).slice(0, 40)
 
 // ---------- SAS V5 transport ----------
 const pad = (s: string, n: number) => (s.length >= n ? s.slice(0, n) : s + ' '.repeat(n - s.length))

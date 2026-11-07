@@ -19,7 +19,8 @@ whose studies can be imported.
   15 March 2025 (default).
 - **SDTMIG v4.0 draft mode**, built from the public-review draft (February to April 2026):
   SUBJID in every general-class domain, --BLFL retired in favour of --LOBXFL, CRACE and
-  CETHNIC in DM. It will be updated when CDISC publishes the final standard.
+  CETHNIC in DM, and NS-- datasets in place of SUPP--. It will be updated when CDISC publishes
+  the final standard.
 - **CDISC Controlled Terminology**: the codelists the study needs, bundled and version-stamped,
   or the full quarterly SDTM terminology file from NCI EVS, loaded in the browser.
 
@@ -49,7 +50,7 @@ rules; no vendor rule text or tool is copied.
 - **Datasets & checks:** your datasets with 21 conformance rules (required and expected
   variables, CT, ISO 8601, --SEQ, study day, the DM arm rules, results and units), each
   finding linked to its record; CSV download.
-- **Missions S1 (Map DM) and S2 (Map VS):** credit per variable against the hidden reference,
+- **Missions S1 (Map DM, with the individual races in SUPPDM) and S2 (Map VS):** credit per variable against the hidden reference,
   matched record by record through the raw row each record came from, minus 3 points per kind
   of conformance error, and a pass or fail mark per domain.
 - **CDM Console import:** load a project file from the CDM Query & Edit-Check Console
@@ -69,7 +70,9 @@ rules; no vendor rule text or tool is copied.
 - **Several sources per domain:** "Add a source" stacks records from more forms into one
   domain, each with its own rules, then sorts and numbers them together.
 - **Supplemental qualifiers:** a SUPP-- builder with QNAM, QLABEL, QORIG and QEVAL, linked to
-  the parent through IDVAR and IDVARVAL.
+  the parent through IDVAR and IDVARVAL. In SDTMIG v4.0 draft mode the same rules build NS--
+  datasets instead (NSAE, NSDM): one horizontal record per parent record, linked by IDVAR and
+  the numeric IDVARVLN, with labels and origins for define.xml.
 - **Trial design:** TA, TE, TV, TI and TS built as tables from the protocol facts (or pasted
   from a spreadsheet), checked against each other; SE derived from DM.
 - **Rule sets:** 39 conformance rules with their severity under CDISC, FDA and PMDA, including

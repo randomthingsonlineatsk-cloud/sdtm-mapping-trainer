@@ -3,7 +3,7 @@ import { useStore } from '../state'
 import { useNav } from '../App'
 import { MISSIONS, activeRun, bestRun, startMission, finishMission, evaluateMission } from '../domain/missions'
 import { emptySpec } from '../domain/project'
-import { VERSION_LABEL } from '../domain/standards'
+import { VERSION_LABEL, isRel, dsName } from '../domain/standards'
 import { Panel, Pill, Btn, Table, Stat } from './ui'
 
 const SOURCE: Record<string, string> = { DM: 'DM', VS: 'VS', AE: 'AE', CM: 'CM', EX: 'EX', DS: 'DS', LB: 'LBC' }
@@ -34,12 +34,12 @@ function MissionCard({ id }: { id: string }) {
   const [confirm, setConfirm] = useState(false)
   const start = () => act((pp) => {
     startMission(pp, id)
-    if (m.kind === 'map') for (const d of m.domains) if (!d.startsWith('SUPP')) pp.specs[d] ??= emptySpec(d, SOURCE[d] ?? d)
+    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d)) pp.specs[d] ??= emptySpec(d, SOURCE[d] ?? d)
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
-    : m.domains.filter((d) => !d.startsWith('SUPP')).map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d} in the workspace</Btn>)
+    : m.domains.filter((d) => !isRel(d)).map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d} in the workspace</Btn>)
   return (
-    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : 'Map from raw'} · Pass: {m.pass}</>}
+    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : 'Map from raw'} · Pass: {m.pass}</>}
       right={run ? <Pill tone="blue">In progress</Pill> : best ? <Pill tone={best.passed ? 'green' : 'red'}>best {best.score}%</Pill> : null}>
       <p className="text-sm">{m.brief}</p>
       <details className="text-xs"><summary className="cursor-pointer text-lab-text-muted">What to watch for</summary><ul className="list-disc pl-5 mt-1">{m.watch.map((w) => <li key={w}>{w}</li>)}</ul></details>
@@ -64,7 +64,7 @@ function MissionCard({ id }: { id: string }) {
       {last && !run && (
         <div className={`rounded border p-3 space-y-2 ${last.passed ? 'border-lab-cdsco/60' : 'border-lab-red/60'}`}>
           <p className="font-mono text-sm">{last.passed ? 'Passed' : 'Not passed'} · {last.score}% · {last.ruleSet ?? 'CDISC'} rules</p>
-          <div className="flex flex-wrap gap-1">{m.domains.map((d) => <Pill key={d} tone={last.domainPass?.[d] ? 'green' : 'red'}>{d} {last.domainScores?.[d] ?? '–'}% {last.domainPass?.[d] ? 'pass' : 'fail'}</Pill>)}</div>
+          <div className="flex flex-wrap gap-1">{m.domains.map((d) => dsName(d, last.version)).map((d) => <Pill key={d} tone={last.domainPass?.[d] ? 'green' : 'red'}>{d} {last.domainScores?.[d] ?? '–'}% {last.domainPass?.[d] ? 'pass' : 'fail'}</Pill>)}</div>
           <ul className="list-disc pl-5 text-xs text-lab-text-muted">{last.detail?.map((d) => <li key={d}>{d}</li>)}</ul>
           <Table head={['Variable', 'Core', 'Credit', 'Where it differs']} rows={(last.perVar ?? []).map((x) => [<span className="font-mono">{x.v}</span>, x.core, <span className={x.credit >= 0.999 ? 'text-lab-cdsco' : x.credit >= 0.7 ? 'text-lab-amber' : 'text-lab-red'}>{Math.round(x.credit * 100)}%</span>, <span className="text-[11px]">{x.examples.join(' · ')}</span>])} />
         </div>

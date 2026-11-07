@@ -155,6 +155,7 @@ export const BUILTINS: Record<string, (...a: Val[]) => Val> = {
   trim: (x) => String(x ?? '').trim(),
   substr: (x, start, n) => { const s = String(x ?? ''), a = (num(start) ?? 1) - 1; return num(n) === null ? s.slice(a) : s.slice(a, a + (num(n) as number)) },
   replace: (x, a, b) => String(x ?? '').split(String(a ?? '')).join(String(b ?? '')),
+  part: (x, sep, n) => { const p = String(x ?? '').split(String(sep ?? '')); const i = num(n) ?? 1; return i >= 1 && i <= p.length ? p[i - 1].trim() : '' },
   num: (x) => num(x) ?? '',
   str: (x) => (blank(x) ? '' : fmt(x)),
   min: (...xs) => { const v = xs.filter((x) => !blank(x)); if (!v.length) return ''; return v.every((x) => num(x) !== null) ? Math.min(...v.map((x) => num(x) as number)) : v.map(String).sort()[0] },
