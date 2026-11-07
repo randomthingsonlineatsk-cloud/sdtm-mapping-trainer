@@ -6,6 +6,7 @@ import { toR, toSAS } from '../domain/codegen'
 import { MISSIONS } from '../domain/missions'
 import { varsOf, DETAIL_DOMAINS, domainInfo, CT, type VarMeta } from '../domain/standards'
 import { emptySpec, log, type Project } from '../domain/project'
+import { currentVersion } from '../domain/plan'
 import { SORT, DEFAULT_SOURCE } from '../domain/reference'
 import { Panel, Pill, Btn, Select, Table, TextArea, Tabs, ic } from './ui'
 import { useData, formsOf, formName, fieldsOf, samples, distinct } from './shared'
@@ -168,6 +169,7 @@ function RuleEditor({ m, spec, fields, rawRows, upd, included, include, runErr }
   return (
     <Panel title={`${m.name} · ${m.label}`} sub={`${m.type} · ${m.role} · ${m.core === 'Req' ? 'Required' : m.core === 'Exp' ? 'Expected' : 'Permissible'}${ct ? ` · codelist ${ct.id}${ct.extensible ? ' (extensible)' : ''}` : ''}${m.note ? ` · ${m.note}` : ''}`}>
       {!included && <p className="text-xs text-lab-amber">Not in your dataset. <button className="underline" onClick={include}>Include {m.name}</button></p>}
+      <SpecLine domain={spec.domain} variable={m.name} />
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-lab-text-muted">Filled by</span>
         <Select aria-label="Rule type" className="w-72" value={rule?.kind ?? ''} onChange={(e) => { const k = e.target.value as Rule['kind'] | ''; set(k ? fresh(k) : undefined, k ? RULE_LABEL[k] : 'rule removed'); if (k === 'expr') setExpr('') }} options={[{ value: '', label: 'No rule yet' }, ...kinds.map((k) => ({ value: k, label: RULE_LABEL[k] }))]} />
@@ -283,5 +285,18 @@ function CodeView({ spec, ver }: { spec: DomainSpec; ver: '3.4' | '4.0d' }) {
         <Btn tone="grey" className="py-0.5" onClick={() => navigator.clipboard?.writeText(code)}>Copy</Btn>
       </>}
     </Panel>
+  )
+}
+
+// The approved specification for this variable, shown while programming it.
+function SpecLine({ domain, variable }: { domain: string; variable: string }) {
+  const { p } = useStore()
+  const plan = p.plan?.[domain], cur = plan && currentVersion(plan)
+  if (!cur) return null
+  const r = cur.rows.find((x) => x.variable === variable)
+  return (
+    <p className="text-xs rounded border border-lab-line px-2 py-1"><span className="text-lab-text-muted">Specification {cur.version}:</span>{' '}
+      {r ? <><b>{r.origin}</b>{r.source && <> · <span className="font-mono">{r.source}</span></>}{r.method && <> · {r.method}</>}</> : <span className="text-lab-amber">not in the specification</span>}
+    </p>
   )
 }

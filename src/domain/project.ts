@@ -8,6 +8,7 @@ import type { Version } from './standards'
 import type { RuleSet } from './conformance'
 import type { DesignRow } from './design'
 import type { Row, Transfer } from './seed'
+import type { Plan } from './plan'
 import type { Visit } from './study'
 import { STUDY } from './study'
 import { studyData, SORT } from './reference'
@@ -28,6 +29,7 @@ export interface Project {
   missions: MissionRun[]
   quiz: Record<string, Record<string, number>>
   log: LogEntry[]
+  plan?: Record<string, Plan> // the written mapping specifications, with their versions
   transfer?: Transfer // the data transfer the project works on (1 when absent)
   qc?: Record<string, DomainSpec> // the independent QC programs
   qcLog?: Record<string, Record<string, QcResolution>> // per domain, per difference

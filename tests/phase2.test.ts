@@ -27,7 +27,7 @@ describe('Phase 2 missions', () => {
   test('every mission scores 100 with the reference, in both standards and every rule set', () => {
     for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
       const p = full(v); p.ruleSet = rs.id
-      for (const m of MISSIONS.filter((x) => x.kind !== 'fix' && x.kind !== 'qc')) {
+      for (const m of MISSIONS.filter((x) => !['fix', 'qc', 'spec'].includes(x.kind))) {
         const r = evaluateMission(p, m.id)
         expect(r.score, `${v} ${rs.id} ${m.id}: ${r.detail.join(' | ')}`).toBe(100)
         expect(r.passed).toBe(true)
@@ -391,5 +391,40 @@ describe('TS as FDA expects it', () => {
     expect(has('TRN-038', 'Error')).toBe(true); expect(has('TRN-039', 'Error')).toBe(true)
     // Under the CDISC rule set the FDA expectations are warnings.
     expect(check(ts(broken), '3.4', { set: 'CDISC' }).find((x) => x.rule === 'TRN-035')!.sev).toBe('Warning')
+  })
+})
+
+describe('specification first (mission S14)', () => {
+  test('draft, review by someone else, approval, revision with a reason; the program is checked against it', async () => {
+    const P = await import('../src/domain/plan')
+    const { RAW_FIELDS } = await import('../src/domain/seed')
+    const raw = Object.fromEntries(Object.entries(RAW_FIELDS).map(([k, v]) => [k, v.map((x) => x.name)]))
+    const pl = P.startPlan('CM', '3.4', 'author1')
+    expect(P.incomplete(pl).length).toBeGreaterThan(0)
+    const spec = referenceSpec('CM', '3.4')
+    // A complete specification, written to match the study conventions.
+    pl.rows = spec.vars.map((v) => {
+      const r = spec.rules[v]
+      if (r.kind === 'const') return { variable: v, origin: 'Assigned' as const, source: '', method: `“${r.value}”` }
+      if (r.kind === 'copy') return { variable: v, origin: 'Collected' as const, source: `CM.${r.field}`, method: '' }
+      return { variable: v, origin: 'Derived' as const, source: '', method: 'See conventions' }
+    })
+    expect(P.incomplete(pl)).toEqual([])
+    pl.versions.push({ version: P.nextVersion(pl), utc: new Date().toISOString(), status: 'Approved', author: 'author1', approver: 'reviewer2', reason: 'First version', rows: pl.rows.map((r) => ({ ...r })) })
+    expect(P.currentVersion(pl).version).toBe('1.0'); expect(P.nextVersion(pl)).toBe('1.1')
+    expect(P.mismatches(P.currentVersion(pl).rows, spec, raw)).toEqual([])
+    // A program that reads another field, assigns a derived value, and adds a variable.
+    const prog: typeof spec = { ...spec, rules: { ...spec.rules, CMTRT: { kind: 'copy', field: 'CMDECOD' }, CMDOSU: { kind: 'expr', expr: 'upper(CMDOSU)' } }, vars: [...spec.vars] }
+    prog.rules.CMSTDTC = { kind: 'const', value: '2026' }
+    const mm = P.mismatches(P.currentVersion(pl).rows, prog, raw).map((x) => x.variable)
+    expect(mm).toContain('CMTRT'); expect(mm).toContain('CMSTDTC')
+    // Mission: passes only with an approved specification the program follows.
+    const p = createProject('author1'); startMission(p, 'S14')
+    p.specs.CM = spec
+    expect(evaluateMission(p, 'S14').passed).toBe(false)
+    p.plan = { CM: pl }
+    const r = evaluateMission(p, 'S14'); expect(r.passed).toBe(true); expect(r.score).toBe(100)
+    pl.versions[0].approver = 'author1'
+    expect(evaluateMission(p, 'S14').passed).toBe(false)
   })
 })
