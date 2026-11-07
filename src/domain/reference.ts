@@ -10,20 +10,20 @@ import { STUDY } from './study'
 const e = (expr: string): Rule => ({ kind: 'expr', expr })
 const c = (value: string): Rule => ({ kind: 'const', value })
 const cp = (field: string): Rule => ({ kind: 'copy', field })
-const FIRST_DOSE = "iso(subj('EX', 'EXSTDAT', 'min'), subj('EX', 'EXSTTIM', 'first'))"
-const LAST_DOSE = "subj('EX', 'EXENDAT', 'max')"
+const FIRST_DOSE = "dtc(subj('EX', 'EXSTDAT', 'min'), 'DD-MMM-YYYY', subj('EX', 'EXSTTIM', 'first'))"
+const LAST_DOSE = "dtc(subj('EX', 'EXENDAT', 'max'), 'DD-MMM-YYYY')"
 
 const DM_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('DM'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'),
   RFSTDTC: e(FIRST_DOSE), RFENDTC: e(LAST_DOSE), RFXSTDTC: e(FIRST_DOSE), RFXENDTC: e(LAST_DOSE),
-  RFICDTC: e("subj('IC', 'DSSTDAT', 'first')"), RFPENDTC: e("max(subj('SV', 'VISDAT', 'max'), subj('DS', 'DSSTDAT', 'max'))"),
-  DTHDTC: e("subjwhere('DS', 'DSSTDAT', 'DSDECOD', 'Death', 'first')"), DTHFL: e("if(present(DTHDTC), 'Y', '')"),
-  SITEID: cp('SITEID'), BRTHDTC: cp('BRTHDAT'), AGE: e("age(BRTHDAT, subj('IC', 'DSSTDAT', 'first'))"), AGEU: c('YEARS'),
+  RFICDTC: e("dtc(subj('IC', 'DSSTDAT', 'first'), 'DD-MMM-YYYY')"), RFPENDTC: e("max(dtc(subj('SV', 'VISDAT', 'max'), 'DD-MMM-YYYY'), dtc(subj('DS', 'DSSTDAT', 'max'), 'DD-MMM-YYYY'))"),
+  DTHDTC: e("dtc(subjwhere('DS', 'DSSTDAT', 'DSDECOD', 'Death', 'first'), 'DD-MMM-YYYY')"), DTHFL: e("if(present(DTHDTC), 'Y', '')"),
+  SITEID: cp('SITEID'), BRTHDTC: e("dtc(BRTHDAT, 'DD-MMM-YYYY')"), AGE: e("age(BRTHDAT, subj('IC', 'DSSTDAT', 'first'))"), AGEU: c('YEARS'),
   SEX: { kind: 'recode', field: 'SEX', table: { Female: 'F', Male: 'M' } },
   RACE: e("if(contains(RACE, ';'), 'MULTIPLE', upper(RACE))"), ETHNIC: e('upper(ETHNIC)'),
   ARMCD: e("irt('RANDARM')"), ARM: e("armname(irt('RANDARM'))"), ACTARMCD: e("irt('KITARM')"), ACTARM: e("armname(irt('KITARM'))"),
   ARMNRS: e("if(isblank(irt('RANDARM')), 'SCREEN FAILURE', if(isblank(irt('KITARM')), 'ASSIGNED, NOT TREATED', ''))"), ACTARMUD: c(''),
-  COUNTRY: e('country(SITEID)'), DMDTC: e('iso(DMDAT)'), DMDY: e('studyday(DMDTC, RFSTDTC)'),
+  COUNTRY: e('country(SITEID)'), DMDTC: e("dtc(DMDAT, 'DD-MMM-YYYY')"), DMDY: e('studyday(DMDTC, RFSTDTC)'),
 }
 const VS_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('VS'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), VSSEQ: { kind: 'seq' },
@@ -35,7 +35,7 @@ const VS_RULES: Record<string, Rule> = {
   VSSTAT: e("if(VSPERF = 'N', 'NOT DONE', '')"), VSREASND: cp('VSREASND'),
   VSLOBXFL: { kind: 'lobxfl', result: 'VSSTRESC', dtc: 'VSDTC', by: 'VSTESTCD' },
   VISITNUM: e('visitnum(VISIT, VSDAT)'), VISIT: e('visitname(VISIT, VSDAT)'), EPOCH: e('epoch(VSDTC)'),
-  VSDTC: e('iso(VSDAT, VSTIM)'), VSDY: e('studyday(VSDTC)'),
+  VSDTC: e("dtc(VSDAT, 'DD-MMM-YYYY', VSTIM)"), VSDY: e('studyday(VSDTC)'),
 }
 const VS_TRANSPOSE = {
   tests: [
@@ -49,7 +49,7 @@ const AE_RULES: Record<string, Rule> = {
   AETERM: cp('AETERM'), AELLT: cp('AELLT'), AELLTCD: cp('AELLTCD'), AEDECOD: cp('AEDECOD'), AEPTCD: cp('AEPTCD'), AEHLT: cp('AEHLT'), AEHLTCD: cp('AEHLTCD'),
   AEHLGT: cp('AEHLGT'), AEHLGTCD: cp('AEHLGTCD'), AEBODSYS: cp('AESOC'), AEBDSYCD: cp('AESOCCD'), AESOC: cp('AESOC'), AESOCCD: cp('AESOCCD'),
   AESEV: e('upper(AESEV)'), AESER: cp('AESER'), AEACN: e('upper(AEACN)'), AEREL: e('upper(AEREL)'), AEOUT: e('upper(AEOUT)'), AESDTH: cp('AESDTH'), AESHOSP: cp('AESHOSP'),
-  EPOCH: e('epoch(AESTDTC)'), AESTDTC: cp('AESTDAT'), AEENDTC: cp('AEENDAT'), AESTDY: e('studyday(AESTDTC)'), AEENDY: e('studyday(AEENDTC)'),
+  EPOCH: e('epoch(AESTDTC)'), AESTDTC: e("dtc(AESTDAT, 'DD-MMM-YYYY')"), AEENDTC: e("dtc(AEENDAT, 'DD-MMM-YYYY')"), AESTDY: e('studyday(AESTDTC)'), AEENDY: e('studyday(AEENDTC)'),
 }
 // More than one race recorded: RACE = MULTIPLE in DM and each collected race in SUPPDM (NSDM in
 // the v4.0 draft) as RACE1, RACE2, with IDVAR and IDVARVAL null because DM has one record per subject.
@@ -58,18 +58,18 @@ export const AETRTEM: SuppQual = { qnam: 'AETRTEM', qlabel: 'Treatment Emergent 
 const CM_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('CM'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), CMSEQ: { kind: 'seq' }, CMSPID: cp('CMSPID'),
   CMTRT: cp('CMTRT'), CMDECOD: cp('CMDECOD'), CMINDC: cp('CMINDC'), CMCLAS: cp('CMCLAS'), CMDOSE: e('num(CMDOSE)'), CMDOSU: cp('CMDOSU'), CMDOSFRQ: cp('CMDOSFRQ'), CMROUTE: e('upper(CMROUTE)'),
-  EPOCH: e('epoch(CMSTDTC)'), CMSTDTC: cp('CMSTDAT'), CMENDTC: cp('CMENDAT'), CMSTDY: e('studyday(CMSTDTC)'), CMENDY: e('studyday(CMENDTC)'),
+  EPOCH: e('epoch(CMSTDTC)'), CMSTDTC: e("dtc(CMSTDAT, 'DD-MMM-YYYY')"), CMENDTC: e("dtc(CMENDAT, 'DD-MMM-YYYY')"), CMSTDY: e('studyday(CMSTDTC)'), CMENDY: e('studyday(CMENDTC)'),
   CMENRTPT: e("if(CMONGO = 'Y', 'ONGOING', '')"), CMENTPT: e("if(CMONGO = 'Y', 'END OF STUDY', '')"),
 }
 const EX_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('EX'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), EXSEQ: { kind: 'seq' },
   EXTRT: e("if(irt('KITARM') = 'PBO', 'PLACEBO', 'GLV-12')"), EXDOSE: e("if(irt('KITARM') = 'GLV10', 10, if(irt('KITARM') = 'GLV5', 5, 0))"),
   EXDOSU: c('mg'), EXDOSFRM: c('TABLET'), EXDOSFRQ: c('QD'), EXROUTE: c('ORAL'),
-  EPOCH: e('epoch(EXSTDTC)'), EXSTDTC: e('iso(EXSTDAT, EXSTTIM)'), EXENDTC: cp('EXENDAT'), EXSTDY: e('studyday(EXSTDTC)'), EXENDY: e('studyday(EXENDTC)'),
+  EPOCH: e('epoch(EXSTDTC)'), EXSTDTC: e("dtc(EXSTDAT, 'DD-MMM-YYYY', EXSTTIM)"), EXENDTC: e("dtc(EXENDAT, 'DD-MMM-YYYY')"), EXSTDY: e('studyday(EXSTDTC)'), EXENDY: e('studyday(EXENDTC)'),
 }
 const DS_COMMON: Record<string, Rule> = { STUDYID: c(STUDY.id), DOMAIN: c('DS'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), DSSEQ: { kind: 'seq' }, DSSTDY: e('studyday(DSSTDTC)') }
-const DS_RULES: Record<string, Rule> = { ...DS_COMMON, DSTERM: e('coalesce(DSTERM, upper(DSDECOD))'), DSDECOD: e('upper(DSDECOD)'), DSCAT: c('DISPOSITION EVENT'), EPOCH: e('epoch(DSSTDTC)'), DSSTDTC: cp('DSSTDAT') }
-const DS_IC: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: cp('DSSTDAT') }
+const DS_RULES: Record<string, Rule> = { ...DS_COMMON, DSTERM: e('coalesce(DSTERM, upper(DSDECOD))'), DSDECOD: e('upper(DSDECOD)'), DSCAT: c('DISPOSITION EVENT'), EPOCH: e('epoch(DSSTDTC)'), DSSTDTC: e("dtc(DSSTDAT, 'DD-MMM-YYYY')") }
+const DS_IC: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e("dtc(DSSTDAT, 'DD-MMM-YYYY')") }
 const DS_IRT: Record<string, Rule> = { ...DS_COMMON, DSTERM: c('RANDOMIZED'), DSDECOD: c('RANDOMIZED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: cp('RANDDT') }
 const SI = (x: string) => `round(num(${x}) * lab(TESTCODE, 'factor'), lab(TESTCODE, 'decimals'))`
 const LB_RULES: Record<string, Rule> = {
@@ -81,11 +81,11 @@ const LB_RULES: Record<string, Rule> = {
   LBNRIND: e("if(isblank(RESULT), '', if(FLAG = 'H', 'HIGH', if(FLAG = 'L', 'LOW', 'NORMAL')))"),
   LBSTAT: e("if(isblank(RESULT), 'NOT DONE', '')"), LBREASND: e("if(isblank(RESULT), 'SPECIMEN HEMOLYZED', '')"),
   LBNAM: cp('LABNAME'), LBSPEC: e("lab(TESTCODE, 'spec')"), LBLOBXFL: { kind: 'lobxfl', result: 'LBSTRESC', dtc: 'LBDTC', by: 'LBTESTCD' }, LBFAST: cp('FASTING'),
-  VISITNUM: e('visitnum(VISIT, COLLDATE)'), VISIT: e('visitname(VISIT, COLLDATE)'), EPOCH: e('epoch(LBDTC)'), LBDTC: e('iso(COLLDATE, COLLTIME)'), LBDY: e('studyday(LBDTC)'),
+  VISITNUM: e('visitnum(VISIT, COLLDATE)'), VISIT: e('visitname(VISIT, COLLDATE)'), EPOCH: e('epoch(LBDTC)'), LBDTC: e("dtc(COLLDATE, 'YYYYMMDD', COLLTIME)"), LBDY: e('studyday(LBDTC)'),
 }
 const SV_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('SV'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), VISITNUM: e('visitnum(VISIT, VISDAT)'), VISIT: e('visitname(VISIT, VISDAT)'), VISITDY: e('visitdy(VISIT)'),
-  EPOCH: e('epoch(SVSTDTC)'), SVSTDTC: e('iso(VISDAT)'), SVENDTC: e('iso(VISDAT)'), SVSTDY: e('studyday(SVSTDTC)'), SVENDY: e('studyday(SVENDTC)'),
+  EPOCH: e('epoch(SVSTDTC)'), SVSTDTC: e("dtc(VISDAT, 'DD-MMM-YYYY')"), SVENDTC: e("dtc(VISDAT, 'DD-MMM-YYYY')"), SVSTDY: e('studyday(SVSTDTC)'), SVENDY: e('studyday(SVENDTC)'),
 }
 export const SORT: Record<string, string[]> = {
   DM: ['USUBJID'], VS: ['USUBJID', 'VSTESTCD', 'VISITNUM', 'VSDTC'], AE: ['USUBJID', 'AEDECOD', 'AESTDTC'], CM: ['USUBJID', 'CMTRT', 'CMSTDTC'],

@@ -8,7 +8,7 @@ import { metaOf, type Version } from './standards'
 import { FORM_INFO } from './seed'
 
 export interface SpecRow { dataset: string; variable: string; label: string; type: string; length: string; core: string; codelist: string; origin: string; source: string; method: string }
-const COLLECTED_FNS = new Set(['iso', 'upper', 'trim', 'replace'])
+const COLLECTED_FNS = new Set(['iso', 'dtc', 'upper', 'trim', 'replace'])
 
 function onlyRaw(n: Node, raw: Set<string>): boolean {
   if (n.k === 'lit') return true

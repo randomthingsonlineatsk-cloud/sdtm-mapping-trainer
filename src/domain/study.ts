@@ -54,6 +54,7 @@ export const visitByRaw = (raw: string) => VISITS.find((v) => v.raw === raw)
 // study's data standards plan or mapping guidelines). The reference mappings follow them.
 export const CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'USUBJID', rule: 'STUDYID, a hyphen, and SUBJID: for example GLV-12-301-101-004. SUBJID is the subject number as recorded in the EDC (site and number, e.g. 101-004).' },
+  { topic: 'Raw dates', rule: 'EDC dates are DD-MMM-YYYY (10-MAR-2026) with UN for an unknown day and UNK for an unknown month; central laboratory dates are YYYYMMDD with times as HHMM; the IRT file is ISO 8601. Every --DTC is ISO 8601 to the precision collected: no imputation.' },
   { topic: 'RFSTDTC, RFXSTDTC', rule: 'Date and time of the first dose of study drug (EX, Day 1), as ISO 8601 to the minute. Null for subjects never dosed.' },
   { topic: 'RFENDTC, RFXENDTC', rule: 'Date of the last dose of study drug: the latest EX end date. Null for subjects never dosed.' },
   { topic: 'RFICDTC', rule: 'Date informed consent was signed (IC form).' },

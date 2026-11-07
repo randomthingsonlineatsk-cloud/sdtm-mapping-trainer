@@ -41,13 +41,16 @@ export const TOPICS: Topic[] = [
   { id: 'iso', title: 'ISO 8601 dates and times',
     body: [
       'All --DTC variables use ISO 8601: YYYY-MM-DD, and THH:MM (or THH:MM:SS) when a time is collected, as in 2026-03-10T09:00.',
-      'Partial dates are truncated from the right: an unknown day is 2026-03, an unknown month and day is 2026. Never invent the missing part (2026-03-01) and never write placeholders such as UN or UNK.',
-      'The time is kept only when it was collected. A date without a time stays a date: there is no T00:00.',
+      'Raw data rarely arrives that way. This study’s EDC exports DD-MMM-YYYY (10-MAR-2026) with the time in its own field; the central laboratory sends YYYYMMDD (20260310) with times as HHMM; the IRT file is already ISO 8601. Each source needs its own conversion, which is why the specification names the informat of every raw date.',
+      'Partial dates are truncated from the right: the EDC exports an unknown day as UN-MAR-2026, which becomes 2026-03, and an unknown month as UN-UNK-2019, which becomes 2019 (a known day is not kept without its month). Never invent the missing part (2026-03-01) and never carry UN or UNK into SDTM.',
+      'The time is kept only when it was collected, and only on a complete date. A date without a time stays a date: there is no T00:00. In the workspace, dtc(field, informat, time) does the conversion; a raw date copied straight into a --DTC variable fails the ISO 8601 check.',
     ],
-    example: { caption: 'From the raw form to --DTC', head: ['Raw date', 'Raw time', '--DTC'], rows: [['2026-03-10', '09:00', '2026-03-10T09:00'], ['2026-03-10', '', '2026-03-10'], ['2026-03 (day unknown)', '', '2026-03'], ['2026 (only the year)', '', '2026']] },
+    example: { caption: 'From the raw export to --DTC', head: ['Source', 'Raw date', 'Raw time', '--DTC'], rows: [['EDC', '10-MAR-2026', '09:00', '2026-03-10T09:00'], ['EDC', '10-MAR-2026', '', '2026-03-10'], ['EDC', 'UN-MAR-2026', '', '2026-03'], ['EDC', 'UN-UNK-2026', '', '2026'], ['Central lab', '20260310', '0915', '2026-03-10T09:15'], ['IRT', '2026-03-10', '', '2026-03-10']] },
     quiz: [
       { q: 'A start date is known only as March 2026. What is --STDTC?', options: ['2026-03-01', '2026-03-UN', '2026-03', '03/2026'], answer: 2, why: 'Truncate the unknown part; never impute in SDTM.' },
       { q: 'A visit date was collected without a time. What is VSDTC?', options: ['2026-02-07T00:00', '2026-02-07', '2026-02-07T', '2026-02-07T12:00'], answer: 1, why: 'Only collected precision is submitted.' },
+      { q: 'The EDC exports an AE start date as UN-UNK-2025. What is AESTDTC?', options: ['2025-01-01', '2025', 'UN-UNK-2025', '2025-UN-UN'], answer: 1, why: 'Only the year is known: truncate to 2025.' },
+      { q: 'The lab file has COLLDATE 20260310 and COLLTIME 0915. What is LBDTC?', options: ['20260310T0915', '2026-03-10T09:15', '2026-03-10', '10-MAR-2026 09:15'], answer: 1, why: 'Convert the vendor format to ISO 8601 and add the collected time.' },
     ] },
   { id: 'studyday', title: 'Study day and epoch',
     body: [
@@ -185,7 +188,7 @@ export const TOPICS: Topic[] = [
     ] },
   { id: 'partial', title: 'Partial dates and ongoing events',
     body: [
-      'Dates are submitted only to the precision collected: a medication started in March 2019 is CMSTDTC = 2019-03, not 2019-03-01. Imputed dates belong in ADaM, not SDTM.',
+      'Dates are submitted only to the precision collected: a medication started in March 2019 (exported as UN-MAR-2019) is CMSTDTC = 2019-03, not 2019-03-01. Imputed dates belong in ADaM, not SDTM.',
       'With a partial date, study day (--DY) and epoch cannot be derived reliably and stay null.',
       'Something still going on at the end of the study has no end date. --ENRTPT says how it relates to a reference time point (ONGOING) and --ENTPT names that time point (END OF STUDY).',
     ],

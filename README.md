@@ -87,6 +87,13 @@ rules; no vendor rule text or tool is copied.
 - **Eight more lessons** (20 in all): SUPP--, LB standardisation, trial design, DS, EX,
   coding variables, partial dates, and submission formats and validation.
 
+## Closer to company practice
+
+- **Raw dates as source systems send them:** the EDC exports DD-MMM-YYYY with UN and UNK for
+  unknown parts (UN-MAR-2019, UN-UNK-2019), the central laboratory YYYYMMDD with HHMM times,
+  the IRT ISO 8601. `dtc(field, informat, time)` converts them, keeping partial dates partial;
+  a raw date copied into a --DTC variable fails the ISO 8601 check.
+
 ## Coming next
 
 - **Phase 3:** aCRF editor and acrf.pdf, define.xml v2.1 with a preview, the reviewer's guide,

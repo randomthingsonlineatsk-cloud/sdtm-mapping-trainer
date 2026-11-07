@@ -8,6 +8,7 @@ import { parse, evaluate, validate, fmt, isBlank, toNum, type Node, type Val } f
 import { CT, decode, type Version } from './standards'
 import { SITES, ARMS, VISITS, LAB_STANDARDS, type Visit } from './study'
 import type { Row } from './seed'
+import { toIso, toIsoTime, anyDate, ISO_PARTIAL } from './rawdate'
 
 export type Rule =
   | { kind: 'copy'; field: string }
@@ -57,20 +58,26 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     const v = vals.filter((x) => x !== '')
     if (!v.length) return ''
     if (how === 'last') return v[v.length - 1]
-    if (how === 'min' || how === 'max') { const nums = v.every((x) => toNum(x) !== null); const s = nums ? [...v].sort((a, b) => Number(a) - Number(b)) : [...v].sort(); return how === 'min' ? s[0] : s[s.length - 1] }
+    if (how === 'min' || how === 'max') {
+      // Numbers compare as numbers and raw dates (10-MAR-2026, 20260310) as dates; the raw value is returned.
+      const nums = v.every((x) => toNum(x) !== null && !/^\d{8}$/.test(x)), dates = !nums && v.every((x) => anyDate(x) !== null)
+      const s = nums ? [...v].sort((a, b) => Number(a) - Number(b)) : dates ? [...v].sort((a, b) => anyDate(a)!.localeCompare(anyDate(b)!)) : [...v].sort()
+      return how === 'min' ? s[0] : s[s.length - 1]
+    }
     if (how === 'count') return String(v.length)
     return v[0]
   }
   const dm = (v: Val) => data.refDm?.get(subj)?.[S(v)] ?? ''
   const visitByRaw = (x: string) => (data.visits ?? VISITS).find((v) => v.raw === x)
-  const visitInfo = (visit: string, date: string): { num: number | ''; name: string } => {
+  const visitInfo = (visit: string, rawDate: string): { num: number | ''; name: string } => {
     const v = visitByRaw(visit)
     if (v) return { num: v.num, name: v.name }
+    const date = anyDate(rawDate) ?? ''
     if (!UNSCHEDULED.has(visit) || !DATE.test(date)) return { num: '', name: '' }
-    const sv = mine('SV').filter((r) => DATE.test(r.VISDAT)).sort((a, b) => a.VISDAT.localeCompare(b.VISDAT) || a.__id.localeCompare(b.__id))
+    const sv = mine('SV').map((r) => ({ r, d: anyDate(r.VISDAT) ?? '' })).filter((x) => DATE.test(x.d)).sort((a, b) => a.d.localeCompare(b.d) || a.r.__id.localeCompare(b.r.__id))
     let base = 0, k = 0
-    for (const r of sv) {
-      if (r.VISDAT > date) break
+    for (const { r, d } of sv) {
+      if (d > date) break
       const sch = visitByRaw(r.VISIT)
       if (sch) { base = sch.num; k = 0 } else if (UNSCHEDULED.has(r.VISIT)) k++
     }
@@ -78,14 +85,25 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     return { num, name: `UNSCHEDULED ${num.toFixed(2)}` }
   }
   return {
-    iso: (d, t) => { const ds = S(d), ts = S(t); if (!ds) return ''; return DATE.test(ds) && /^\d{2}:\d{2}(:\d{2})?$/.test(ts) ? `${ds}T${ts}` : ds },
+    iso: (d, t) => {
+      const ds = S(d), ts = S(t); if (!ds) return ''
+      if (!ISO_PARTIAL.test(ds)) throw new Error(`“${ds}” is not ISO 8601. Convert it with dtc(field, '${/^\d{8}$/.test(ds) ? 'YYYYMMDD' : 'DD-MMM-YYYY'}')`)
+      return DATE.test(ds) && /^\d{2}:\d{2}(:\d{2})?$/.test(ts) ? `${ds}T${ts}` : ds
+    },
+    // The raw date in the given informat to ISO 8601, keeping a partial date partial; a time is
+    // added only to a complete date.
+    dtc: (d, informat, t) => {
+      const ds = toIso(S(d), S(informat) || 'DD-MMM-YYYY'); if (!ds) return ''
+      const ts = toIsoTime(S(t))
+      return ts && DATE.test(ds) ? `${ds}T${ts}` : ds
+    },
     subj: (form, field, how) => agg(mine(S(form)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     subjwhere: (form, field, wf, wv, how) => agg(mine(S(form)).filter((r) => (r[S(wf)] ?? '') === S(wv)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     irt: (field) => mine('IRT')[0]?.[S(field)] ?? '',
     country: (site) => SITES.find((s) => s.id === S(site))?.iso ?? '',
     armname: (code) => ARMS.find((a) => a.code === S(code))?.name ?? '',
     age: (birth, ref) => {
-      const b = fullDate(S(birth)), r = fullDate(S(ref)); if (!b || !r) return ''
+      const b = fullDate(anyDate(S(birth)) ?? ''), r = fullDate(anyDate(S(ref)) ?? ''); if (!b || !r) return ''
       let a = Number(r.slice(0, 4)) - Number(b.slice(0, 4))
       if (r.slice(5) < b.slice(5)) a--
       return a
@@ -119,7 +137,8 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
 }
 export const FN_HELP: { sig: string; what: string }[] = [
   { sig: "concat(a, b, …)", what: 'Joins text: concat(\'GLV-12-301-\', SUBJID)' },
-  { sig: 'iso(date, time)', what: 'ISO 8601 from a date and an optional time: 2026-03-10T09:00. Partial dates pass through.' },
+  { sig: "dtc(date, informat, time)", what: "A raw date to ISO 8601. informat: 'DD-MMM-YYYY' (EDC: 10-MAR-2026, UN-MAR-2026, UN-UNK-2019), 'YYYYMMDD' (lab) or 'ISO 8601'. Unknown parts are dropped, not imputed: UN-MAR-2026 gives 2026-03. time (HH:MM or HHMM) is added to complete dates only." },
+  { sig: 'iso(date, time)', what: 'Joins a date that is already ISO 8601 (the IRT file) with an optional time: 2026-03-10T09:00.' },
   { sig: "upper(x), lower(x), trim(x), substr(x, start, n), replace(x, a, b)", what: 'Text functions' },
   { sig: "part(x, sep, n)", what: "The nth piece of x split at sep, trimmed: part('White; Asian', ';', 2) is Asian. Blank when there is no nth piece." },
   { sig: "if(condition, a, b)", what: 'a when the condition is true, otherwise b' },
