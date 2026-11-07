@@ -51,6 +51,9 @@ const AE_RULES: Record<string, Rule> = {
   AESEV: e('upper(AESEV)'), AESER: cp('AESER'), AEACN: e('upper(AEACN)'), AEREL: e('upper(AEREL)'), AEOUT: e('upper(AEOUT)'), AESDTH: cp('AESDTH'), AESHOSP: cp('AESHOSP'),
   EPOCH: e('epoch(AESTDTC)'), AESTDTC: cp('AESTDAT'), AEENDTC: cp('AEENDAT'), AESTDY: e('studyday(AESTDTC)'), AEENDY: e('studyday(AEENDTC)'),
 }
+// More than one race recorded: RACE = MULTIPLE in DM and each collected race in SUPPDM (NSDM in
+// the v4.0 draft) as RACE1, RACE2, with IDVAR and IDVARVAL null because DM has one record per subject.
+export const RACEQ: SuppQual[] = [1, 2].map((n) => ({ qnam: `RACE${n}`, qlabel: `Race ${n}`, qorig: 'Collected' as const, expr: `if(contains(RACE, ';'), upper(part(RACE, ';', ${n})), '')` }))
 export const AETRTEM: SuppQual = { qnam: 'AETRTEM', qlabel: 'Treatment Emergent Flag', qorig: 'Derived', expr: "if(isblank(dm('RFXSTDTC')) or isblank(studyday(AESTDTC, dm('RFXSTDTC'))), '', if(studyday(AESTDTC, dm('RFXSTDTC')) >= 1, 'Y', 'N'))" }
 const CM_RULES: Record<string, Rule> = {
   STUDYID: c(STUDY.id), DOMAIN: c('CM'), USUBJID: e(`concat('${STUDY.id}-', SUBJID)`), SUBJID: cp('SUBJID'), CMSEQ: { kind: 'seq' }, CMSPID: cp('CMSPID'),
@@ -92,7 +95,7 @@ export const SORT: Record<string, string[]> = {
 // Which IG variables each reference includes: every Required and Expected variable, plus the
 // permissible ones the study collects or derives.
 const REF: Record<string, { rules: Record<string, Rule>; perm: string[]; transpose?: DomainSpec['transpose']; filter?: string; source?: string; parts?: Part[]; supp?: SuppQual[] }> = {
-  DM: { rules: DM_RULES, perm: ['BRTHDTC', 'ETHNIC', 'DMDTC', 'DMDY'] },
+  DM: { rules: DM_RULES, perm: ['BRTHDTC', 'ETHNIC', 'DMDTC', 'DMDY'], supp: RACEQ },
   VS: { rules: VS_RULES, perm: ['VSPOS', 'VSSTAT', 'VSREASND', 'VISIT', 'EPOCH', 'VSDY', 'SUBJID'], transpose: VS_TRANSPOSE },
   AE: { rules: AE_RULES, perm: ['AESPID', 'AESEV', 'AEOUT', 'AESDTH', 'AESHOSP', 'EPOCH', 'AESTDY', 'AEENDY', 'SUBJID'], supp: [AETRTEM] },
   CM: { rules: CM_RULES, perm: ['CMSPID', 'CMDECOD', 'CMINDC', 'CMCLAS', 'CMDOSE', 'CMDOSU', 'CMDOSFRQ', 'CMROUTE', 'EPOCH', 'CMSTDTC', 'CMENDTC', 'CMSTDY', 'CMENDY', 'CMENRTPT', 'CMENTPT', 'SUBJID'] },

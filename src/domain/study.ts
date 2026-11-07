@@ -62,7 +62,7 @@ export const CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'AGE, AGEU', rule: 'Age in completed years at informed consent, from the full date of birth. AGEU is YEARS.' },
   { topic: 'ARM, ARMCD', rule: 'Planned arm from the IRT randomisation file. Null for screen failures, with ARMNRS = SCREEN FAILURE.' },
   { topic: 'ACTARM, ACTARMCD', rule: 'Actual arm from the treatment kits dispensed (IRT kit arm). Null for subjects randomised but never dosed, with ARMNRS = ASSIGNED, NOT TREATED. When the kit arm differs from the planned arm, ACTARMCD is the kit arm.' },
-  { topic: 'RACE', rule: 'One race recorded: the CT value. More than one race recorded: MULTIPLE, with the individual races in SUPPDM as RACE1, RACE2 (QORIG Collected). Mission S1 scores DM only.' },
+  { topic: 'RACE', rule: 'One race recorded: the CT value. More than one race recorded: MULTIPLE, with the individual races in SUPPDM as RACE1, RACE2 (QORIG Collected; IDVAR null). In v4.0 draft mode they are the columns RACE1 and RACE2 of NSDM. Mission S1 scores DM and SUPPDM (NSDM).' },
   { topic: 'COUNTRY', rule: 'ISO 3166-1 alpha-3 code of the site’s country.' },
   { topic: 'DMDTC', rule: 'Date the demographics form was completed (DMDAT).' },
   { topic: 'VISITNUM, VISIT', rule: 'From the trial visits (TV). An unscheduled visit takes the number of the last scheduled visit before it plus .01, .02 and so on, and VISIT = UNSCHEDULED followed by that number (e.g. UNSCHEDULED 4.01).' },

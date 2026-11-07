@@ -7,6 +7,7 @@
 import { parse, type Node } from './expr'
 import { evalOrder, type DomainSpec, type Part, type Rule } from './engine'
 import { STUDY } from './study'
+import { relName, type Version } from './standards'
 
 type Lang = 'R' | 'SAS'
 const PSEUDO_R: Record<string, string> = { __TESTCD: '.testcd', __RESULT: '.result', __UNIT: '.unit', __FIELD: '.field' }
@@ -33,6 +34,7 @@ function expr(n: Node, L: Lang): string {
     case 'call': {
       const f = n.name.toLowerCase(), a = n.args.map(go)
       if (f === '__in') return L === 'R' ? `${a[0]} %in% c(${a.slice(1).join(', ')})` : `${a[0]} in (${a.slice(1).join(', ')})`
+      if (f === 'part') return L === 'R' ? `trimws(stringr::str_split_i(${a[0]}, stringr::fixed(${a[1]}), ${a[2]}))` : `strip(scan(${a[0]}, ${a[2]}, ${a[1]}))`
       if (f === 'isdup') return L === 'R' ? `duplicated(paste(${a.join(', ')}))` : `(first_key_seen(catx('|', ${a.join(', ')})) = 0)`
       if (HELPERS[f]) {
         const extra = SUBJ_ARG.has(f) ? ['SUBJID'] : []
@@ -61,6 +63,29 @@ export function ruleCode(r: Rule | undefined, L: Lang): string {
   return ''
 }
 
+const allQuals = (spec: DomainSpec) => [...(spec.supp ?? []), ...(spec.parts ?? []).flatMap((p) => p.supp ?? [])].filter((q, i, a) => q.qnam && a.findIndex((x) => x.qnam === q.qnam) === i)
+const seqOf = (spec: DomainSpec) => (spec.vars.includes(`${spec.domain}SEQ`) ? `${spec.domain}SEQ` : '')
+
+// SUPP-- (one record per value) or, in the v4.0 draft, NS-- (one record per parent record).
+function relR(spec: DomainSpec, quals: NonNullable<DomainSpec['supp']>, ver: Version): string[] {
+  const d = spec.domain.toLowerCase(), rel = relName(spec.domain, ver), seq = seqOf(spec), names = quals.map((q) => q.qnam)
+  const head = `  transmute(STUDYID, RDOMAIN = "${spec.domain}", USUBJID, IDVAR = ${seq ? `"${seq}"` : 'NA_character_'}, `
+  const cols = names.map((n) => `${n} = .${n}`).join(', ')
+  if (ver === '3.4') return [
+    `${rel.toLowerCase()} <- ${d}_all %>%`, `${head}IDVARVAL = ${seq ? `as.character(${seq})` : 'NA_character_'}, ${cols}) %>%`,
+    `  pivot_longer(c(${names.join(', ')}), names_to = "QNAM", values_to = "QVAL") %>%`, '  filter(!is_blank(QVAL)) %>%',
+    `  mutate(QLABEL = recode(QNAM, ${quals.map((q) => `${q.qnam} = ${JSON.stringify(q.qlabel)}`).join(', ')}),`,
+    `         QORIG = recode(QNAM, ${quals.map((q) => `${q.qnam} = ${JSON.stringify(q.qorig)}`).join(', ')}),`,
+    `         QEVAL = ${quals.some((q) => q.qeval) ? `recode(QNAM, ${quals.map((q) => `${q.qnam} = ${JSON.stringify(q.qeval ?? '')}`).join(', ')})` : 'NA_character_'}) %>%`,
+    '  select(STUDYID, RDOMAIN, USUBJID, IDVAR, IDVARVAL, QNAM, QLABEL, QVAL, QORIG, QEVAL)',
+  ]
+  return [
+    `${rel.toLowerCase()} <- ${d}_all %>%`, `${head}IDVARVLN = ${seq ? seq : 'NA_real_'}, ${cols}) %>%`,
+    `  filter(if_any(c(${names.join(', ')}), ~ !is_blank(.x)))`,
+    `# Labels and origins of ${names.join(', ')} go to define.xml: ${quals.map((q) => `${q.qnam} "${q.qlabel}" (${q.qorig})`).join('; ')}`,
+  ]
+}
+
 function partR(spec: DomainSpec, part: Part, i: number): string {
   const ds = part.source.toLowerCase()
   const order = evalOrder({ ...spec, rules: part.rules, transpose: part.transpose }, new Set())
@@ -72,33 +97,38 @@ function partR(spec: DomainSpec, part: Part, i: number): string {
     if (part.transpose.drop.trim()) lines.push(`  filter(!(${ruleCode({ kind: 'expr', expr: part.transpose.drop }, 'R')})) %>%`)
   } else lines.push(`${spec.domain.toLowerCase()}_${i} <- raw$${ds} %>%`)
   if (part.filter?.trim()) lines.push(`  filter(${ruleCode({ kind: 'expr', expr: part.filter }, 'R')}) %>%`)
-  const muts = order.filter((v) => part.rules[v] && !['seq', 'lobxfl'].includes(part.rules[v].kind)).map((v) => `    ${v} = ${ruleCode(part.rules[v], 'R')}`)
+  const quals = (i === 1 ? spec.supp : part.supp) ?? []
+  const muts = [
+    ...quals.filter((q) => q.qnam && q.expr.trim()).map((q) => `    .${q.qnam} = ${ruleCode({ kind: 'expr', expr: q.expr }, 'R')}`),
+    ...order.filter((v) => part.rules[v] && !['seq', 'lobxfl'].includes(part.rules[v].kind)).map((v) => `    ${v} = ${ruleCode(part.rules[v], 'R')}`),
+  ]
   lines.push(`  mutate(\n${muts.join(',\n')}\n  )`)
   return lines.join('\n')
 }
-export function toR(spec: DomainSpec): string {
+export function toR(spec: DomainSpec, ver: Version = '3.4'): string {
   const d = spec.domain.toLowerCase()
   const parts: Part[] = [{ source: spec.source, filter: spec.filter, transpose: spec.transpose, rules: spec.rules }, ...(spec.parts ?? [])]
   const seq = spec.vars.find((v) => spec.rules[v]?.kind === 'seq')
   const flag = spec.vars.find((v) => spec.rules[v]?.kind === 'lobxfl')
   const fr = flag ? spec.rules[flag] as Extract<Rule, { kind: 'lobxfl' }> : undefined
+  const quals = allQuals(spec)
   const out = [
     `# ${STUDY.id} · ${spec.domain} — generated from your mapping rules (read-only sketch).`,
     `# raw$<form> are the raw datasets; iso8601(), study_day(), epoch_of(), subj_value() and the other`,
     `# helpers are the study's shared functions, doing what the trainer's functions of the same purpose do.`,
-    'library(dplyr)', '',
+    'library(dplyr)', ...(quals.length && ver === '3.4' ? ['library(tidyr)'] : []), '',
     ...parts.map((p, i) => partR(spec, p, i + 1) + '\n'),
-    `${d} <- bind_rows(${parts.map((_, i) => `${d}_${i + 1}`).join(', ')}) %>%`,
+    `${d}${quals.length ? '_all' : ''} <- bind_rows(${parts.map((_, i) => `${d}_${i + 1}`).join(', ')}) %>%`,
     `  arrange(${spec.sort.join(', ')})${seq || fr ? ' %>%' : ''}`,
     ...(seq ? [`  group_by(USUBJID) %>% mutate(${seq} = row_number()) %>% ungroup()${fr ? ' %>%' : ''}`] : []),
     ...(fr ? [`  group_by(USUBJID, ${fr.by}) %>%`, `  mutate(${flag} = lobxfl(${fr.result}, ${fr.dtc}, rfxstdtc = dm_value("RFXSTDTC", SUBJID))) %>% ungroup()`] : []),
-    '', `${d} <- ${d} %>% select(${spec.vars.join(', ')})`,
+    '', `${d} <- ${d}${quals.length ? '_all' : ''} %>% select(${spec.vars.join(', ')})`,
   ]
-  if (spec.supp?.length) out.push('', `supp${d} <- ${d} %>%`, `  transmute(STUDYID, RDOMAIN = "${spec.domain}", USUBJID, IDVAR = ${spec.vars.includes(`${spec.domain}SEQ`) ? `"${spec.domain}SEQ"` : 'NA_character_'}, IDVARVAL = ${spec.vars.includes(`${spec.domain}SEQ`) ? `as.character(${spec.domain}SEQ)` : 'NA_character_'},`, ...spec.supp.map((q) => `            ${q.qnam} = ${ruleCode({ kind: 'expr', expr: q.expr }, 'R')},`), `  ) %>%`, `  pivot_longer(c(${spec.supp.map((q) => q.qnam).join(', ')}), names_to = "QNAM", values_to = "QVAL") %>%`, `  filter(!is_blank(QVAL))  # then add QLABEL, QORIG (${spec.supp.map((q) => `${q.qnam}: ${q.qorig}`).join('; ')}) and QEVAL`)
+  if (quals.length) out.push('', ...relR(spec, quals, ver))
   return out.join('\n')
 }
 
-export function toSAS(spec: DomainSpec): string {
+export function toSAS(spec: DomainSpec, ver: Version = '3.4'): string {
   const d = spec.domain.toLowerCase()
   const parts: Part[] = [{ source: spec.source, filter: spec.filter, transpose: spec.transpose, rules: spec.rules }, ...(spec.parts ?? [])]
   const seq = spec.vars.find((v) => spec.rules[v]?.kind === 'seq')
@@ -110,7 +140,8 @@ export function toSAS(spec: DomainSpec): string {
   ]
   parts.forEach((p, i) => {
     const order = evalOrder({ ...spec, rules: p.rules, transpose: p.transpose }, new Set())
-    out.push(`data ${d}_${i + 1} (keep=${spec.vars.filter((v) => p.rules[v] && !['seq', 'lobxfl'].includes(p.rules[v].kind)).join(' ')} SUBJID);`, `  set raw.${p.source.toLowerCase()};`)
+    const pq = ((i === 0 ? spec.supp : p.supp) ?? []).filter((q) => q.qnam && q.expr.trim())
+    out.push(`data ${d}_${i + 1} (keep=${spec.vars.filter((v) => p.rules[v] && !['seq', 'lobxfl'].includes(p.rules[v].kind)).join(' ')} SUBJID${pq.map((q) => ` _${q.qnam}`).join('')});`, `  set raw.${p.source.toLowerCase()};`)
     if (p.filter?.trim()) out.push(`  if not (${ruleCode({ kind: 'expr', expr: p.filter }, 'SAS')}) then delete;`)
     if (p.transpose) {
       out.push('  length __TESTCD $8 __FIELD $8 __RESULT $200 __UNIT $20;')
@@ -118,12 +149,26 @@ export function toSAS(spec: DomainSpec): string {
       out.push('  return;', 'derive:')
       if (p.transpose.drop.trim()) out.push(`  if ${ruleCode({ kind: 'expr', expr: p.transpose.drop }, 'SAS')} then return;`)
     }
+    for (const q of pq) out.push(`  _${q.qnam} = ${ruleCode({ kind: 'expr', expr: q.expr }, 'SAS')};  /* from the raw values, before they are overwritten */`)
     for (const v of order) { const r = p.rules[v]; if (r && !['seq', 'lobxfl'].includes(r.kind)) out.push(`  ${v} = ${ruleCode(r, 'SAS')};`) }
     out.push(p.transpose ? '  output;\n  return;' : '', 'run;', '')
   })
   out.push(`data ${d}; set ${parts.map((_, i) => `${d}_${i + 1}`).join(' ')}; run;`, `proc sort data=${d}; by ${spec.sort.join(' ')}; run;`)
   if (seq) out.push(`data ${d}; set ${d}; by USUBJID; if first.USUBJID then ${seq} = 0; ${seq} + 1; run;`)
   if (flag) { const fr = spec.rules[flag] as Extract<Rule, { kind: 'lobxfl' }>; out.push(`/* ${flag}: Y on the last non-missing ${fr.result} per USUBJID and ${fr.by} with ${fr.dtc} <= RFXSTDTC (from DM): */`, `%lobxfl(data=${d}, flag=${flag}, result=${fr.result}, dtc=${fr.dtc}, by=${fr.by});`) }
+  const quals = allQuals(spec)
+  if (quals.length) {
+    const rel = relName(spec.domain, ver), seq = seqOf(spec), names = quals.map((q) => q.qnam)
+    if (ver === '3.4') out.push(`data ${rel.toLowerCase()} (keep=STUDYID RDOMAIN USUBJID IDVAR IDVARVAL QNAM QLABEL QVAL QORIG QEVAL);`, `  set ${d};`, '  length RDOMAIN $2 IDVAR $8 IDVARVAL $200 QNAM $8 QLABEL $40 QVAL $200 QORIG $20 QEVAL $40;',
+      `  RDOMAIN = '${spec.domain}'; IDVAR = '${seq}'; IDVARVAL = ${seq ? `strip(put(${seq}, best.))` : "''"};`,
+      ...quals.map((q) => `  if not missing(_${q.qnam}) then do; QNAM = '${q.qnam}'; QLABEL = '${q.qlabel.replace(/'/g, "''")}'; QVAL = _${q.qnam}; QORIG = '${q.qorig}'; QEVAL = '${q.qeval ?? ''}'; output; end;`), 'run;',
+      `proc sort data=${rel.toLowerCase()}; by USUBJID IDVARVAL QNAM; run;`)
+    else out.push(`data ${rel.toLowerCase()} (keep=STUDYID RDOMAIN USUBJID IDVAR IDVARVLN ${names.join(' ')});`, `  set ${d};`, `  length RDOMAIN $2 IDVAR $8;`,
+      `  RDOMAIN = '${spec.domain}'; IDVAR = '${seq}'; IDVARVLN = ${seq || '.'};`, ...names.map((n) => `  ${n} = _${n};`),
+      `  if cmiss(${names.join(', ')}) < ${names.length};  /* one record per ${spec.domain} record with a non-standard value */`,
+      `  label ${quals.map((q) => `${q.qnam} = '${q.qlabel.replace(/'/g, "''")}'`).join(' ')};`, 'run;')
+    out.push(`data ${d}; set ${d} (drop=${names.map((n) => `_${n}`).join(' ')}); run;`)
+  }
   if (spec.vars.some((v) => spec.rules[v]?.kind === 'recode')) out.push('', '/* Recodes use formats defined from your recode tables, e.g.:', ...spec.vars.filter((v) => spec.rules[v]?.kind === 'recode').map((v) => { const r = spec.rules[v] as Extract<Rule, { kind: 'recode' }>; return `   proc format; value $recode ${Object.entries(r.table).map(([a, b]) => `'${a}' = '${b}'`).join(' ')}; run;   (for ${v}) */` }))
   return out.filter((x) => x !== '').join('\n')
 }

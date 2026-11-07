@@ -124,11 +124,13 @@ export const TOPICS: Topic[] = [
       'Each SUPP-- record names its parent: RDOMAIN, USUBJID, and IDVAR with IDVARVAL (usually --SEQ and its value). For DM, which has one record per subject, IDVAR and IDVARVAL are null.',
       'QNAM is the qualifier’s name (up to 8 characters, starting with a letter, as for any SAS V5 variable name) and QLABEL its label (up to 40). QVAL holds the value; QORIG its origin (Collected, Derived, Assigned) and QEVAL who evaluated it when that matters (e.g. INVESTIGATOR).',
       'Use SUPP-- only when there is no standard variable. A value with a standard home (AESER, AEOUT) goes there, never into SUPPAE.',
+      'The SDTMIG v4.0 draft replaces SUPP-- with NS-- datasets (NSAE, NSDM): one horizontal record per parent record, each non-standard variable a column (character or numeric), linked by IDVAR = --SEQ and its numeric value IDVARVLN (both null in NSDM). Labels and origins move to define.xml. Switch the project to v4.0 draft mode to build them.',
     ],
     example: { caption: 'SUPPAE for GLV-12-301 (treatment emergent flag)', head: ['RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'QNAM', 'QLABEL', 'QVAL', 'QORIG'], rows: [['AE', 'GLV-12-301-101-002', 'AESEQ', '1', 'AETRTEM', 'Treatment Emergent Flag', 'Y', 'Derived'], ['AE', 'GLV-12-301-101-002', 'AESEQ', '2', 'AETRTEM', 'Treatment Emergent Flag', 'N', 'Derived']] },
     quiz: [
       { q: 'What links a SUPPAE record to its AE record?', options: ['QNAM and QVAL', 'USUBJID with IDVAR = AESEQ and IDVARVAL', 'AETERM', 'The row order'], answer: 1, why: 'The parent is the AE record of that subject whose AESEQ equals IDVARVAL.' },
       { q: 'A subject recorded two races. Where do the individual races go?', options: ['Two DM records', 'RACE = “ASIAN, WHITE”', 'RACE = MULTIPLE, with RACE1 and RACE2 in SUPPDM', 'They are not submitted'], answer: 2, why: 'DM has one record per subject. RACE is MULTIPLE and each race goes to SUPPDM (IDVAR null).' },
+      { q: 'In the v4.0 draft, how many NSAE records does an AE record with two non-standard values have?', options: ['Two, one per value', 'One, with both values as columns', 'None: they move into AE', 'One per subject'], answer: 1, why: 'NS-- is horizontal: one record per parent record, linked by IDVAR = AESEQ and IDVARVLN.' },
     ] },
   { id: 'lb', title: 'LB: units, conversion and reference ranges',
     body: [

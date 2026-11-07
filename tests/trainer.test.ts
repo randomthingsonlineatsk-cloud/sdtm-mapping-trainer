@@ -92,7 +92,7 @@ describe('missions and checks', () => {
     p.specs.DM = s
     startMission(p, 'S1'); const run = finishMission(p, 'S1')
     expect(run.score).toBeLessThan(100)
-    expect(run.perVar!.find((x) => x.v === 'SEX')!.credit).toBe(0)
+    expect(run.perVar!.find((x) => x.v === 'DM.SEX')!.credit).toBe(0)
     const f = check(build(s, studyData()), '3.4')
     expect(f.some((x) => x.rule === 'TRN-012')).toBe(true)
     expect(f.some((x) => x.rule === 'TRN-004' && x.variable === 'SEX')).toBe(true)

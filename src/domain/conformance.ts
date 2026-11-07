@@ -55,7 +55,7 @@ export const RULES: Rule[] = [
   { id: 'TRN-046', sev: 'Warning', text: 'EXDOSE above 0 for PLACEBO, or negative', basis: 'SDTMIG EX: placebo dose is 0' },
   { id: 'TRN-047', sev: 'Error', text: 'More than one disposition event for a subject in the same epoch', basis: 'SDTMIG DS: one disposition event per epoch' },
   { id: 'TRN-048', sev: 'Error', text: 'DSDECOD not in the codelist for its DSCAT (NCOMPLT for disposition events, PROTMLST for milestones)', basis: 'CDISC CT: DSDECOD codelist depends on DSCAT' },
-  { id: 'TRN-049', sev: 'Error', text: 'SUPP--: QNAM over 8 characters or not starting with a letter, QLABEL over 40, or IDVARVAL with no parent record', basis: 'SDTMIG supplemental qualifiers; SAS V5 transport limits' },
+  { id: 'TRN-049', sev: 'Error', text: 'SUPP-- or NS--: a qualifier or non-standard variable name that is not a valid SAS V5 name or reuses a standard variable, a label over 40 characters, or a record with no parent record', basis: 'SDTMIG v3.4 supplemental qualifiers; SDTMIG v4.0 draft non-standard variable datasets; SAS V5 transport limits' },
   { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, visit and date/time)', basis: 'FDA validator rules: duplicate records' },
   { id: 'TRN-052', sev: 'Error', text: 'Value longer than 200 characters', basis: 'SAS V5 transport format limit (Study Data Technical Conformance Guide)' },
   { id: 'TRN-053', sev: 'Error', text: '--TESTCD over 8 characters or not starting with a letter, or --TEST over 40', basis: 'SDTMIG findings; SAS V5 transport limits' },
@@ -163,12 +163,39 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
     for (const [t, u] of units) if (u.size > 1) add('TRN-020', `${d}STRESU`, `${t} has standard units ${[...u].join(', ')}`)
   }
   if (b.supp) {
-    const parent = new Set(b.rows.map((r) => `${r.USUBJID}|${r[`${d}SEQ`] ?? ''}`))
-    b.supp.rows.forEach((r) => {
-      if (r.QNAM.length > 8 || !/^[A-Z]/.test(r.QNAM)) out.push({ rule: 'TRN-049', sev: 'Error', domain: `SUPP${d}`, variable: 'QNAM', usubjid: r.USUBJID, msg: `QNAM "${r.QNAM}"` })
-      else if (r.QLABEL.length > 40) out.push({ rule: 'TRN-049', sev: 'Error', domain: `SUPP${d}`, variable: 'QLABEL', usubjid: r.USUBJID, msg: `QLABEL is ${r.QLABEL.length} characters` })
-      else if (r.IDVAR && !parent.has(`${r.USUBJID}|${r.IDVARVAL}`)) out.push({ rule: 'TRN-049', sev: 'Error', domain: `SUPP${d}`, variable: 'IDVARVAL', usubjid: r.USUBJID, msg: `${r.IDVAR} ${r.IDVARVAL} not in ${d}` })
-    })
+    // SUPP-- (v3.4) holds one record per value; NS-- (v4.0 draft) one record per parent record with
+    // the non-standard variables as columns. Names follow SAS V5 rules (8 characters, starting with a
+    // letter) and labels are at most 40 characters; neither may reuse a standard variable of the
+    // parent; every record must point to a parent record through --SEQ (DM: IDVAR null).
+    const rd = b.supp.domain, ns = rd.startsWith('NS'), seq = `${d}SEQ`
+    const std = new Set(varsOf(d, ver).map((x) => x.name))
+    const parent = new Set(b.rows.map((r) => `${r.USUBJID}|${r[seq] ?? ''}`))
+    const subj = new Set(b.rows.map((r) => r.USUBJID))
+    const push = (variable: string, usubjid: string, msg: string) => out.push({ rule: 'TRN-049', sev: 'Error', domain: rd, variable, usubjid, msg })
+    const nameBad = (n: string) => n.length > 8 || !/^[A-Z][A-Z0-9_]*$/.test(n)
+    if (ns) {
+      for (const v of b.supp.vars.slice(5)) {
+        const label = b.supp.labels?.[v] ?? ''
+        if (nameBad(v)) push(v, '', `Non-standard variable name "${v}" is not a valid SAS V5 name (8 characters, starting with a letter)`)
+        else if (std.has(v)) push(v, '', `${v} is a standard ${d} variable: it belongs in ${d}, not ${rd}`)
+        else if (!label) push(v, '', `${v} has no label`)
+        else if (label.length > 40) push(v, '', `Label of ${v} is ${label.length} characters`)
+      }
+      b.supp.rows.forEach((r) => {
+        if (d === 'DM') { if (r.IDVAR || r.IDVARVLN) push('IDVAR', r.USUBJID, 'IDVAR and IDVARVLN must be null in NSDM'); else if (!subj.has(r.USUBJID)) push('USUBJID', r.USUBJID, `${r.USUBJID} not in DM`) }
+        else if (r.IDVAR !== seq) push('IDVAR', r.USUBJID, `IDVAR must be ${seq} in ${rd}, not "${r.IDVAR}"`)
+        else if (!parent.has(`${r.USUBJID}|${r.IDVARVLN}`)) push('IDVARVLN', r.USUBJID, `${seq} ${r.IDVARVLN} not in ${d}`)
+      })
+    } else {
+      const seen = new Set<string>()
+      b.supp.rows.forEach((r) => {
+        const once = (k: string, f: () => void) => { if (!seen.has(k)) { seen.add(k); f() } }
+        if (nameBad(r.QNAM)) once(`n${r.QNAM}`, () => push('QNAM', r.USUBJID, `QNAM "${r.QNAM}" is not a valid SAS V5 name (8 characters, starting with a letter)`))
+        else if (std.has(r.QNAM)) once(`s${r.QNAM}`, () => push('QNAM', r.USUBJID, `${r.QNAM} is a standard ${d} variable: it belongs in ${d}, not ${rd}`))
+        else if (r.QLABEL.length > 40) once(`l${r.QNAM}`, () => push('QLABEL', r.USUBJID, `QLABEL of ${r.QNAM} is ${r.QLABEL.length} characters`))
+        if (d === 'DM' ? !subj.has(r.USUBJID) : r.IDVAR && !parent.has(`${r.USUBJID}|${r.IDVARVAL}`)) push('IDVARVAL', r.USUBJID, d === 'DM' ? `${r.USUBJID} not in DM` : `${r.IDVAR} ${r.IDVARVAL} not in ${d}`)
+      })
+    }
   }
   if (ctx.set) { for (const f of out) { const sv = severityIn(f.rule, ctx.set); f.sev = f.rule === 'TRN-004' || f.rule === 'TRN-017' ? (sv === 'Reject' ? 'Reject' : f.sev) : sv ?? f.sev } }
   return out

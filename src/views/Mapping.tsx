@@ -44,7 +44,7 @@ function Workspace({ domain, spec, data }: { domain: string; spec: DomainSpec; d
   const rawRows = data.forms[view.source] ?? []
   const raw = fieldsOf(p, view.source)
   const fields = fieldsFor(view, raw.map((f) => f.name))
-  const built = useMemo(() => build(spec, data), [spec, data, JSON.stringify(spec)])
+  const built = useMemo(() => build(spec, data, p.version), [spec, data, p.version, JSON.stringify(spec)])
   const updDom = (fn: (s: DomainSpec) => void, what?: string) => act((pp) => { fn(pp.specs[domain]); if (what) log(pp, `${domain}: ${what}`) })
   // Rule, filter and transpose edits go to the active source; the variable list and sort keys belong to the domain.
   const upd = (fn: (s: DomainSpec) => void, what?: string) => act((pp) => { const s = pp.specs[domain]; fn((pi === 0 ? s : s.parts![pi - 1]) as DomainSpec); if (what) log(pp, `${domain}${pi ? ` source ${pi + 1}` : ''}: ${what}`) })
@@ -100,9 +100,9 @@ function Workspace({ domain, spec, data }: { domain: string; spec: DomainSpec; d
           {sel && <RuleEditor key={`${domain}-${pi}-${sel}`} m={meta.find((x) => x.name === sel)!} spec={view} fields={fields} rawRows={rawRows} upd={upd} included={included.has(sel)} include={() => toggle(sel)} runErr={built.errors[sel]} />}
         </div>
       </div>
-      <SuppEditor spec={spec} fields={fields} built={built} updDom={updDom} />
+      <SuppEditor spec={spec} fields={fields} built={built} updDom={updDom} ns={p.version !== '3.4'} />
       <Preview built={built} spec={spec} />
-      <CodeView spec={spec} />
+      <CodeView spec={spec} ver={p.version} />
     </>
   )
 }
@@ -225,27 +225,28 @@ function Preview({ built, spec }: { built: ReturnType<typeof build>; spec: Domai
 // the parent record (IDVAR/IDVARVAL = --SEQ). Each qualifier is an expression evaluated on every
 // parent record; a record gets a SUPP row only where the value is not null.
 const QORIG: SuppQual['qorig'][] = ['Collected', 'Derived', 'Assigned']
-function SuppEditor({ spec, fields, built, updDom }: { spec: DomainSpec; fields: string[]; built: ReturnType<typeof build>; updDom: (fn: (s: DomainSpec) => void, what?: string) => void }) {
+function SuppEditor({ spec, fields, built, updDom, ns }: { spec: DomainSpec; fields: string[]; built: ReturnType<typeof build>; updDom: (fn: (s: DomainSpec) => void, what?: string) => void; ns: boolean }) {
+  const rel = `${ns ? 'NS' : 'SUPP'}${spec.domain}`, N = ns ? 'Name' : 'QNAM', L = ns ? 'Label' : 'QLABEL'
   const q = spec.supp ?? []
   const set = (i: number, patch: Partial<SuppQual>, what?: string) => updDom((s) => { Object.assign(s.supp![i], patch) }, what)
-  const bad = (x: SuppQual) => !/^[A-Z][A-Z0-9]{0,7}$/.test(x.qnam) ? 'QNAM: up to 8 capital letters or digits, starting with a letter' : x.qlabel.length > 40 ? 'QLABEL: at most 40 characters' : spec.vars.includes(x.qnam) ? `${x.qnam} is a standard variable of ${spec.domain}: it belongs in the domain, not SUPP${spec.domain}` : x.expr.trim() ? ruleError({ kind: 'expr', expr: x.expr }, fields) : ''
+  const bad = (x: SuppQual) => !/^[A-Z][A-Z0-9]{0,7}$/.test(x.qnam) ? `${N}: up to 8 capital letters or digits, starting with a letter` : x.qlabel.length > 40 ? `${L}: at most 40 characters` : spec.vars.includes(x.qnam) ? `${x.qnam} is a standard variable of ${spec.domain}: it belongs in the domain, not ${rel}` : x.expr.trim() ? ruleError({ kind: 'expr', expr: x.expr }, fields) : ''
   return (
-    <Panel title={`Supplemental qualifiers · SUPP${spec.domain}`} sub={`For collected or derived values with no variable in ${spec.domain}. Use them sparingly: a value with a standard variable goes there. ${built.supp ? `${built.supp.rows.length} SUPP${spec.domain} records.` : ''}`}
-      right={<Btn tone="grey" className="py-0.5" onClick={() => updDom((s) => { s.supp = [...(s.supp ?? []), { qnam: '', qlabel: '', expr: '', qorig: 'Derived' }] }, 'added a supplemental qualifier')}>+ Add a qualifier</Btn>}>
-      {q.length === 0 ? <p className="text-xs text-lab-text-muted">No supplemental qualifiers.</p> : (
+    <Panel title={`${ns ? 'Non-standard variables' : 'Supplemental qualifiers'} · ${rel}`} sub={`For collected or derived values with no variable in ${spec.domain}. Use them sparingly: a value with a standard variable goes there. ${ns ? `SDTMIG v4.0 draft: ${rel} has one record per ${spec.domain} record with a value, each non-standard variable a column; label, origin and evaluator go to define.xml.` : `SUPP${spec.domain} has one record per value, with QNAM, QLABEL, QVAL, QORIG and QEVAL.`} ${built.supp ? `${built.supp.rows.length} ${rel} records.` : ''}`}
+      right={<Btn tone="grey" className="py-0.5" onClick={() => updDom((s) => { s.supp = [...(s.supp ?? []), { qnam: '', qlabel: '', expr: '', qorig: 'Derived' }] }, ns ? 'added a non-standard variable' : 'added a supplemental qualifier')}>{ns ? '+ Add a variable' : '+ Add a qualifier'}</Btn>}>
+      {q.length === 0 ? <p className="text-xs text-lab-text-muted">{ns ? 'No non-standard variables.' : 'No supplemental qualifiers.'}</p> : (
         <div className="space-y-2">
           {q.map((x, i) => {
             const err = bad(x)
             return (
               <div key={i} className="rounded border border-lab-line p-2 space-y-1.5">
                 <div className="flex flex-wrap gap-2 items-center text-xs">
-                  <input aria-label={`QNAM ${i + 1}`} className={ic('w-28 font-mono text-xs py-1')} defaultValue={x.qnam} onBlur={(e) => set(i, { qnam: e.target.value.toUpperCase().trim() }, `QNAM ${e.target.value.toUpperCase()}`)} placeholder="QNAM" />
-                  <input aria-label={`QLABEL ${i + 1}`} className={ic('w-72 text-xs py-1')} defaultValue={x.qlabel} onBlur={(e) => set(i, { qlabel: e.target.value })} placeholder="QLABEL (≤ 40 characters)" />
-                  <Select aria-label={`QORIG ${i + 1}`} className="w-32 text-xs py-1" value={x.qorig} onChange={(e) => set(i, { qorig: e.target.value as SuppQual['qorig'] })} options={QORIG.map((o) => ({ value: o, label: o }))} />
-                  <input aria-label={`QEVAL ${i + 1}`} className={ic('w-36 text-xs py-1')} defaultValue={x.qeval ?? ''} onBlur={(e) => set(i, { qeval: e.target.value || undefined })} placeholder="QEVAL (optional)" />
-                  <Btn tone="red" className="py-0.5" onClick={() => updDom((s) => { s.supp!.splice(i, 1); if (!s.supp!.length) delete s.supp }, `removed qualifier ${x.qnam}`)}>Remove</Btn>
+                  <input aria-label={`${N} ${i + 1}`} className={ic('w-28 font-mono text-xs py-1')} defaultValue={x.qnam} onBlur={(e) => set(i, { qnam: e.target.value.toUpperCase().trim() }, `QNAM ${e.target.value.toUpperCase()}`)} placeholder={N} />
+                  <input aria-label={`${L} ${i + 1}`} className={ic('w-72 text-xs py-1')} defaultValue={x.qlabel} onBlur={(e) => set(i, { qlabel: e.target.value })} placeholder={`${L} (≤ 40 characters)`} />
+                  <Select aria-label={`${ns ? 'Origin' : 'QORIG'} ${i + 1}`} className="w-32 text-xs py-1" value={x.qorig} onChange={(e) => set(i, { qorig: e.target.value as SuppQual['qorig'] })} options={QORIG.map((o) => ({ value: o, label: o }))} />
+                  <input aria-label={`${ns ? 'Evaluator' : 'QEVAL'} ${i + 1}`} className={ic('w-36 text-xs py-1')} defaultValue={x.qeval ?? ''} onBlur={(e) => set(i, { qeval: e.target.value || undefined })} placeholder={ns ? 'Evaluator (optional)' : 'QEVAL (optional)'} />
+                  <Btn tone="red" className="py-0.5" onClick={() => updDom((s) => { s.supp!.splice(i, 1); if (!s.supp!.length) delete s.supp }, `removed ${x.qnam}`)}>Remove</Btn>
                 </div>
-                <input aria-label={`QVAL expression ${i + 1}`} className={ic('w-full font-mono text-xs py-1')} defaultValue={x.expr} onBlur={(e) => set(i, { expr: e.target.value.trim() }, `${x.qnam} expression`)} placeholder="QVAL: an expression on the parent record, e.g. if(studyday(AESTDTC, dm('RFXSTDTC')) >= 1, 'Y', 'N')" />
+                <input aria-label={`${ns ? 'Value' : 'QVAL'} expression ${i + 1}`} className={ic('w-full font-mono text-xs py-1')} defaultValue={x.expr} onBlur={(e) => set(i, { expr: e.target.value.trim() }, `${x.qnam} expression`)} placeholder={`${ns ? 'Value' : 'QVAL'}: an expression on the parent record (raw fields first, then ${spec.domain} variables)`} title="e.g. if(studyday(AESTDTC, dm('RFXSTDTC')) >= 1, 'Y', 'N')" />
                 {err && <p className="text-xs text-lab-red">{err}</p>}
                 {built.errors[`SUPP ${x.qnam}`] && <p className="text-xs text-lab-red">Failed on {built.errors[`SUPP ${x.qnam}`].count} records: {built.errors[`SUPP ${x.qnam}`].first}</p>}
               </div>
@@ -259,9 +260,9 @@ function SuppEditor({ spec, fields, built, updDom }: { spec: DomainSpec; fields:
 }
 
 // The same mapping as an R (dplyr) or SAS program, to read alongside the visual rules.
-function CodeView({ spec }: { spec: DomainSpec }) {
+function CodeView({ spec, ver }: { spec: DomainSpec; ver: '3.4' | '4.0d' }) {
   const [lang, setLang] = useState<'R' | 'SAS' | ''>('')
-  const code = lang === 'R' ? toR(spec) : lang === 'SAS' ? toSAS(spec) : ''
+  const code = lang === 'R' ? toR(spec, ver) : lang === 'SAS' ? toSAS(spec, ver) : ''
   return (
     <Panel title="Your mapping as code" sub="A read-only translation of your rules into the program a clinical programmer would write. Study look-ups (first dose date, visit numbers, epochs) appear as calls to the study’s shared helper functions. It is a sketch to read, not a validated program.">
       <Tabs tabs={[{ id: '' as const, label: 'Hidden' }, { id: 'R' as const, label: 'R (dplyr)' }, { id: 'SAS' as const, label: 'SAS' }]} value={lang} onChange={setLang} />
