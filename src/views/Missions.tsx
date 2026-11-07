@@ -37,15 +37,16 @@ function MissionCard({ id }: { id: string }) {
     if (m.kind === 'map') for (const d of m.domains) if (!isRel(d)) pp.specs[d] ??= emptySpec(d, SOURCE[d] ?? d)
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
+    : m.kind === 'qc' ? <><Btn onClick={() => go('mapping', `qc:${m.domains[0]}`)}>Write your QC {m.domains[0]}</Btn><Btn onClick={() => go('qc')}>Open QC compare</Btn></>
     : m.domains.filter((d) => !isRel(d)).map((d) => <Btn key={d} onClick={() => go('mapping', d)}>Open {d} in the workspace</Btn>)
   return (
-    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : 'Map from raw'} · Pass: {m.pass}</>}
+    <Panel title={`${m.id} · ${m.title}`} sub={<>Domain{m.domains.length > 1 ? 's' : ''} {m.domains.map((d) => dsName(d, p.version)).join(', ')} · {m.kind === 'fix' ? 'Fix a delivery' : m.kind === 'design' ? 'Trial design' : m.kind === 'qc' ? 'Independent QC' : 'Map from raw'} · Pass: {m.pass}</>}
       right={run ? <Pill tone="blue">In progress</Pill> : best ? <Pill tone={best.passed ? 'green' : 'red'}>best {best.score}%</Pill> : null}>
       <p className="text-sm">{m.brief}</p>
       <details className="text-xs"><summary className="cursor-pointer text-lab-text-muted">What to watch for</summary><ul className="list-disc pl-5 mt-1">{m.watch.map((w) => <li key={w}>{w}</li>)}</ul></details>
       <div className="flex flex-wrap gap-2">
-        {!run && m.kind !== 'fix' && <Btn tone="solid" onClick={start}>Start</Btn>}
-        {!run && m.kind === 'fix' && !confirm && <Btn tone="solid" onClick={() => setConfirm(true)}>Start…</Btn>}
+        {!run && m.kind !== 'fix' && m.kind !== 'qc' && <Btn tone="solid" onClick={start}>Start</Btn>}
+        {!run && (m.kind === 'fix' || m.kind === 'qc') && !confirm && <Btn tone="solid" onClick={() => setConfirm(true)}>Start…</Btn>}
         {open}
         <Btn tone="grey" onClick={() => go('study')}>Study conventions</Btn>
         {run && <>
@@ -54,8 +55,8 @@ function MissionCard({ id }: { id: string }) {
         </>}
       </div>
       {confirm && !run && (
-        <div role="alertdialog" aria-label="Replace your AE and LB mappings?" className="rounded border border-lab-amber/60 bg-lab-amber-soft p-3 text-sm space-y-2">
-          <p>Starting S9 replaces your AE and LB mappings with the colleague’s broken ones. Your current AE and LB rules will be lost unless you export the project first (Project tab).</p>
+        <div role="alertdialog" aria-label="Replace your mappings?" className="rounded border border-lab-amber/60 bg-lab-amber-soft p-3 text-sm space-y-2">
+          <p>{m.kind === 'qc' ? `Starting ${m.id} replaces your production ${m.domains[0]} with the colleague’s and clears your QC ${m.domains[0]}, its resolutions and sign-off.` : `Starting ${m.id} replaces your AE and LB mappings with the colleague’s broken ones.`} Your current rules will be lost unless you export the project first (Project tab).</p>
           <div className="flex gap-2"><Btn tone="solid" onClick={() => { start(); setConfirm(false) }}>Replace and start</Btn><Btn tone="grey" onClick={() => go('project')}>Export first</Btn><Btn tone="grey" onClick={() => setConfirm(false)}>Cancel</Btn></div>
         </div>
       )}
@@ -64,7 +65,7 @@ function MissionCard({ id }: { id: string }) {
       {last && !run && (
         <div className={`rounded border p-3 space-y-2 ${last.passed ? 'border-lab-cdsco/60' : 'border-lab-red/60'}`}>
           <p className="font-mono text-sm">{last.passed ? 'Passed' : 'Not passed'} · {last.score}% · {last.ruleSet ?? 'CDISC'} rules</p>
-          <div className="flex flex-wrap gap-1">{m.domains.map((d) => dsName(d, last.version)).map((d) => <Pill key={d} tone={last.domainPass?.[d] ? 'green' : 'red'}>{d} {last.domainScores?.[d] ?? '–'}% {last.domainPass?.[d] ? 'pass' : 'fail'}</Pill>)}</div>
+          <div className="flex flex-wrap gap-1">{(last.domainScores ? Object.keys(last.domainScores) : m.domains.map((d) => dsName(d, last.version))).map((d) => <Pill key={d} tone={last.domainPass?.[d] ? 'green' : 'red'}>{d} {last.domainScores?.[d] ?? '–'}% {last.domainPass?.[d] ? 'pass' : 'fail'}</Pill>)}</div>
           <ul className="list-disc pl-5 text-xs text-lab-text-muted">{last.detail?.map((d) => <li key={d}>{d}</li>)}</ul>
           <Table head={['Variable', 'Core', 'Credit', 'Where it differs']} rows={(last.perVar ?? []).map((x) => [<span className="font-mono">{x.v}</span>, x.core, <span className={x.credit >= 0.999 ? 'text-lab-cdsco' : x.credit >= 0.7 ? 'text-lab-amber' : 'text-lab-red'}>{Math.round(x.credit * 100)}%</span>, <span className="text-[11px]">{x.examples.join(' · ')}</span>])} />
         </div>

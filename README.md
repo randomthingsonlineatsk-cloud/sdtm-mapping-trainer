@@ -93,6 +93,13 @@ rules; no vendor rule text or tool is copied.
   unknown parts (UN-MAR-2019, UN-UNK-2019), the central laboratory YYYYMMDD with HHMM times,
   the IRT ISO 8601. `dtc(field, informat, time)` converts them, keeping partial dates partial;
   a raw date copied into a --DTC variable fails the ISO 8601 check.
+- **Independent QC (double programming):** a Production / QC switch on the Mapping workspace and
+  a QC compare tab that matches the two datasets by their keys, PROC COMPARE style: records and
+  variables on one side only, duplicate keys, and every unequal value with examples. Each
+  difference gets a resolution (production corrected, QC corrected, explained) and a note, the
+  report downloads for the validation file, and sign-off is possible only when the comparison
+  is clean. Mission S10 hands you a colleague's VS that passes every check but holds three
+  errors only an independent comparison finds.
 
 ## Coming next
 

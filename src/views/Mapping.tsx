@@ -5,7 +5,7 @@ import { build, ruleError, fieldsFor, FN_HELP, RULE_LABEL, PSEUDO, type Rule, ty
 import { toR, toSAS } from '../domain/codegen'
 import { MISSIONS } from '../domain/missions'
 import { varsOf, DETAIL_DOMAINS, domainInfo, CT, type VarMeta } from '../domain/standards'
-import { emptySpec, log } from '../domain/project'
+import { emptySpec, log, type Project } from '../domain/project'
 import { SORT } from '../domain/reference'
 import { Panel, Pill, Btn, Select, Table, TextArea, Tabs, ic } from './ui'
 import { useData, formsOf, formName, fieldsOf, samples, distinct } from './shared'
@@ -15,24 +15,36 @@ const CORE_TONE = { Req: 'red', Exp: 'amber', Perm: 'grey' } as const
 export default function Mapping() {
   const { p, act } = useStore()
   const nav = useNav()
-  const [domain, setDomain] = useState(nav.arg && DETAIL_DOMAINS.includes(nav.arg) ? nav.arg : 'DM')
-  const spec = p.specs[domain]
+  // nav.arg is a domain (DM) or a QC program (qc:VS).
+  const argQc = nav.arg?.startsWith('qc:'), argDomain = argQc ? nav.arg!.slice(3) : nav.arg
+  const [domain, setDomain] = useState(argDomain && DETAIL_DOMAINS.includes(argDomain) ? argDomain : 'DM')
+  // Production is the program delivered; QC is the second programmer's independent program.
+  const [track, setTrack] = useState<'prod' | 'qc'>(argQc ? 'qc' : 'prod')
+  const bag = track === 'qc' ? p.qc ?? {} : p.specs
+  const spec = bag[domain]
   const data = useData()
   const forms = formsOf(p)
-  const start = () => act((pp) => { pp.specs[domain] = emptySpec(domain, domain === 'LB' && forms.includes('LBC') ? 'LBC' : forms.includes(domain) ? domain : forms[0]); log(pp, `Started mapping ${domain}`) })
+  const start = () => act((pp) => { const b = track === 'qc' ? (pp.qc ??= {}) : pp.specs; b[domain] = emptySpec(domain, domain === 'LB' && forms.includes('LBC') ? 'LBC' : forms.includes(domain) ? domain : forms[0]); log(pp, `Started ${track === 'qc' ? 'QC programming' : 'mapping'} ${domain}`) })
   return (
     <div className="space-y-4">
       <Panel title="Mapping workspace" sub="Raw data on the left, SDTM variables on the right. Pick a variable, choose how it is filled, and watch the dataset rebuild below. Follow the study’s SDTM conventions on the Study tab."
-        right={<Select aria-label="Domain to map" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={DETAIL_DOMAINS.map((d) => ({ value: d, label: `${d} · ${domainInfo(d)?.name}${p.specs[d]?.vars.length ? ` (${p.specs[d].vars.length} vars)` : ''}` }))} />}>
-        <p className="text-xs text-lab-text-muted">{domainInfo(domain)?.cls} · {domainInfo(domain)?.structure}. {(() => { const ms = MISSIONS.filter((m) => m.domains.includes(domain)); return ms.length ? `Scored by mission${ms.length > 1 ? 's' : ''} ${ms.map((m) => m.id).join(' and ')} against a hidden reference.` : 'Free practice: no mission scores this domain.' })()} Trial design domains (TA, TE, TV, TI, TS) are built as tables on the Trial design tab.</p>
-        {!spec && <Btn tone="solid" onClick={start}>Start mapping {domain}</Btn>}
+        right={<Select aria-label="Domain to map" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={DETAIL_DOMAINS.map((d) => ({ value: d, label: `${d} · ${domainInfo(d)?.name}${bag[d]?.vars.length ? ` (${bag[d].vars.length} vars)` : ''}` }))} />}>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Program">
+          <Btn tone={track === 'prod' ? 'solid' : 'grey'} className="py-0.5" aria-pressed={track === 'prod'} onClick={() => setTrack('prod')}>Production</Btn>
+          <Btn tone={track === 'qc' ? 'solid' : 'grey'} className="py-0.5" aria-pressed={track === 'qc'} onClick={() => setTrack('qc')}>QC (independent)</Btn>
+          <span className="text-[11px] text-lab-text-muted">{track === 'qc' ? 'You are the QC programmer: write this domain again from the specification and conventions, without reading the production rules, then compare on the QC compare tab.' : 'The program that produces the delivered dataset.'}</span>
+        </div>
+        <p className="text-xs text-lab-text-muted">{domainInfo(domain)?.cls} · {domainInfo(domain)?.structure}. {(() => { const ms = MISSIONS.filter((m) => m.domains.includes(domain)); return ms.length ? `Scored by mission${ms.length > 1 ? 's' : ''} ${ms.map((m) => m.id).join(', ')} against a hidden reference.` : 'Free practice: no mission scores this domain.' })()} Trial design domains (TA, TE, TV, TI, TS) are built as tables on the Trial design tab.</p>
+        {!spec && <Btn tone="solid" onClick={start}>{track === 'qc' ? `Start QC programming of ${domain}` : `Start mapping ${domain}`}</Btn>}
       </Panel>
-      {spec && <Workspace key={domain} domain={domain} spec={spec} data={data} />}
+      {spec && <Workspace key={`${track}-${domain}`} domain={domain} spec={spec} data={data} track={track} />}
     </div>
   )
 }
 
-function Workspace({ domain, spec, data }: { domain: string; spec: DomainSpec; data: ReturnType<typeof useData> }) {
+function Workspace({ domain, spec, data, track }: { domain: string; spec: DomainSpec; data: ReturnType<typeof useData>; track: 'prod' | 'qc' }) {
+  const bagOf = (pp: Project) => (track === 'qc' ? pp.qc! : pp.specs)
+  const tag = track === 'qc' ? `QC ${domain}` : domain
   const { p, act } = useStore()
   const meta = varsOf(domain, p.version)
   const [sel, setSel] = useState<string | null>(spec.vars[0] ?? meta[0]?.name ?? null)
@@ -45,9 +57,9 @@ function Workspace({ domain, spec, data }: { domain: string; spec: DomainSpec; d
   const raw = fieldsOf(p, view.source)
   const fields = fieldsFor(view, raw.map((f) => f.name))
   const built = useMemo(() => build(spec, data, p.version), [spec, data, p.version, JSON.stringify(spec)])
-  const updDom = (fn: (s: DomainSpec) => void, what?: string) => act((pp) => { fn(pp.specs[domain]); if (what) log(pp, `${domain}: ${what}`) })
+  const updDom = (fn: (s: DomainSpec) => void, what?: string) => act((pp) => { fn(bagOf(pp)[domain]); if (what) log(pp, `${tag}: ${what}`) })
   // Rule, filter and transpose edits go to the active source; the variable list and sort keys belong to the domain.
-  const upd = (fn: (s: DomainSpec) => void, what?: string) => act((pp) => { const s = pp.specs[domain]; fn((pi === 0 ? s : s.parts![pi - 1]) as DomainSpec); if (what) log(pp, `${domain}${pi ? ` source ${pi + 1}` : ''}: ${what}`) })
+  const upd = (fn: (s: DomainSpec) => void, what?: string) => act((pp) => { const s = bagOf(pp)[domain]; fn((pi === 0 ? s : s.parts![pi - 1]) as DomainSpec); if (what) log(pp, `${tag}${pi ? ` source ${pi + 1}` : ''}: ${what}`) })
   const setVars = (names: Set<string>) => updDom((s) => { s.vars = meta.map((m) => m.name).filter((n) => names.has(n)) })
   const included = new Set(spec.vars)
   const toggle = (v: string) => { const n = new Set(included); if (n.has(v)) n.delete(v); else n.add(v); setVars(n); setSel(v) }

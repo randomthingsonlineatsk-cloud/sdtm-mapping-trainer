@@ -16,6 +16,7 @@ import { hash } from './util'
 export interface ImportedStudy { protocol: string; title: string; source: string; importedUtc: string; forms: Record<string, Row[]>; visits: Visit[]; notes: string[] }
 export interface MissionRun { id: string; startedUtc: string; version: Version; ruleSet?: RuleSet; domainScores?: Record<string, number>; endedUtc?: string; score?: number; passed?: boolean; detail?: string[]; perVar?: { v: string; credit: number; core: string; examples: string[] }[]; domainPass?: Record<string, boolean>; findings?: number }
 export interface LogEntry { utc: string; what: string }
+export interface QcResolution { status: 'Open' | 'Production corrected' | 'QC corrected' | 'Explained'; note: string; utc: string }
 export interface Project {
   schema: 1; id: string; name: string; userId: string; classId: string; createdUtc: string; updatedUtc: string
   version: Version
@@ -27,6 +28,9 @@ export interface Project {
   missions: MissionRun[]
   quiz: Record<string, Record<string, number>>
   log: LogEntry[]
+  qc?: Record<string, DomainSpec> // the independent QC programs
+  qcLog?: Record<string, Record<string, QcResolution>> // per domain, per difference
+  qcSignoff?: Record<string, { utc: string; by: string; note: string }>
 }
 
 const newId = () => `p_${Date.now().toString(36)}_${hash(String(Math.random())).slice(-6)}`
