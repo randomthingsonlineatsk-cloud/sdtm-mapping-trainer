@@ -7,13 +7,14 @@
 
 import { build, type Built, type DomainSpec } from './engine'
 import { check, summarise, type Finding } from './conformance'
-import { referenceSpec, studyData, AETRTEM } from './reference'
+import { referenceSpec, studyData, AETRTEM, SORT } from './reference'
+import { compareDatasets } from './qc'
 import { designBuilt, referenceDesign, TEXT_VARS, TS_TEXT_PARAMS } from './design'
 import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } from './standards'
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string }
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
@@ -44,6 +45,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S9', domains: ['AE', 'SUPPAE', 'LB'], kind: 'fix', phase: 2, title: 'Fix a broken delivery', pass: PASS,
     brief: 'A colleague’s AE and LB mappings fail validation. Starting this mission replaces your AE and LB mappings with theirs (export your project first if you want to keep yours). Find every problem with the checks and fix the rules.',
     watch: ['Run the checks under the FDA rule set as well as CDISC', 'Some problems are only visible against the conventions, not the checks'] },
+  { id: 'S10', domains: ['VS'], kind: 'qc', phase: 2, title: 'Independent QC of a colleague’s VS', pass: 'Production and QC VS each 70% or more against the reference with no blocking finding, the comparison clean, and your QC sign-off',
+    brief: 'A colleague has programmed VS and it passes every conformance check. As the QC programmer, write your own VS independently on the QC side of the Mapping workspace, from the study conventions and without reading their rules. Compare the two on the QC compare tab, find out who is right for every difference, correct production where it is wrong, and sign off when the comparison is clean. Starting replaces your production VS with the colleague’s and clears your QC VS.',
+    watch: ['Clean conformance checks do not mean correct data: the compare finds what the checks cannot', 'Investigate each difference before fixing either side; QC can be wrong too', 'Independence: write the QC rules from the conventions, not from the production rules'] },
 ]
 const BLOCKING = new Set(['TRN-001', 'TRN-002', 'TRN-006', 'TRN-007', 'TRN-008'])
 
@@ -82,6 +86,7 @@ export function startMission(p: Project, id: string): MissionRun {
   const def = MISSIONS.find((m) => m.id === id)!
   const run: MissionRun = { id, startedUtc: new Date().toISOString(), version: p.version, ruleSet: p.ruleSet }
   if (def.kind === 'fix') { p.specs.AE = brokenSpec('AE', p.version); p.specs.LB = brokenSpec('LB', p.version) }
+  if (def.kind === 'qc') { p.specs.VS = brokenSpec('VS', p.version); if (p.qc) delete p.qc.VS; if (p.qcLog) delete p.qcLog.VS; if (p.qcSignoff) delete p.qcSignoff.VS }
   p.missions.push(run)
   log(p, `Mission ${id} started (${p.version === '3.4' ? 'SDTMIG v3.4' : 'SDTMIG v4.0 draft'}, ${p.ruleSet} rules)`)
   return run
@@ -99,7 +104,8 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver), set: p.ruleSet }
   const results: DomainResult[] = []
   const errs: string[] = []
-  for (const d of def.domains) {
+  const tracks: { d: string; qc: boolean }[] = def.domains.flatMap((d) => (def.kind === 'qc' ? [{ d, qc: false }, { d, qc: true }] : [{ d, qc: false }]))
+  for (const { d, qc } of tracks) {
     let mine: Built, ref: Built
     if (def.kind === 'design') {
       mine = designBuilt(d, p.design[d] ?? [], ver); ref = designBuilt(d, refDesign[d], ver)
@@ -110,8 +116,8 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
       mine = m?.supp ?? { domain: relName(parent, ver), vars: [], rows: [], errors: {}, warnings: [] }
       ref = build(referenceSpec(parent, ver), data, ver).supp!
     } else {
-      const spec = p.specs[d]
-      if (!spec?.vars.length) throw new Error(`Map ${d} first: the workspace has no ${d} variables yet.`)
+      const spec = qc ? p.qc?.[d] : p.specs[d]
+      if (!spec?.vars.length) throw new Error(qc ? `Write your QC ${d} first: switch the Mapping workspace to QC.` : `Map ${d} first: the workspace has no ${d} variables yet.`)
       mine = build(spec, data, ver); ref = build(referenceSpec(d, ver), data, ver)
       for (const [v, e] of Object.entries(mine.errors)) errs.push(`${d}.${v} (${e.count}×: ${e.first})`)
     }
@@ -122,11 +128,21 @@ export function evaluateMission(p: Project, id: string): { score: number; passed
     const raw = comparison.perVar.length ? (comparison.perVar.reduce((a, x) => a + x.credit, 0) / comparison.perVar.length) * 100 : 0
     const score = Math.max(0, Math.round(raw - Math.min(30, 3 * kinds.length)))
     const blocking = kinds.filter((k) => BLOCKING.has(k.rule) || k.sev === 'Reject')
-    results.push({ domain: dsName(d, ver), score, passed: score >= 70 && !blocking.length, comparison, findings })
+    results.push({ domain: `${dsName(d, ver)}${qc ? ' (QC)' : ''}`, score, passed: score >= 70 && !blocking.length, comparison, findings })
   }
   const score = Math.round(results.reduce((a, r) => a + r.score, 0) / results.length)
-  const passed = results.every((r) => r.passed)
+  let passed = results.every((r) => r.passed)
+  const qcNotes: string[] = []
+  if (def.kind === 'qc') for (const d of def.domains) {
+    const c = compareDatasets(build(p.specs[d], data, ver), build(p.qc![d], data, ver), SORT[d] ?? ['USUBJID'])
+    const run = activeRun(p, id) ?? [...p.missions].reverse().find((m) => m.id === id)
+    const signed = p.qcSignoff?.[d] && (!run || p.qcSignoff[d].utc >= run.startedUtc)
+    if (!c.clean) { passed = false; qcNotes.push(`${d} comparison not clean: ${c.unequalValues} unequal values, ${c.obsOnlyBase.length + c.obsOnlyCompare.length} unmatched records, ${c.onlyBase.length + c.onlyCompare.length} unmatched variables`) }
+    else qcNotes.push(`${d} comparison clean`)
+    if (!signed) { passed = false; qcNotes.push(`${d}: QC not signed off on the QC compare tab`) }
+  }
   const detail = [
+    ...qcNotes,
     ...results.map((r) => { const k = summarise(r.findings).filter((s) => s.sev !== 'Warning'); return `${r.domain}: ${r.score}% (${r.passed ? 'pass' : 'fail'}) · ${r.comparison.matched} of ${r.comparison.refRows} reference records matched, ${r.comparison.extra} extra · ${k.length} kind${k.length === 1 ? '' : 's'} of Error/Reject finding${k.length ? `: ${k.map((x) => `${x.rule} ${x.variable}`).join(', ')}` : ''}` }),
     ...(errs.length ? [`Rules that failed while building: ${errs.join('; ')}`] : []),
   ]
@@ -146,7 +162,7 @@ export function finishMission(p: Project, id: string) {
 }
 
 // S9: the colleague's AE and LB mappings, each with planted problems.
-export function brokenSpec(d: 'AE' | 'LB', ver: Version): DomainSpec {
+export function brokenSpec(d: 'AE' | 'LB' | 'VS', ver: Version): DomainSpec {
   const s = referenceSpec(d, ver)
   const e = (expr: string) => ({ kind: 'expr' as const, expr })
   if (d === 'AE') {
@@ -156,6 +172,11 @@ export function brokenSpec(d: 'AE' | 'LB', ver: Version): DomainSpec {
     s.rules.AEBODSYS = { kind: 'copy', field: 'AEHLGT' }
     s.rules.AEOUT = { kind: 'copy', field: 'AEOUT' }
     s.supp = [{ ...AETRTEM, qnam: 'AETREATEMERG' }]
+  } else if (d === 'VS') {
+    // Each passes every conformance check; only an independent comparison finds them.
+    s.rules.VSSTRESC = e('str(convert(__RESULT, VSORRESU, stdunit(__TESTCD), 0))')
+    s.rules.VISITNUM = e("if(VISIT = 'Unscheduled', 99, visitnum(VISIT, VSDAT))")
+    s.rules.VSLOBXFL = { kind: 'lobxfl', result: 'VSSTRESC', dtc: 'VSDTC', by: '' }
   } else {
     delete s.filter
     s.rules.LBTESTCD = { kind: 'copy', field: 'TESTCODE' }

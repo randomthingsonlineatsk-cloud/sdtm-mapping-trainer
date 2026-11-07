@@ -27,7 +27,7 @@ describe('Phase 2 missions', () => {
   test('every mission scores 100 with the reference, in both standards and every rule set', () => {
     for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
       const p = full(v); p.ruleSet = rs.id
-      for (const m of MISSIONS.filter((x) => x.kind !== 'fix')) {
+      for (const m of MISSIONS.filter((x) => x.kind !== 'fix' && x.kind !== 'qc')) {
         const r = evaluateMission(p, m.id)
         expect(r.score, `${v} ${rs.id} ${m.id}: ${r.detail.join(' | ')}`).toBe(100)
         expect(r.passed).toBe(true)
@@ -268,5 +268,33 @@ describe('raw dates as the source systems export them', () => {
     expect(check(build(s, data), '3.4').some((f) => f.rule === 'TRN-005' && f.variable === 'AESTDTC')).toBe(true)
     const v = referenceSpec('VS', '3.4'); v.rules.VSDTC = { kind: 'expr', expr: 'iso(VSDAT, VSTIM)' }
     expect(build(v, data).errors.VSDTC.first).toMatch(/dtc\(field, 'DD-MMM-YYYY'\)/)
+  })
+})
+
+describe('independent QC (mission S10)', () => {
+  test('the colleague’s VS passes the checks but the compare finds three differences', async () => {
+    const { compareDatasets, qcItems, sharedRules } = await import('../src/domain/qc')
+    const { SORT } = await import('../src/domain/reference')
+    const p = createProject(); startMission(p, 'S10')
+    const prod = build(p.specs.VS, data)
+    expect(check(prod, '3.4').filter((f) => f.sev !== 'Warning')).toHaveLength(0)
+    p.qc = { VS: referenceSpec('VS', '3.4') }
+    const c = compareDatasets(prod, build(p.qc.VS, data), SORT.VS)
+    expect(c.clean).toBe(false)
+    expect(new Set(qcItems(c).map((i) => i.id))).toEqual(new Set(['values:VSSTRESC', 'values:VSSTRESN', 'values:VSLOBXFL', 'values:VSSEQ', 'obs-only-prod', 'obs-only-qc']))
+    expect(sharedRules(p.specs.VS, p.qc.VS).same).toBeGreaterThan(0)
+    expect(evaluateMission(p, 'S10').passed).toBe(false)
+    // Correct production, sign off: the mission passes.
+    p.specs.VS = referenceSpec('VS', '3.4')
+    expect(compareDatasets(build(p.specs.VS, data), build(p.qc.VS, data), SORT.VS).clean).toBe(true)
+    expect(evaluateMission(p, 'S10').detail.some((x) => /not signed off/.test(x))).toBe(true)
+    p.qcSignoff = { VS: { utc: new Date(Date.now() + 1000).toISOString(), by: 'u', note: '' } }
+    const r = finishMission(p, 'S10')
+    expect(r.passed).toBe(true); expect(r.score).toBe(100)
+    expect(Object.keys(r.domainScores!)).toEqual(['VS', 'VS (QC)'])
+  })
+  test('numbers compare by value', async () => {
+    const { same } = await import('../src/domain/qc')
+    expect(same('1', '1.0')).toBe(true); expect(same('1', '1.1')).toBe(false); expect(same('', '0')).toBe(false)
   })
 })
