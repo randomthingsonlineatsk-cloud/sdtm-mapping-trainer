@@ -221,10 +221,23 @@ rules; no vendor rule text or tool is copied.
   measurements of lesions not in TU, death details without DTHFL, new lesions before the first
   dose, new lesions without PD, and a sum of diameters that does not add up.
 
+## Phase 5
+
+- **Classroom mode (optional):** an instructor creates a class and sets missions as
+  assignments, each at a level (guided, standard or expert) with a due date; students join with
+  a six-letter code, run the mission in a project on the mission's study and submit it; the
+  instructor re-scores each submission in their own browser (the app's own scoring, on the
+  project as submitted, at the run's level and rule set), comments, and sees a leaderboard.
+  It is the only feature that talks to a server: the shared classroom server (Cloudflare
+  Worker and D1) kept in the
+  [eCTD Dossier Builder](https://github.com/randomthingsonlineatsk-cloud/ectd-dossier-builder)
+  repository, routes under `/sdtm/v1` with its own `sdtm_` tables. Set `VITE_CLASSROOM_API` at
+  build time to use your own.
+
 ## Coming next
 
-- **Phase 5:** classroom mode on the shared classroom server, a SEND lesson, an asthma study
-  (RE, QS) and the vaccine study's CE, FACE and IS domains.
+- **Rest of Phase 5:** a SEND lesson, an asthma study (RE, QS) and the vaccine study's CE,
+  FACE and IS domains.
 
 ## Run it
 
