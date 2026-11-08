@@ -45,8 +45,8 @@ export const RULES: Rule[] = [
   { id: 'TRN-019', sev: 'Error', text: 'A numeric variable holds a non-numeric value', basis: 'SDTMIG variable type Num' },
   { id: 'TRN-020', sev: 'Warning', text: 'More than one standard unit for the same test', basis: 'SDTMIG findings: one standard unit per test' },
   { id: 'TRN-021', sev: 'Error', text: 'Reference start is after reference end', basis: 'SDTMIG DM: RFSTDTC on or before RFENDTC' },
-  { id: 'TRN-030', sev: 'Error', text: 'TS has no Study Start Date (SSTDTC)', basis: 'FDA technical rejection criteria and Study Data Technical Conformance Guide: TS with SSTDTC', sets: { FDA: 'Reject', PMDA: 'Error' } },
-  { id: 'TRN-031', sev: 'Error', text: 'TS has no SDTM or SDTMIG version (SDTMVER, SDTIGVER)', basis: 'Study Data Technical Conformance Guide: TS parameters' },
+  { id: 'TRN-030', sev: 'Error', text: 'TS has no Study Start Date (SSTDTC; STSTDTC in SEND)', basis: 'FDA technical rejection criteria and Study Data Technical Conformance Guide: TS with the study start date', sets: { FDA: 'Reject', PMDA: 'Error' } },
+  { id: 'TRN-031', sev: 'Error', text: 'TS has no SDTM or SDTMIG version (SDTMVER, SDTIGVER; SNDIGVER in SEND)', basis: 'Study Data Technical Conformance Guide: TS parameters' },
   { id: 'TRN-035', sev: 'Warning', text: 'TS lacks a parameter FDA expects (TRT, REGID, OUTMSPRI, PCLAS, FCNTRY, ADAPT, DCUTDTC, DCUTDESC, INTMODEL, NARMS, STYPE, INTTYPE, SENDTC, ACTSUB, HLTSUBJI)', basis: 'Study Data Technical Conformance Guide: trial summary parameters; FDA business rules', sets: { FDA: 'Error' } },
   { id: 'TRN-036', sev: 'Warning', text: 'A TS value that must be coded has no code: TRT, COMPTRT and CURTRT with an FDA SRS UNII, INDIC with a SNOMED CT concept, PCLAS with a MED-RT class (TSVALCD and TSVCDREF)', basis: 'Study Data Technical Conformance Guide: coded TS values; FDA validator rules', sets: { FDA: 'Error' } },
   { id: 'TRN-037', sev: 'Error', text: 'TS: TSVALNF must be populated exactly when TSVAL is null', basis: 'SDTMIG TS assumptions: null flavors (ISO 21090)' },
@@ -203,7 +203,16 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
     if (problem) add('TRN-056', 'DOMAIN', problem)
     if (custom.reason.trim().length < 20) add('TRN-056', 'DOMAIN', `${d}: no reason recorded for why no standard domain fits`)
   }
-  if (d === 'TS') {
+  if (d === 'TS' && ver === 'send') {
+    // SEND: the study start date is STSTDTC (the study director's approval of the plan) and the
+    // guide's version is SNDIGVER; the clinical parameters do not apply.
+    if (!b.rows.some((r) => r.TSPARMCD === 'STSTDTC' && r.TSVAL)) add('TRN-030', 'TSPARMCD', 'No TSPARMCD = STSTDTC with a value')
+    if (!b.rows.some((r) => r.TSPARMCD === 'SNDIGVER' && r.TSVAL)) add('TRN-031', 'TSPARMCD', 'No TSPARMCD = SNDIGVER')
+    b.rows.forEach((r, i) => {
+      if (!!r.TSVAL === !!r.TSVALNF) add('TRN-037', r.TSVAL ? 'TSVALNF' : 'TSVAL', r.TSVAL ? `${r.TSPARMCD} has both TSVAL and TSVALNF` : `${r.TSPARMCD} has neither TSVAL nor TSVALNF`, i)
+      if (['STSTDTC', 'EXPSTDTC', 'EXPENDTC'].includes(r.TSPARMCD) && r.TSVAL && !isIso8601(r.TSVAL)) add('TRN-038', 'TSVAL', `${r.TSPARMCD} “${r.TSVAL}” is not ISO 8601`, i)
+    })
+  } else if (d === 'TS') {
     if (!b.rows.some((r) => r.TSPARMCD === 'SSTDTC' && r.TSVAL)) add('TRN-030', 'TSPARMCD', 'No TSPARMCD = SSTDTC with a value')
     for (const p2 of ['SDTMVER', 'SDTIGVER']) if (!b.rows.some((r) => r.TSPARMCD === p2 && r.TSVAL)) add('TRN-031', 'TSPARMCD', `No TSPARMCD = ${p2}`)
     const has1 = (code: string) => b.rows.some((r) => r.TSPARMCD === code && (r.TSVAL || r.TSVALNF))

@@ -29,7 +29,7 @@ const NavCtx = createContext<Nav>({ view: 'learn', go: () => {} })
 export const useNav = () => useContext(NavCtx)
 
 // Tabs that work on GLV-12-301 only (its trial design, CRF and submission package).
-const GLV_ONLY = new Set<View>(['design', 'acrf', 'define', 'csdrg', 'submission'])
+const GLV_ONLY = new Set<View>(['design', 'acrf', 'define', 'csdrg'])
 const VIEWS: { id: View; label: string }[] = [
   { id: 'learn', label: 'Learn' }, { id: 'study', label: 'Study' }, { id: 'raw', label: 'Raw data' }, { id: 'plan', label: 'Specification' }, { id: 'mapping', label: 'Mapping' }, { id: 'r', label: 'R' }, { id: 'design', label: 'Trial design' }, { id: 'relations', label: 'Relationships' }, { id: 'acrf', label: 'aCRF' }, { id: 'define', label: 'define.xml' }, { id: 'qc', label: 'QC compare' },
   { id: 'datasets', label: 'Datasets & checks' }, { id: 'validation', label: 'Validation' }, { id: 'csdrg', label: 'Reviewer’s guide' }, { id: 'submission', label: 'Submission' }, { id: 'missions', label: 'Missions' }, { id: 'classroom', label: 'Classroom' }, { id: 'project', label: 'Project' },

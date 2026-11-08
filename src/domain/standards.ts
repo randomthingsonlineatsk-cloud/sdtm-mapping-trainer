@@ -91,6 +91,7 @@ export const SEND_DOMAINS: DomainInfo[] = [
   { code: 'MI', name: 'Microscopic Findings', cls: 'Findings', structure: 'One record per finding per specimen per subject', detail: true },
   { code: 'OM', name: 'Organ Measurements', cls: 'Findings', structure: 'One record per test per specimen per subject', detail: true },
   { code: 'TX', name: 'Trial Sets', cls: 'Trial Design', structure: 'One record per trial set parameter per trial set', detail: true },
+  { code: 'TS', name: 'Trial Summary (SEND)', cls: 'Trial Design', structure: 'One record per trial summary parameter value', detail: true },
 ]
 
 export type Core = 'Req' | 'Exp' | 'Perm'
@@ -518,6 +519,11 @@ const META_SEND: Record<string, VarMeta[]> = {
     v('SET', 'Set Description', 'Char', 'Synonym Qualifier', 'Req'), v('TXSEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'), v('TXPARMCD', 'Trial Set Parameter Short Name', 'Char', 'Topic', 'Req', 'TXPARMCD'),
     v('TXPARM', 'Trial Set Parameter', 'Char', 'Synonym Qualifier', 'Req', 'TXPARM'), v('TXVAL', 'Trial Set Parameter Value', 'Char', 'Result Qualifier', 'Req'),
   ],
+  TS: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('TSSEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'),
+    v('TSGRPID', 'Group Identifier', 'Char', 'Identifier', 'Perm'), v('TSPARMCD', 'Trial Summary Parameter Short Name', 'Char', 'Topic', 'Req', 'STSPRMCD'), v('TSPARM', 'Trial Summary Parameter', 'Char', 'Synonym Qualifier', 'Req', 'STSPRM'),
+    v('TSVAL', 'Parameter Value', 'Char', 'Result Qualifier', 'Exp'), v('TSVALNF', 'Parameter Null Flavor', 'Char', 'Result Qualifier', 'Perm'),
+  ],
 }
 
 export const isRel = (d: string) => /^(SUPP|NS)[A-Z]{2}$/.test(d)
@@ -681,6 +687,8 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('EGTEST', 'ECG Test Name', true, ['ECG Mean Heart Rate', 'PR Interval, Aggregate', 'QRS Duration, Aggregate', 'QT Interval, Aggregate', 'QTcF Interval, Aggregate', 'Interpretation']),
   cl('EGMETHOD', 'ECG Test Method', true, ['12 LEAD STANDARD']),
   // SEND terminology used by the nonclinical study (CDISC SEND Controlled Terminology, subset).
+  cl('STSPRMCD', 'Trial Summary Parameter Test Code (SEND)', true, [['STSTDTC', 'Study Start Date'], ['STITLE', 'Study Title'], ['SSTYP', 'Study Type'], ['SDESIGN', 'Study Design'], ['SPECIES', 'Species'], ['STRAIN', 'Strain/Substrain'], ['ROUTE', 'Route of Administration'], ['TRT', 'Investigational Therapy or Treatment'], ['TRTV', 'Treatment Vehicle'], ['DOSDUR', 'Dosing Duration'], ['SEXPOP', 'Sex of Participants'], ['GLPFL', 'GLP Flag'], ['GLPTYP', 'Good Laboratory Practice Type'], ['TSTFNAM', 'Test Facility Name'], ['STDIR', 'Study Director'], ['SPONSOR', 'Sponsoring Organization'], ['EXPSTDTC', 'Experimental Start Date'], ['EXPENDTC', 'Experimental End Date'], ['SNDIGVER', 'SEND Implementation Guide Version'], ['SNDCTVER', 'SEND Controlled Terminology Version']]),
+  cl('STSPRM', 'Trial Summary Parameter Test Name (SEND)', true, ['Study Start Date', 'Study Title', 'Study Type', 'Study Design', 'Species', 'Strain/Substrain', 'Route of Administration', 'Investigational Therapy or Treatment', 'Treatment Vehicle', 'Dosing Duration', 'Sex of Participants', 'GLP Flag', 'Good Laboratory Practice Type', 'Test Facility Name', 'Study Director', 'Sponsoring Organization', 'Experimental Start Date', 'Experimental End Date', 'SEND Implementation Guide Version', 'SEND Controlled Terminology Version']),
   cl('SPECIES', 'Species', true, ['RAT', 'MOUSE', 'DOG', 'MONKEY', 'RABBIT', 'MINIPIG']),
   cl('STRAIN', 'Strain/Substrain', true, ['SPRAGUE-DAWLEY', 'WISTAR', 'WISTAR HAN', 'BEAGLE', 'CD-1']),
   cl('BWTESTCD', 'Body Weight Test Code', false, [['BW', 'Body Weight'], ['TERMBW', 'Terminal Body Weight']]),

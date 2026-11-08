@@ -3,8 +3,8 @@ import { useStore } from '../state'
 import { useNav } from '../App'
 import { R_PRELUDE, R_HOME, R_HELP, sessionFiles, parseCsv, starterCode } from '../domain/rlib'
 import { toR } from '../domain/codegen'
-import { log } from '../domain/project'
-import { R_KEYS } from '../domain/missions'
+import { log, isGlv, packOf } from '../domain/project'
+import { R_KEYS, missionsFor } from '../domain/missions'
 import { Panel, Btn, Table, Stat, Select, Pill } from './ui'
 import { useData } from './shared'
 
@@ -56,16 +56,20 @@ export default function RLab() {
   const { p, act } = useStore()
   const { go } = useNav()
   const data = useData()
-  const domains = [...new Set([...Object.keys(R_KEYS), ...Object.keys(p.specs)])].sort()
-  const [d, setD] = useState(domains.includes('CM') ? 'CM' : domains[0] ?? 'CM')
-  const [code, setCode] = useState(p.rCode?.[d] ?? starterCode(d))
+  const rMissions = missionsFor(p).filter((m) => m.kind === 'r')
+  const domains = [...new Set([...rMissions.flatMap((m) => m.domains), ...(isGlv(p) ? Object.keys(R_KEYS) : []), ...Object.keys(p.specs)])].sort()
+  const first = rMissions[0]?.domains[0] ?? (domains.includes('CM') ? 'CM' : domains[0] ?? 'CM')
+  const pack = packOf(p)
+  const tmpl = (x: string) => starterCode(x, pack?.domains.includes(x) ? pack.refSpec(x, p.version).source : undefined)
+  const [d, setD] = useState(first)
+  const [code, setCode] = useState(p.rCode?.[d] ?? tmpl(d))
   const [out, setOut] = useState('')
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'running' | 'failed'>(session ? 'ready' : 'idle')
   const [frame, setFrame] = useState<{ cols: string[]; rows: string[][] } | null>(null)
-  if (p.imported) return <Panel title="R" sub="R runs on the trainer’s studies."><p className="text-sm">Open a GLV-12-301 or PKX-07-101 project.</p></Panel>
+  if (p.imported) return <Panel title="R" sub="R runs on the trainer’s studies."><p className="text-sm">Open a project on one of the trainer’s studies.</p></Panel>
   const key = `${p.study}|${p.transfer ?? 1}`
   const keep = (c: string) => act((pp) => { (pp.rCode ??= {})[d] = c })
-  const pick = (x: string) => { setD(x); setCode(p.rCode?.[x] ?? starterCode(x)); setFrame(null) }
+  const pick = (x: string) => { setD(x); setCode(p.rCode?.[x] ?? tmpl(x)); setFrame(null) }
   const exec = async (save: boolean) => {
     setState(session ? 'running' : 'loading')
     try {
@@ -87,7 +91,7 @@ export default function RLab() {
   const saved = p.rOut?.[d]
   return (
     <div className="space-y-4">
-      <Panel title="R" sub="Real R (webR: R compiled to WebAssembly) running in your browser, served from this site. Base R only, with the study’s raw forms already loaded and a few helper functions. Write a program that builds a data frame named after the domain (cm for CM), run it, and save its result: mission S23 scores the saved result like any other dataset."
+      <Panel title="R" sub="Real R (webR: R compiled to WebAssembly) running in your browser, served from this site. Base R only, with the study’s raw forms already loaded and a few helper functions. Write a program that builds a data frame named after the domain (cm for CM), run it, and save its result: the study’s R mission scores the saved result like any other dataset."
         right={<div className="flex gap-1"><Select aria-label="Domain" className="w-28" value={d} onChange={(e) => pick(e.target.value)} options={domains.map((x) => ({ value: x, label: x }))} /></div>}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Stat label="R" value={state === 'idle' ? 'not started' : state === 'loading' ? 'starting…' : state === 'failed' ? 'failed' : 'ready'} tone={state === 'failed' ? 'red' : state === 'ready' || state === 'running' ? 'green' : 'blue'} />
@@ -104,9 +108,9 @@ export default function RLab() {
         </div>}>
           <textarea aria-label="R program" spellCheck={false} className="w-full min-h-[22rem] rounded border border-lab-line bg-lab-panel-strong p-2 font-mono text-[12px] leading-5" value={code} onChange={(e) => setCode(e.target.value)} onBlur={() => keep(code)} />
           <div className="flex flex-wrap gap-1">
-            <Btn tone="grey" className="py-0.5" onClick={() => setCode(starterCode(d))}>Start again from the template</Btn>
+            <Btn tone="grey" className="py-0.5" onClick={() => setCode(tmpl(d))}>Start again from the template</Btn>
             {p.specs[d]?.vars.length ? <Btn tone="grey" className="py-0.5" onClick={() => setCode(`${code}\n\n# Your visual mapping, as the R sketch on the Mapping tab (uses dplyr, which this session does not have):\n${toR(p.specs[d], p.version).split('\n').map((l) => `# ${l}`).join('\n')}\n`)}>Append my mapping’s R sketch as comments</Btn> : null}
-            <Btn tone="grey" className="py-0.5" onClick={() => go('missions')}>Mission S23</Btn>
+            {rMissions.map((m) => <Btn key={m.id} tone="grey" className="py-0.5" onClick={() => go('missions')}>Mission {m.id}</Btn>)}
           </div>
         </Panel>
         <div className="space-y-4">

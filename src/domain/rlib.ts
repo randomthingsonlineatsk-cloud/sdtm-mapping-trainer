@@ -138,11 +138,11 @@ export const R_HELP: { sig: string; what: string }[] = [
 ]
 
 // What the learner starts from for a domain.
-export function starterCode(domain: string): string {
-  const d = domain.toLowerCase(), sort = SORT[domain] ?? ['USUBJID']
+export function starterCode(domain: string, source?: string): string {
+  const d = domain.toLowerCase(), sort = SORT[domain] ?? ['USUBJID'], form = source ?? (domain === 'CM' ? 'CM' : domain)
   return `# ${domain} in base R. Build a data frame called ${d} with the ${domain} variables, in order.
-# raw$${domain === 'CM' ? 'CM' : '<form>'} is the raw form; see the helpers listed beside the editor.
-src <- raw$${domain === 'CM' ? 'CM' : domain}
+# raw$${form} is the raw form; see the helpers listed beside the editor.
+src <- raw$${form}
 
 ${d} <- data.frame(
   STUDYID = src$SUBJID[0],  # replace each line with the real derivation

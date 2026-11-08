@@ -71,7 +71,7 @@ describe('ZEN-T-0428 (SEND)', () => {
     for (const rs of RULE_SETS) {
       const p = createProject('u', 'none', '3.4', 'ZEN-T-0428'); p.ruleSet = rs.id
       expect(p.version).toBe('send'); expect(packOf(p)?.id).toBe('ZEN-T-0428'); expect(dataFor(p).studyId).toBe('ZEN-T-0428')
-      expect(missionsFor(p).map((m) => m.id)).toEqual(['S31', 'S32', 'S33'])
+      expect(missionsFor(p).map((m) => m.id)).toEqual(['S31', 'S32', 'S33', 'S41', 'S43'])
       for (const d of SEND_DOMAINS) p.specs[d] = sendReferenceSpec(d, 'send')
       for (const m of ['S31', 'S32', 'S33']) {
         startMission(p, m)
@@ -80,5 +80,50 @@ describe('ZEN-T-0428 (SEND)', () => {
       }
     }
     expect(createProject('u', 'none', 'send', 'AIR-09-202').version).toBe('3.4')
+  })
+})
+
+import { planPackPackage, packFolder, buildPackGuide } from '../src/domain/packPackage'
+import { packPackageFiles } from '../src/domain/packPackageBuild'
+import { packageFindings, toIssues, runSummary } from '../src/domain/validation'
+import { PACKS } from '../src/domain/studies'
+
+describe('specialist study packages', () => {
+  const ready = (study: string) => {
+    const p = createProject('u', 'none', '3.4', study); p.ruleSet = 'FDA'
+    const pack = PACKS[study]
+    for (const d of pack.domains) p.specs[d] = pack.refSpec(d, p.version)
+    if (pack.relrec.length) p.relrec = structuredClone(pack.relrec)
+    return p
+  }
+  test('SEND: module 4 folder, TS with STSTDTC, nSDRG; S41 scores 100', () => {
+    const p = ready('ZEN-T-0428'), data = dataFor(p)
+    expect(packFolder(PACKS['ZEN-T-0428'])).toBe('m4/datasets/zen-t-0428/tabulations/send/')
+    let plan = planPackPackage(p, data)
+    expect(plan.findings.map((f) => f.rule)).toEqual(['PKG-007'])
+    ;(p.validation ??= []).push(runSummary(p, toIssues(packageFindings(p, data))))
+    plan = planPackPackage(p, data)
+    expect(plan.findings).toEqual([])
+    expect(plan.all.get('TS')!.rows.find((r) => r.TSPARMCD === 'STSTDTC')!.TSVAL).toBe('2026-04-14')
+    const files = packPackageFiles(p, plan)
+    expect(files.map((f) => f.name)).toEqual(expect.arrayContaining(['ts.xpt', 'tx.xpt', 'mi.xpt', 'define.xml', 'nsdrg.pdf']))
+    expect(new TextDecoder().decode(files.find((f) => f.name === 'define.xml')!.bytes)).toContain('SENDIG')
+    expect(buildPackGuide(p, plan).sections.some((s) => s.title.startsWith('Differences between the Study Report'))).toBe(true)
+    startMission(p, 'S41'); const r = evaluateMission(p, 'S41')
+    expect(r.score, r.detail.join(' | ')).toBe(100); expect(r.passed).toBe(true)
+    // without TS the gateway would reject it
+    delete p.specs.TS
+    expect(planPackPackage(p, data).findings.some((f) => f.rule === 'TRC-TS' && f.sev === 'Error')).toBe(true)
+  })
+  test('clinical specialist studies: module 5, TS from the protocol with SSTDTC, cSDRG', () => {
+    for (const study of ['AIR-09-202', 'CRD-31-401', 'PNR-18-203']) {
+      const p = ready(study), data = dataFor(p)
+      ;(p.validation ??= []).push(runSummary(p, toIssues(packageFindings(p, data))))
+      const plan = planPackPackage(p, data)
+      expect(plan.tsBuiltByTrainer).toBe(true)
+      expect(plan.all.get('TS')!.rows.find((r) => r.TSPARMCD === 'SSTDTC')!.TSVAL).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(plan.findings.map((f) => f.rule), study).toEqual(['PKG-ACRF'])
+      expect(packPackageFiles(p, plan).map((f) => f.name)).toContain('csdrg.pdf')
+    }
   })
 })

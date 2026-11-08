@@ -17,7 +17,7 @@ interface Me {
   comments?: { submissionId: string; authorName: string; body: string; createdAt: string }[]
 }
 const title = (id: string) => `${id} · ${MISSIONS.find((m) => m.id === id)?.title ?? ''}`
-const studyOf = (id: string) => MISSIONS.find((m) => m.id === id)?.study ?? STUDY.id
+const studyOf = (id: string) => (MISSIONS.find((m) => m.id === id)?.kind === 'portfolio' ? 'Across studies' : MISSIONS.find((m) => m.id === id)?.study ?? STUDY.id)
 
 export default function Classroom() {
   const [s, setS] = useState<Session>(loadSession())
@@ -103,7 +103,7 @@ function Student({ s, me, refresh, run }: { s: Session; me: Me; refresh: () => v
           const best = subs.reduce((m, x) => Math.max(m, x.verifiedScore ?? x.score), -1)
           return [title(a.missionId), studyOf(a.missionId), a.difficulty, fmtUtc(a.dueAt), a.note, f ? `${f.run.score}% (${f.run.level ?? 'standard'})${(f.run.level ?? 'standard') !== a.difficulty ? ' · different level' : ''}` : <Btn tone="grey" className="py-0.5" onClick={() => go('missions')}>Run it</Btn>,
             subs.length ? `${subs.length} · best ${best}%` : '—',
-            f ? <Btn tone="solid" className="py-0.5" onClick={() => run(async () => { const pl = await submissionPayload(f.proj, f.run as MissionRun); const r = await api<{ late: boolean }>(s, 'POST', `/assignments/${a.id}/submissions`, pl); refresh(); if (r.late) throw new Error('Submitted, after the due date.') })}>Submit</Btn> : '']
+            f ? <Btn tone="solid" className="py-0.5" onClick={() => run(async () => { const pl = await submissionPayload(f.proj, f.run as MissionRun, all); const r = await api<{ late: boolean }>(s, 'POST', `/assignments/${a.id}/submissions`, pl); refresh(); if (r.late) throw new Error('Submitted, after the due date.') })}>Submit</Btn> : '']
         })} empty="No assignments yet." />
       </Panel>
       {(me.comments?.length ?? 0) > 0 && <Panel title="Comments from your instructor"><ul className="space-y-1 text-sm">{me.comments!.map((c, i) => <li key={i}><span className="text-lab-text-muted text-xs">{c.authorName} · {fmtUtc(c.createdAt)}</span><br />{c.body}</li>)}</ul></Panel>}
@@ -128,7 +128,7 @@ function Instructor({ s, me, refresh, run }: { s: Session; me: Me; refresh: () =
       <Panel title="Assignments">
         <Table head={['Mission', 'Study', 'Level', 'Due (UTC)', 'Note', 'Submissions', '']} rows={me.assignments.map((x) => [title(x.missionId), studyOf(x.missionId), x.difficulty, fmtUtc(x.dueAt), x.note, me.submissions.filter((y) => y.assignmentId === x.id).length, <Btn tone="red" className="py-0.5" onClick={() => run(async () => { await api(s, 'DELETE', `/assignments/${x.id}`); refresh() })}>Remove</Btn>])} empty="No assignments yet." />
         <div className="flex flex-wrap gap-2 items-center">
-          <Select aria-label="Mission" className="w-96" value={a.missionId} onChange={(e) => setA({ ...a, missionId: e.target.value })} options={MISSIONS.filter((m) => m.kind !== 'portfolio').map((m) => ({ value: m.id, label: `${title(m.id)} (${studyOf(m.id)})` }))} />
+          <Select aria-label="Mission" className="w-96" value={a.missionId} onChange={(e) => setA({ ...a, missionId: e.target.value })} options={MISSIONS.map((m) => ({ value: m.id, label: `${title(m.id)} (${studyOf(m.id)})` }))} />
           <Select aria-label="Level" className="w-36" value={a.difficulty} onChange={(e) => setA({ ...a, difficulty: e.target.value })} options={['guided', 'standard', 'expert'].map((l) => ({ value: l, label: l }))} />
           <input aria-label="Due date" type="date" className={ic('w-40')} value={a.dueAt} onChange={(e) => setA({ ...a, dueAt: e.target.value })} />
           <input aria-label="Note" className={ic('flex-1 min-w-48')} value={a.note} onChange={(e) => setA({ ...a, note: e.target.value })} placeholder="Note for students (optional)" />

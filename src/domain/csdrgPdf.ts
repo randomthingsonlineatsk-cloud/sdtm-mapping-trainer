@@ -8,11 +8,12 @@ import type { Csdrg } from './csdrg'
 const W = 595, H = 842, M = 50, BOTTOM = H - 50
 const ascii = (s: string) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/·/g, '-').replace(/×/g, 'x').replace(/[^\x20-\x7E\n]/g, '')
 
-export function csdrgPdf(study: string, g: Csdrg, meta: { author: string; date: string; title: string }): Uint8Array {
+export function csdrgPdf(study: string, g: Csdrg, meta: { author: string; date: string; title: string; doc?: string }): Uint8Array {
+  const name = meta.doc ?? "Clinical Study Data Reviewer's Guide"
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-  doc.setProperties({ title: `${study} Clinical Study Data Reviewer's Guide`, subject: 'cSDRG (training, fictional study)', author: meta.author, creator: 'SDTM Mapping Trainer' })
+  doc.setProperties({ title: `${study} ${name}`, subject: `${name} (training, fictional study)`, author: meta.author, creator: 'SDTM Mapping Trainer' })
   // Title page.
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.text("Clinical Study Data Reviewer's Guide", M, 200)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.text(name, M, 200)
   doc.setFontSize(14); doc.text(study, M, 230)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
   doc.text(doc.splitTextToSize(ascii(meta.title), W - 2 * M), M, 256)

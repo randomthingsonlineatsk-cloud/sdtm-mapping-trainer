@@ -58,6 +58,14 @@ export default function ProjectView() {
       {isGlv(p) && <Panel title="Data transfer" sub="The study data arrive more than once. Your mappings stay as they are when you switch: re-run them on the new transfer and account for every change (Raw data and Datasets show what changed).">
         <TransferSwitch />
       </Panel>}
+      <Panel title="Study Data Standardization Plan" sub="The program-level plan FDA asks sponsors to keep with the IND: every study of the program (one per project in this browser under your user ID) with its standard, terminology, define.xml version and dictionaries, how conformance is checked, and what goes in each eCTD module. Laid out after the PHUSE SDSP template.">
+        <Btn tone="solid" onClick={async () => {
+          const { buildSdsp } = await import('../domain/sdsp'); const { csdrgPdf } = await import('../domain/csdrgPdf')
+          const projects = [...all.filter((x) => x.id !== p.id), p]
+          const bytes = csdrgPdf('Program', buildSdsp(projects, p.userId), { author: p.userId, date: new Date().toISOString().slice(0, 10), title: 'Training program of the SDTM Mapping Trainer (fictional studies)', doc: 'Study Data Standardization Plan' })
+          const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' })); const a = document.createElement('a'); a.href = url; a.download = 'sdsp.pdf'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+        }}>Download the SDSP (PDF)</Btn>
+      </Panel>
       <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_INFO.label}.`}>
         <div className="flex flex-wrap gap-2">
           {((p.version === 'send' ? ['send'] : ['3.4', '4.0d']) as Version[]).map((v) => <Btn key={v} tone={p.version === v ? 'solid' : 'grey'} onClick={() => setVersion(v)}>{VERSION_LABEL[v]}</Btn>)}
