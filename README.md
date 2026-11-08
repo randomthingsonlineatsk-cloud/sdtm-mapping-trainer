@@ -274,6 +274,21 @@ rules; no vendor rule text or tool is copied.
   specialist studies completed) and Specialist capstone, printed on the certificate.
 - **Lessons:** the SEND lesson points to the practice study; a new lesson covers the diabetes,
   cardiovascular and pain studies.
+- **Packages for every study:** the Submission tab now builds a package for each specialist
+  study too: module 4 for SEND (m4/datasets/<study>/tabulations/send/, with ts.xpt mapped from
+  the study plan and a nonclinical reviewer's guide, nSDRG) and module 5 for the clinical ones
+  (TS built from the protocol, cSDRG). Checks model FDA's technical rejection criteria for study
+  data (ts.xpt with STSTDTC or SSTDTC, dm.xpt, define.xml). Mission S41 scores the SEND package.
+- **R on every study:** the R tab loads the open project's raw data; missions S42 (pain CM),
+  S43 (SEND BW) and S44 (titrated insulin EX) are scored from R programs.
+- **S40 in classroom mode:** its submission carries all of the student's projects, and the
+  instructor's browser re-scores every counted run before working out the capstone.
+- **Study Data Standardization Plan:** the Project tab writes an SDSP (sdsp.pdf) for the
+  learner's program from their projects: studies, standards and versions, terminology,
+  dictionaries, conformance, eCTD modules.
+- **What companies use now:** a lesson on the FDA Data Standards Catalog and Technical
+  Conformance Guide v6.0, technical rejection criteria, SDSP and reviewer's guides, XPT and the
+  status of Dataset-JSON, eCTD v4.0, CDISC CORE, pharmaverse sdtm.oak and metadata-driven work.
 
 ## Coming next
 

@@ -21,6 +21,7 @@ export const R_KEYS: Record<string, string[]> = { CM: ['USUBJID', 'CMSPID'] }
 import { TRIAL_DESIGN, VERSION_LABEL } from './standards'
 import { canExplain, explanationOf, issueKey, findingKey, packageFindings, toIssues, statusOf } from './validation'
 import { planPackage } from './package'
+import { planPackPackage, packageScore } from './packPackage'
 import { currentVersion, mismatches } from './plan'
 import { RAW_FIELDS } from './seed'
 import { designBuilt, referenceDesign, TEXT_VARS, TS_TEXT_PARAMS } from './design'
@@ -29,7 +30,7 @@ import type { MissionRun, Project } from './project'
 import { log } from './project'
 
 export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package' | 'capstone' | 'r' | 'portfolio'
-export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string; study?: string }
+export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string; study?: string; rKeys?: string[] }
 // The missions of the project's study (GLV-12-301 unless a mission names another).
 export const missionsFor = (p: Project) => MISSIONS.filter((m) => m.kind !== 'portfolio' && (m.study ?? STUDY.id) === studyIdOf(p))
 // The specialist capstone S40 is scored across all of a learner's projects, whatever the open one.
@@ -126,6 +127,9 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S33', study: 'ZEN-T-0428', domains: ['OM', 'MI'], kind: 'map', phase: 6, title: 'SEND: organ weights and microscopic findings', pass: PASS,
     brief: 'Map the necropsy organ weights to OM (the weight and the facility’s ratios to body and brain weight) and the pathologist’s findings to MI (one record per finding per tissue, the finding’s CT term and the severity grade).',
     watch: ['Three tests per organ: WEIGHT, OWBW and OWBR; no OWBR for the brain', 'OMSPEC and MISPEC are specimen CT terms in upper case', 'No visible lesions is MISTRESC UNREMARKABLE, and it is a record', 'MIORRES keeps the pathologist’s words with the modifier', 'A tissue not examined: MISTAT NOT DONE with the reason', 'No organ weights for the animal that died early, but full histopathology'] },
+  { id: 'S41', study: 'ZEN-T-0428', domains: ['DM', 'TX', 'TS', 'EX', 'BW', 'CL', 'OM', 'MI'], kind: 'package', phase: 6, title: 'SEND: the module 4 package', pass: '70% or more, with every dataset passing and nothing that stops the package (no technical rejection finding)',
+    brief: 'Prepare ZEN-T-0428’s SEND package as it goes to FDA: map TS from the study plan, have every SEND dataset ready, run validation under the FDA rule set, explain what is true of the data, then build the package on the Submission tab: m4/datasets/zen-t-0428/tabulations/send/ with the .xpt files, define.xml and the nonclinical reviewer’s guide (nSDRG). Datasets count 60%, the package 40%.',
+    watch: ['Without ts.xpt and its STSTDTC the FDA gateway rejects the package before anyone reads it', 'STSTDTC is when the study director approved the plan, not the first dose', 'SEND goes in module 4, not module 5', 'Explain on the Validation tab; the explanations go into the nSDRG', 'Run validation again after the last change'] },
   { id: 'S34', study: 'INS-22-305', domains: ['DM', 'EX'], kind: 'map', phase: 6, title: 'Diabetes: DM and a titrated insulin dose in EX', pass: PASS,
     brief: 'INS-22-305 starts insulin-naive people with type 2 diabetes on a basal insulin and titrates it every week. Map DM and the dose log to EX: one record per period on a constant dose, in units, with the reason each dose changed.',
     watch: ['One EX record per constant-dosing interval, not one per day', 'EXDOSU U (units) and EXDOSFRM INJECTION, SOLUTION', 'EXADJ says why the dose changed: TITRATION or HYPOGLYCAEMIA; null for the starting dose', 'The comparator keeps its generic name: INSULIN GLARGINE', 'RFENDTC is the last stop date in the dose log'] },
@@ -144,9 +148,18 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S39', study: 'PNR-18-203', domains: ['EX', 'CM'], kind: 'map', phase: 6, title: 'Pain: study drug in EX, rescue medicine in CM', pass: PASS,
     brief: 'Map the bottles dispensed to EX and the diary’s rescue paracetamol to CM: one record per day any was taken, with the total daily dose.',
     watch: ['CMCAT RESCUE MEDICATION', 'CMDOSE is per tablet; CMDOSTOT the day’s total', 'No CM record for a day with 0 tablets', 'A day above the 4 g limit is data, kept as reported', 'Placebo: EXTRT PLACEBO with EXDOSE 0'] },
-  { id: 'S40', domains: [], kind: 'portfolio', phase: 6, title: 'Capstone 2: the specialist portfolio', pass: '70% or more, with every mission of the SEND study and of two clinical specialist studies passed at standard or expert level',
-    brief: 'The second capstone spans studies, as a programmer moving between projects does. Pass every mission of the nonclinical SEND study ZEN-T-0428 and of at least two of the clinical specialist studies (PKX-07-101, ONK-44-302, AIR-09-202, ALV-3-301, INS-22-305, CRD-31-401, PNR-18-203), each in its own project in this browser, at standard or expert level. The score is the mean of the SEND study’s and your two best studies’ mission scores. Record it from any project.',
-    watch: ['Guided runs do not count towards it', 'Each study keeps its own conventions: read its Study tab before mapping', 'SEND is a different implementation guide: DM and EX have other variables', 'All of a study’s missions must pass, not just one'] },
+  { id: 'S40', domains: [], kind: 'portfolio', phase: 6, title: 'Capstone 2: the specialist portfolio', pass: '70% or more, with every mapping mission of the SEND study and of two clinical specialist studies passed at standard or expert level',
+    brief: 'The second capstone spans studies, as a programmer moving between projects does. Pass every mapping mission of the nonclinical SEND study ZEN-T-0428 and of at least two of the clinical specialist studies (PKX-07-101, ONK-44-302, AIR-09-202, ALV-3-301, INS-22-305, CRD-31-401, PNR-18-203), each in its own project in this browser, at standard or expert level. The score is the mean of the SEND study’s and your two best studies’ mission scores. Record it from any project.',
+    watch: ['Guided runs do not count towards it', 'Each study keeps its own conventions: read its Study tab before mapping', 'SEND is a different implementation guide: DM and EX have other variables', 'All of a study’s mapping missions must pass, not just one (its R and package missions are extra)'] },
+  { id: 'S42', study: 'PNR-18-203', domains: ['CM'], kind: 'r', rKeys: ['USUBJID', 'CMSTDTC'], phase: 6, title: 'Pain: rescue medicine (CM) in R', pass: PASS,
+    brief: 'Program CM from the pain diary in R: keep the days with rescue tablets, one record per day, with the total daily dose. Build a data frame called cm from raw$DIARY and save it on the R tab; it is scored against the reference like any CM.',
+    watch: ['Filter first: as.numeric(raw$DIARY$RESCUE) > 0', 'CMSTDTC is the date part of ENTRYDTM: substr(x, 1, 10)', 'CMDOSTOT = tablets × 500', 'study_day() and epoch_of() take the date and USUBJID', 'Rows are matched to the reference by USUBJID and CMSTDTC'] },
+  { id: 'S43', study: 'ZEN-T-0428', domains: ['BW'], kind: 'r', rKeys: ['USUBJID', 'BWTESTCD', 'BWDTC', 'BWUSCHFL'], phase: 6, title: 'SEND: body weights (BW) in R', pass: PASS,
+    brief: 'Program BW in R from raw$BWT: scheduled, terminal (fasted) and unscheduled weighings, the weighing not done and the excluded weight, with the nominal day. Save a data frame called bw on the R tab.',
+    watch: ['ifelse() for BWTESTCD: TERMBW for the terminal weighing', 'Blank weight: BWSTAT NOT DONE and the reason from the comment', 'BWNOMDY is the planned day; empty for the unscheduled weighing', 'Dates are already ISO 8601 in this export', 'Rows are matched by USUBJID, BWTESTCD, BWDTC and BWUSCHFL'] },
+  { id: 'S44', study: 'INS-22-305', domains: ['EX'], kind: 'r', rKeys: ['USUBJID', 'EXSTDTC'], phase: 6, title: 'Diabetes: titrated insulin (EX) in R', pass: PASS,
+    brief: 'Program EX from the insulin dose log in R: one record per constant dose with EXADJ for each change. The treatment comes from the IRT file: merge raw$IRT on SUBJID. Save a data frame called ex.',
+    watch: ['merge(raw$DOSE, raw$IRT[, c("SUBJID", "RANDARM")], by = "SUBJID")', 'EXADJ: TITRATION, HYPOGLYCAEMIA, or "" for the starting dose', 'dtc_iso() reads the DD-MMM-YYYY dates', 'Sort by USUBJID, EXTRT, EXSTDTC before seq_within()'] },
   { id: 'S19', study: 'PKX-07-101', domains: ['DM', 'EX'], kind: 'map', phase: 3, title: 'PK study: DM and EX with exact dose times', pass: PASS,
     brief: 'PKX-07-101 is a first-in-human study: every concentration is timed from a dose, so the dose times matter. Map DM (reference dates to the minute, arms from the IRT, screen failures) and EX (one record per dose, unblinded from the IRT kit arm, with the clock time from the dosing log).',
     watch: ['RFSTDTC and RFXSTDTC carry the time of the first dose; RFENDTC the last dose', 'Part A doses once (EXDOSFRQ ONCE), Part B daily for 7 days (QD)', 'Placebo: EXTRT PLACEBO, EXDOSE 0', 'The dosing log time is 24-hour HH:MM'] },
@@ -217,7 +230,7 @@ export function evaluateMission(p: Project, id: string, projects: Project[] = [p
   const referenceSpec = (d: string, _v: Version) => refSpecFor(p, d)
   const ver = p.version
   if (def.kind === 'acrf') return evaluateAcrf(p, data)
-  if (def.kind === 'package') return evaluatePackage(p, data)
+  if (def.kind === 'package' && !pack) return evaluatePackage(p, data)
   const refDesign = referenceDesign(ver, p.transfer ?? 1)
   const tu = pack?.domains.includes('TU') ? build(p.specs.TU?.vars.length ? p.specs.TU : referenceSpec('TU', ver), data, ver) : undefined
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), tu, ...(pack ? {} : { ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver) }), set: p.ruleSet }
@@ -231,7 +244,7 @@ export function evaluateMission(p: Project, id: string, projects: Project[] = [p
     if (def.kind === 'r') {
       const out = p.rOut?.[d]
       if (!out) throw new Error(`Run your R program for ${d} on the R tab and save its result first.`)
-      const keys = R_KEYS[d] ?? ['USUBJID']
+      const keys = def.rKeys ?? R_KEYS[d] ?? ['USUBJID']
       mine = rBuilt(d, out, keys); ref = rekey(build(referenceSpec(d, ver), data, ver), keys)
       refKeys = new Set(check(ref, ver, ctxBase).map(findingKey))
     } else if (def.kind === 'design' || (def.kind === 'capstone' && TRIAL_DESIGN.includes(d))) {
@@ -305,6 +318,16 @@ export function evaluateMission(p: Project, id: string, projects: Project[] = [p
     ...(explainedWrongly.length ? [`Explained, but the reference mapping does not raise them, so they come from the mapping and still count: ${explainedWrongly.join('; ')}. Fix the mapping instead.`] : []),
     ...(errs.length ? [`Rules that failed while building: ${errs.join('; ')}`] : []),
   ]
+  if (def.kind === 'package' && pack) {
+    // A specialist study's package (S41): its datasets 60%, the package checks 40%.
+    const plan = planPackPackage(p, data), pk = packageScore(plan)
+    const total = Math.round(0.6 * score + 0.4 * pk.score)
+    return { score: total, passed: total >= 70 && passed && !pk.errors.length, domains: results, detail: [
+      `Datasets: ${score}% (60% of the score); every dataset ${passed ? 'passes' : 'must pass'}`,
+      `Package: ${pk.score}% (40% of the score)`,
+      ...(plan.findings.length ? plan.findings.map((f) => `${f.rule} ${f.sev} · ${f.where}: ${f.msg}`) : ['Package checks: nothing stops the package']), ...detail,
+    ] }
+  }
   if (def.kind === 'capstone') {
     // The datasets count 60%, the package (fixed, explained, guide, current run) 40%; it passes
     // only when every dataset passes, the package mission passes and nothing stops the package.
@@ -460,7 +483,7 @@ export function specialistProgress(projects: Project[], userId: string): StudyPr
   const runs = projects.filter((x) => x.userId === userId && !x.imported).flatMap((x) => x.missions.map((r) => ({ ...r, study: x.study })))
   const studies = [...new Set(MISSIONS.filter((m) => m.study).map((m) => m.study!))]
   return studies.map((study) => {
-    const ms = MISSIONS.filter((m) => m.study === study).map((m) => m.id)
+    const ms = MISSIONS.filter((m) => m.study === study && m.kind === 'map').map((m) => m.id)
     const best = Object.fromEntries(ms.map((id) => [id, Math.max(0, ...runs.filter((r) => r.id === id && r.study === study && r.passed && (r.level ?? 'standard') !== 'guided').map((r) => r.score ?? 0))]))
     const complete = ms.every((id) => best[id] > 0)
     return { study, missions: ms, best, complete, mean: Math.round(ms.reduce((a, id) => a + best[id], 0) / ms.length) }

@@ -52,6 +52,7 @@ function MissionCard({ id }: { id: string }) {
     : m.kind === 'acrf' ? <Btn onClick={() => go('acrf')}>Open the aCRF</Btn>
     : m.kind === 'r' ? <Btn onClick={() => go('r')}>Open R</Btn>
     : m.kind === 'capstone' ? <><Btn onClick={() => go('mapping')}>Mapping</Btn><Btn onClick={() => go('design')}>Trial design</Btn><Btn onClick={() => go('acrf')}>aCRF</Btn><Btn onClick={() => go('validation')}>Validation</Btn><Btn onClick={() => go('csdrg')}>Reviewer’s guide</Btn><Btn onClick={() => go('submission')}>Submission</Btn></>
+    : m.kind === 'package' && m.study ? <><Btn onClick={() => go('mapping', 'TS')}>Map TS</Btn><Btn onClick={() => go('validation')}>Open Validation</Btn><Btn onClick={() => go('submission')}>Submission</Btn></>
     : m.kind === 'package' ? <><Btn onClick={() => go('validation')}>Open Validation</Btn><Btn onClick={() => go('csdrg')}>Reviewer’s guide</Btn><Btn onClick={() => go('submission')}>Submission</Btn></>
     : m.kind === 'relrec' ? <Btn onClick={() => go('relations')}>Open Relationships</Btn>
     : m.kind === 'custom' ? <><Btn onClick={() => go('raw')}>The EDU form</Btn><Btn onClick={() => go('mapping', m.domains[0])}>Define and map {m.domains[0]}</Btn></>

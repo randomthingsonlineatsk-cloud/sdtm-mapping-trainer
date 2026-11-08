@@ -64,7 +64,7 @@ describe('the therapeutic-area studies', () => {
       ['INS-22-305', ['S34', 'S35'], insReferenceSpec, INS_DOMAINS, INS_RELREC], ['CRD-31-401', ['S36', 'S37'], cvoReferenceSpec, CVO_DOMAINS], ['PNR-18-203', ['S38', 'S39'], painReferenceSpec, PAIN_DOMAINS]]
     for (const [study, ms, spec, doms, rel] of cases) for (const v of ['3.4', '4.0d'] as const) for (const rs of RULE_SETS) {
       const p = createProject('u', 'none', v, study); p.ruleSet = rs.id
-      expect(packOf(p)?.id).toBe(study); expect(dataFor(p).studyId).toBe(study); expect(missionsFor(p).map((m) => m.id)).toEqual(ms)
+      expect(packOf(p)?.id).toBe(study); expect(dataFor(p).studyId).toBe(study); expect(missionsFor(p).filter((m) => m.kind === 'map').map((m) => m.id)).toEqual(ms)
       for (const d of doms) p.specs[d] = spec(d, v)
       if (rel) p.relrec = structuredClone(rel) as typeof p.relrec
       for (const m of ms) { startMission(p, m); const r = evaluateMission(p, m); expect(r.score, `${study} ${v} ${rs.id} ${m}: ${r.detail.join(' | ')}`).toBe(100) }

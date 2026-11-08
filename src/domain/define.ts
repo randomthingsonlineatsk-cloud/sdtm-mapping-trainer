@@ -83,7 +83,7 @@ export function buildDefine(inp: DefineInput, now = new Date()): DefineModel {
       else if (isRel(name)) item.origin = { type: v === 'QVAL' || !['STUDYID', 'RDOMAIN', 'USUBJID', 'IDVAR', 'IDVARVAL', 'IDVARVLN', 'QNAM', 'QLABEL', 'QORIG', 'QEVAL'].includes(v) ? 'Collected' : 'Assigned', source: 'Sponsor' }
       else if (spec) {
         const rules: { source: string; rule: Rule | undefined }[] = [{ source: spec.source, rule: spec.rules[v] }, ...(spec.parts ?? []).map((p) => ({ source: p.source, rule: p.rules[v] }))].filter((x) => x.rule)
-        const o = rules.map((x) => originOf(x.rule, x.source, raw(x.source)))
+        const o = rules.map((x) => { const r = originOf(x.rule, x.source, raw(x.source)); return r.origin === 'Collected' && inp.formSource?.[x.source] ? { ...r, source: inp.formSource[x.source] } : r })
         const collected = o.find((x) => x.origin === 'Collected'), assigned = o.every((x) => x.origin === 'Assigned')
         // A variable annotated on the aCRF is collected there, even when a small expression cleans it.
         const pages = acrfPageOf(laid, specs, name, v)

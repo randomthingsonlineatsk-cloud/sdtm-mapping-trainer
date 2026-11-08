@@ -37,6 +37,7 @@ export const SEND_SETS: SetDef[] = [
 export const SEND_ARMS = SEND_SETS.map((s) => ({ code: s.armcd, name: s.set }))
 export const SEND_SITES = [{ id: 'HPS', name: SEND_FACILITY, country: 'United Kingdom', iso: 'GBR' }]
 export const SEND_FORM_INFO: Record<string, { name: string; source: string; note: string }> = {
+  PLAN: { name: 'Study plan summary', source: 'Protocol', note: 'The study plan’s key facts as the study director approved them: one row per trial summary parameter with its code, name and value (the codes of the SEND trial summary codelist).' },
   SETS: { name: 'Protocol groups and sets', source: 'Protocol', note: 'One row per set (a group of animals treated and scheduled alike): code, description, group, dose and planned numbers of each sex.' },
   ANIMAL: { name: 'Animal list', source: 'Test facility', note: 'One row per animal: number, sex, set, date of birth, species, strain and supplier details. Animal numbers: the group, then 0xx for males and 5xx for females (1xx and 6xx in recovery sets).' },
   DOSE: { name: 'Dosing', source: 'Test facility', note: 'One row per animal: first and last dose dates, the dose level and volume, the formulation lot.' },
@@ -47,6 +48,7 @@ export const SEND_FORM_INFO: Record<string, { name: string; source: string; note
 }
 const F = (pairs: [string, string][]) => pairs.map(([name, label]) => ({ name, label }))
 export const SEND_RAW_FIELDS: Record<string, { name: string; label: string }[]> = {
+  PLAN: F([['PARMCD', 'Parameter code'], ['PARM', 'Parameter'], ['VALUE', 'Value']]),
   SETS: F([['SETCD', 'Set code'], ['SETDESC', 'Set description'], ['ARMCD', 'Arm code'], ['SPGRPCD', 'Group'], ['GRPLBL', 'Group label'], ['TRTDOS', 'Dose level'], ['TRTDOSU', 'Dose unit'], ['SEXPOP', 'Sexes'], ['PLANMSUB', 'Planned males'], ['PLANFSUB', 'Planned females'], ['TCNTRL', 'Control type']]),
   ANIMAL: F([['SUBJID', 'Animal number'], ['SEX', 'Sex'], ['SETCD', 'Set'], ['DOB', 'Date of birth'], ['SPECIES', 'Species'], ['STRAIN', 'Strain'], ['SUPPLIER', 'Supplier details'], ['FATE', 'Fate'], ['NECDATE', 'Necropsy date']]),
   DOSE: F([['SUBJID', 'Animal number'], ['FIRSTDOSE', 'First dose date'], ['LASTDOSE', 'Last dose date'], ['DOSELVL', 'Dose (mg/kg/day)'], ['DOSEVOL', 'Dose volume (mL/kg)'], ['LOT', 'Formulation lot']]),
@@ -66,12 +68,22 @@ export const SEND_FACTS: { what: string; value: string }[] = [
 export const SEND_CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'USUBJID', rule: 'STUDYID, a hyphen, and the animal number: ZEN-T-0428-4007. SUBJID the animal number.' },
   { topic: 'DM', rule: 'RFSTDTC and RFXSTDTC the first dose date; RFXENDTC the last dose; RFENDTC the necropsy date. SPECIES RAT, STRAIN SPRAGUE-DAWLEY, SBSTRAIN the supplier details. AGE in weeks at the first dose (AGEU WEEKS). ARMCD and SETCD from the animal’s set, ARM its description.' },
+  { topic: 'TS', rule: 'One record per parameter from the study plan summary: TSPARMCD, TSPARM and TSVAL as approved; TSSEQ numbered within each parameter. STSTDTC (the study start date: the study director’s approval of the plan) must be there: the FDA gateway rejects a SEND package without it. Dates ISO 8601.' },
   { topic: 'TX', rule: 'One record per parameter per set from the protocol table: ARMCD, SPGRPCD, GRPLBL, TRTDOS, TRTDOSU, SEXPOP, PLANMSUB, PLANFSUB, and TCNTRL VEHICLE CONTROL for the control sets only. SET the set description; TXPARM the parameter’s name; TXSEQ numbered across the whole dataset.' },
   { topic: 'EX', rule: 'One record per animal for the constant dosing interval: EXTRT ZEN-55 for every animal (the control group too, with EXDOSE 0), EXDOSE the dose level in mg/kg, EXDOSFRM SUSPENSION, EXDOSFRQ QD, EXROUTE ORAL GAVAGE, EXTRTV the vehicle, EXVAMT the dose volume in mL/kg, EXLOT the formulation lot, EXSTDTC and EXENDTC the first and last dose.' },
   { topic: 'BW', rule: 'BWTESTCD BW, or TERMBW for the fasted terminal weight (BWFAST Y). BWORRES as weighed in g. BWBLFL on the Day 1 weight. BWNOMDY the planned day and BWNOMLBL “Day n”. An unscheduled weighing: BWUSCHFL Y. A weighing not done: BWSTAT NOT DONE with the reason. A weight the study director excluded stays, with BWEXCLFL Y and BWREASEX.' },
   { topic: 'CL', rule: 'One record per sign per examination: CLTESTCD CS, CLTEST Clinical Signs, CLCAT CLINICAL SIGNS. CLORRES as recorded, CLSTRESC upper case (NORMAL for a normal animal), CLLOC and CLSEV upper case. Unscheduled examinations: CLUSCHFL Y and no nominal day.' },
   { topic: 'OM', rule: 'OMTESTCD WEIGHT (g), OWBW (organ to body weight, %) and OWBR (organ to brain weight, %; none for the brain itself). OMSPEC the organ in CT (LIVER, KIDNEY…). OMDTC the necropsy date, OMNOMDY the scheduled necropsy day.' },
   { topic: 'MI', rule: 'One record per finding per tissue examined: MITESTCD MIEXAM, MISPEC the tissue, MIORRES the finding with its modifier as the pathologist wrote it, MISTRESC the finding’s CT term (UNREMARKABLE for no visible lesions), MISEV the grade in upper case, MIDISTR the distribution. A tissue not examined: MISTAT NOT DONE with the reason. MIDTC the necropsy date.' },
+]
+
+// The study plan summary, as the trial summary parameters (the SEND codelist's codes).
+export const SEND_PLAN: [string, string, string][] = [
+  ['STSTDTC', 'Study Start Date', '2026-04-14'], ['STITLE', 'Study Title', SEND_STUDY.title], ['SSTYP', 'Study Type', 'REPEAT DOSE TOXICITY'], ['SDESIGN', 'Study Design', 'PARALLEL'],
+  ['SPECIES', 'Species', 'RAT'], ['STRAIN', 'Strain/Substrain', 'SPRAGUE-DAWLEY'], ['ROUTE', 'Route of Administration', 'ORAL GAVAGE'], ['TRT', 'Investigational Therapy or Treatment', 'ZEN-55'],
+  ['TRTV', 'Treatment Vehicle', SEND_VEHICLE], ['DOSDUR', 'Dosing Duration', 'P4W'], ['SEXPOP', 'Sex of Participants', 'BOTH'], ['GLPFL', 'GLP Flag', 'Y'], ['GLPTYP', 'Good Laboratory Practice Type', 'FDA'],
+  ['TSTFNAM', 'Test Facility Name', SEND_FACILITY], ['STDIR', 'Study Director', 'Dr A. Fenwick (fictional)'], ['SPONSOR', 'Sponsoring Organization', SEND_STUDY.sponsor],
+  ['EXPSTDTC', 'Experimental Start Date', '2026-05-04'], ['EXPENDTC', 'Experimental End Date', '2026-06-15'], ['SNDIGVER', 'SEND Implementation Guide Version', 'SENDIG 3.1.1'], ['SNDCTVER', 'SEND Controlled Terminology Version', 'CDISC SEND Terminology, 2026-09 release'],
 ]
 
 // ---------- generation ----------
@@ -82,10 +94,11 @@ let cache: { forms: Record<string, Row[]>; subjects: { subj: string; arm?: strin
 export function sendRaw() {
   if (cache) return cache
   const r = rng(428)
-  const forms: Record<string, Row[]> = { SETS: [], ANIMAL: [], DOSE: [], BWT: [], CLO: [], OWT: [], HISTO: [] }
+  const forms: Record<string, Row[]> = { PLAN: [], SETS: [], ANIMAL: [], DOSE: [], BWT: [], CLO: [], OWT: [], HISTO: [] }
   let id = 0
   const push = (form: string, row: Record<string, string>) => forms[form].push({ __id: `${form}${++id}`, ...row } as Row)
   const subjects: { subj: string; arm?: string }[] = []
+  for (const [cd, nm, val] of SEND_PLAN) push('PLAN', { PARMCD: cd, PARM: nm, VALUE: val })
   for (const s of SEND_SETS) push('SETS', { SETCD: s.setcd, SETDESC: s.set, ARMCD: s.armcd, SPGRPCD: s.spgrpcd, GRPLBL: s.grplbl, TRTDOS: String(s.dose), TRTDOSU: 'mg/kg/day', SEXPOP: 'BOTH', PLANMSUB: String(s.m), PLANFSUB: String(s.f), TCNTRL: s.dose === 0 ? 'Vehicle control' : '' })
   for (const s of SEND_SETS) for (const sex of ['M', 'F'] as const) for (let i = 1; i <= (sex === 'M' ? s.m : s.f); i++) {
     const g = Number(s.spgrpcd)
@@ -170,6 +183,10 @@ const SEND_REF: Record<string, Ref> = {
       SEX: { kind: 'recode', field: 'SEX', table: { Male: 'M', Female: 'F' } }, SPECIES: e('upper(SPECIES)'), STRAIN: e('upper(STRAIN)'), SBSTRAIN: cp('SUPPLIER'),
       ARMCD: cp('SETCD'), ARM: e('armname(SETCD)'), SETCD: cp('SETCD'),
     },
+  },
+  TS: {
+    source: 'PLAN', sort: ['TSPARMCD', 'TSSEQ'],
+    rules: { STUDYID: c(SEND_STUDY.id), DOMAIN: c('TS'), TSSEQ: e('1'), TSPARMCD: cp('PARMCD'), TSPARM: cp('PARM'), TSVAL: cp('VALUE') },
   },
   TX: {
     source: 'SETS', sort: ['SETCD', 'TXSEQ'],
