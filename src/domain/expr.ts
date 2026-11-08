@@ -136,6 +136,7 @@ export const BUILTINS: Record<string, (...a: Val[]) => Val> = {
     if (typeof a !== 'string' || typeof b !== 'string' || !DATE.test(a) || !DATE.test(b)) return ''
     return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000)
   },
+  adddays: (a, n) => { const k = num(n); if (typeof a !== 'string' || !DATE.test(a.slice(0, 10)) || k === null) return ''; return new Date(Date.parse(a.slice(0, 10) + 'T00:00:00Z') + k * 86400000).toISOString().slice(0, 10) },
   year: (x) => (typeof x === 'string' && /^\d{4}/.test(x) ? Number(x.slice(0, 4)) : ''),
   len: (x) => String(x ?? '').length,
   contains: (s, sub) => String(s ?? '').toUpperCase().includes(String(sub ?? '').toUpperCase()),

@@ -17,7 +17,10 @@ fictional look-alikes.
 
 The studies PKX-07-101 (drug PKX-07, sponsor Altamira Therapeutics) and ONK-44-302 (drug
 ONK-44, sponsor Meridale Oncology), their laboratory and imaging vendors and sites are fictional
-too. Docetaxel is named as the comparator only.
+too. Docetaxel is named as the comparator only. AIR-09-202 (drug AIR-09, sponsor Northwind
+Respiratory) and ALV-3-301 (Aurelivax, sponsor Aurelis Vaccines), with their spirometry,
+e-diary and serology vendors and sites, are fictional as well; the trainer's ALV-3-301 participants are not the CDM
+Console's.
 
 Third-party software served with the site:
 - webR 0.6.0 (https://github.com/r-wasm/webr): R compiled to WebAssembly. The webR binaries

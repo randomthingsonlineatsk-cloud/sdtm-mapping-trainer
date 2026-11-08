@@ -72,11 +72,11 @@ export const RULES: Rule[] = [
   { id: 'TRN-043', sev: 'Warning', text: '--NRIND does not agree with the standard result and range', basis: 'SDTMIG findings: --NRIND against --STNRLO and --STNRHI' },
   { id: 'TRN-044', sev: 'Error', text: '--STRESC is numeric but --STRESN is null', basis: 'SDTMIG findings' },
   { id: 'TRN-045', sev: 'Error', text: 'Reference range lower limit above the upper limit', basis: 'SDTMIG findings' },
-  { id: 'TRN-046', sev: 'Warning', text: 'EXDOSE above 0 for PLACEBO, or negative', basis: 'SDTMIG EX: placebo dose is 0' },
+  { id: 'TRN-046', sev: 'Warning', text: 'EXDOSE above 0 for PLACEBO (dose in an amount of drug), or negative', basis: 'SDTMIG EX: a placebo’s dose is 0 when the unit is an amount of drug; a volume (a placebo injection of 0.5 mL) is recorded as given' },
   { id: 'TRN-047', sev: 'Error', text: 'More than one disposition event for a subject in the same epoch', basis: 'SDTMIG DS: one disposition event per epoch' },
   { id: 'TRN-048', sev: 'Error', text: 'DSDECOD not in the codelist for its DSCAT (NCOMPLT for disposition events, PROTMLST for milestones)', basis: 'CDISC CT: DSDECOD codelist depends on DSCAT' },
   { id: 'TRN-049', sev: 'Error', text: 'SUPP-- or NS--: a qualifier or non-standard variable name that is not a valid SAS V5 name or reuses a standard variable, a label over 40 characters, or a record with no parent record', basis: 'SDTMIG v3.4 supplemental qualifiers; SDTMIG v4.0 draft non-standard variable datasets; SAS V5 transport limits' },
-  { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, visit, date/time, link ID, evaluator and time point)', basis: 'FDA validator rules: duplicate records' },
+  { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, object, visit, date/time, link ID, evaluator and time point)', basis: 'FDA validator rules: duplicate records' },
   { id: 'TRN-052', sev: 'Error', text: 'Value longer than 200 characters', basis: 'SAS V5 transport format limit (Study Data Technical Conformance Guide)' },
   { id: 'TRN-053', sev: 'Error', text: '--TESTCD over 8 characters or not starting with a letter, or --TEST over 40 (IETEST over 200)', basis: 'SDTMIG findings; SAS V5 transport limits' },
 ]
@@ -158,7 +158,7 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
       const n = Number(sn), exp = n < Number(lo) ? 'LOW' : n > Number(hi) ? 'HIGH' : 'NORMAL'
       if (r[`${p}NRIND`] && r[`${p}NRIND`] !== exp && !(exp !== 'NORMAL' && r[`${p}NRIND`] === 'ABNORMAL')) add('TRN-043', `${p}NRIND`, `${p}NRIND ${r[`${p}NRIND`]} for ${sn} in ${lo} to ${hi}`, i)
     }
-    if (d === 'EX' && r.EXDOSE && (Number(r.EXDOSE) < 0 || (r.EXTRT === 'PLACEBO' && Number(r.EXDOSE) > 0))) add('TRN-046', 'EXDOSE', `EXDOSE ${r.EXDOSE} for ${r.EXTRT}`, i)
+    if (d === 'EX' && r.EXDOSE && (Number(r.EXDOSE) < 0 || (r.EXTRT === 'PLACEBO' && Number(r.EXDOSE) > 0 && !['mL', 'L'].includes(r.EXDOSU ?? '')))) add('TRN-046', 'EXDOSE', `EXDOSE ${r.EXDOSE} for ${r.EXTRT}`, i)
     if (has(`${d}TESTCD`) && r[`${d}TESTCD`] && (r[`${d}TESTCD`].length > 8 || !/^[A-Z]/.test(r[`${d}TESTCD`]))) add('TRN-053', `${d}TESTCD`, `"${r[`${d}TESTCD`]}"`, i)
     // IETEST is the exception: it holds the criterion text, up to 200 characters.
     if (has(`${d}TEST`) && (r[`${d}TEST`] ?? '').length > (d === 'IE' ? 200 : 40)) add('TRN-053', `${d}TEST`, `${d}TEST is ${r[`${d}TEST`].length} characters`, i)
@@ -168,7 +168,7 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
   })
   if (has(`${d}TESTCD`) && has(`${d}DTC`)) {
     const seen = new Map<string, number>()
-    b.rows.forEach((r, i) => { if (r[`${d}STAT`] === 'NOT DONE') return; const k = `${r.USUBJID}|${r[`${d}TESTCD`]}|${r.VISITNUM ?? ''}|${r[`${d}DTC`]}|${['LNKID', 'EVAL', 'EVALID', 'TPTREF', 'TPTNUM'].map((x) => r[`${d}${x}`] ?? '').join('|')}`; if (seen.has(k)) add('TRN-050', `${d}TESTCD`, `${r[`${d}TESTCD`]} for ${r.USUBJID} at ${r[`${d}DTC`]} repeats record ${seen.get(k)! + 1}`, i); else seen.set(k, i) })
+    b.rows.forEach((r, i) => { if (r[`${d}STAT`] === 'NOT DONE') return; const k = `${r.USUBJID}|${r[`${d}TESTCD`]}|${r.VISITNUM ?? ''}|${r[`${d}DTC`]}|${['OBJ', 'LNKID', 'EVAL', 'EVALID', 'TPTREF', 'TPTNUM'].map((x) => r[`${d}${x}`] ?? '').join('|')}`; if (seen.has(k)) add('TRN-050', `${d}TESTCD`, `${r[`${d}TESTCD`]} for ${r.USUBJID} at ${r[`${d}DTC`]} repeats record ${seen.get(k)! + 1}`, i); else seen.set(k, i) })
   }
   // Oncology: TU, TR, RS and DD against each other.
   if (d === 'TR' && ctx.tu && has('TRLNKID')) {

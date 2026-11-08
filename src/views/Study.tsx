@@ -6,7 +6,40 @@ import { CT_INFO, VERSION_LABEL } from '../domain/standards'
 import { raw } from '../domain/seed'
 import { Panel, Table, Stat, Pill } from './ui'
 import { isPk } from '../domain/project'
+import { AIR_STUDY, AIR_VENDOR, airRaw } from '../domain/air'
+import { VAX_STUDY, VAX_DIARY, VAX_LAB, vaxRaw } from '../domain/vax'
+import { PACKS } from '../domain/studies'
 import { ONK_STUDY, ONK_ARMS, ONK_SITES, ONK_VISITS, ONK_FACTS, ONK_CONVENTIONS, ONK_IRC, ONK_CUT, onkRaw } from '../domain/onc'
+
+// The asthma and vaccine studies: the same layout from the pack, with each study's own figures.
+function PackStudy({ id }: { id: string }) {
+  const { p } = useStore()
+  const pack = PACKS[id]
+  const air = id === AIR_STUDY.id
+  const { forms, subjects } = air ? airRaw() : vaxRaw()
+  const rand = subjects.filter((s) => s.arm)
+  const stats: [string, number, ('blue' | 'red')?][] = air
+    ? [['Screened', subjects.length], ['Randomised', rand.length, 'blue'], ['Spirometry sessions', forms.SPI.filter((r) => r.TRIAL === 'BEST').length], ['Questionnaires', forms.ASD.length]]
+    : [['Consented', subjects.length], ['Vaccinated', rand.length, 'blue'], ['Doses', forms.VAX.length], ['Diary rows', forms.DIARY.length], ['Serum samples', forms.IMM.length]]
+  return (
+    <div className="space-y-4">
+      <Panel title={pack.title} sub={`Protocol ${pack.id} · ${pack.sponsor} · ${pack.phase} · ${pack.indication}`} right={<Pill tone="blue">Fictional</Pill>}>
+        <p className="text-sm">{pack.design}.</p>
+        <div className={`grid grid-cols-2 ${stats.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-5"} gap-2`}>{stats.map(([l, v, t]) => <Stat key={l} label={l} value={v} tone={t} />)}</div>
+        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {pack.sites.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. {air ? `Spirometry: ${AIR_VENDOR}.` : `E-diary: ${VAX_DIARY}. Serology: ${VAX_LAB}.`}</p>
+      </Panel>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Panel title="Arms" sub="Planned arms, as they appear in DM."><Table head={['ARMCD', 'ARM']} rows={pack.arms.map((a) => [<span className="font-mono">{a.code}</span>, a.name])} /></Panel>
+        <Panel title="Raw sources" sub="What each form or transfer holds."><Table head={['Form', 'Source', 'What it holds']} rows={Object.entries(pack.formInfo).map(([k, f]) => [<span className="font-mono">{k}</span>, f.source, f.note])} /></Panel>
+      </div>
+      <Panel title="Schedule (visits)"><Table head={['Visit (raw)', 'VISITNUM', 'VISIT', 'Planned day']} rows={pack.visits.map((v) => [v.raw, v.num, <span className="font-mono">{v.name}</span>, v.day])} /></Panel>
+      <Panel title="Protocol facts"><Table head={['Item', 'Protocol']} rows={pack.facts.map((f) => [<span className="whitespace-nowrap">{f.what}</span>, f.value])} /></Panel>
+      <Panel title="SDTM conventions for this study" sub="The sponsor’s rules for what the SDTMIG leaves to the sponsor. The reference mappings that score the missions follow them exactly.">
+        <Table head={['Topic', 'Convention']} rows={pack.conventions.map((c) => [<span className="font-mono whitespace-nowrap">{c.topic}</span>, c.rule])} />
+      </Panel>
+    </div>
+  )
+}
 
 function OnkStudy() {
   const { p } = useStore()
@@ -83,6 +116,7 @@ export default function StudyView() {
   if (p.imported) return <Imported />
   if (isPk(p)) return <PkStudy />
   if (p.study === ONK_STUDY.id) return <OnkStudy />
+  if (p.study === AIR_STUDY.id || p.study === VAX_STUDY.id) return <PackStudy id={p.study} />
   const subs = raw().subjects
   return (
     <div className="space-y-4">
