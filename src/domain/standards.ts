@@ -4,8 +4,13 @@
 // published implementation guide for the domains this trainer maps; the domain list covers the
 // whole guide so learners can browse it. CDISC publishes these standards openly.
 
-export type Version = '3.4' | '4.0d'
-export const VERSION_LABEL: Record<Version, string> = { '3.4': 'SDTM v2.0 · SDTMIG v3.4', '4.0d': 'SDTM v3.0 · SDTMIG v4.0 draft (public review, 2026)' }
+// 'send' is the SEND implementation guide (SENDIG v3.1.1) for the nonclinical study: the same
+// model applied to animal studies, with its own domains and its own versions of DM and EX.
+export type Version = '3.4' | '4.0d' | 'send'
+export const VERSION_LABEL: Record<Version, string> = { '3.4': 'SDTM v2.0 · SDTMIG v3.4', '4.0d': 'SDTM v3.0 · SDTMIG v4.0 draft (public review, 2026)', send: 'SENDIG v3.1.1 (nonclinical)' }
+// Supplemental qualifiers: SUPP-- in SDTMIG v3.4 and in SENDIG; NS-- datasets in the v4.0 draft.
+export const usesSupp = (ver: Version) => ver !== '4.0d'
+export const isSend = (ver: Version) => ver === 'send'
 
 export type Cls = 'Special-Purpose' | 'Interventions' | 'Events' | 'Findings' | 'Findings About' | 'Trial Design' | 'Relationship' | 'Study Reference'
 export interface DomainInfo { code: string; name: string; cls: Cls; structure?: string; detail?: boolean }
@@ -35,7 +40,7 @@ export const DOMAINS: DomainInfo[] = [
   { code: 'CV', name: 'Cardiovascular System Findings', cls: 'Findings' },
   { code: 'DA', name: 'Product Accountability', cls: 'Findings' },
   { code: 'DD', name: 'Death Details', cls: 'Findings', structure: 'One record per finding per subject', detail: true },
-  { code: 'EG', name: 'ECG Test Results', cls: 'Findings' },
+  { code: 'EG', name: 'ECG Test Results', cls: 'Findings', structure: 'One record per ECG observation per replicate per time point or one record per ECG observation per beat per visit per subject', detail: true },
   { code: 'FT', name: 'Functional Tests', cls: 'Findings' },
   { code: 'GF', name: 'Genomics Findings', cls: 'Findings' },
   { code: 'IE', name: 'Inclusion/Exclusion Criteria Not Met', cls: 'Findings', structure: 'One record per inclusion/exclusion criterion not met per subject', detail: true },
@@ -76,6 +81,18 @@ export const DOMAINS: DomainInfo[] = [
   { code: 'OI', name: 'Non-host Organism Identifiers', cls: 'Study Reference' },
 ]
 
+// SENDIG v3.1.1 domains used by the trainer's nonclinical study (the guide has more: LB, PC, PP,
+// MA, TF, DS, PM, EG, CV, RE, BG, FW, SC, PP and the trial design datasets).
+export const SEND_DOMAINS: DomainInfo[] = [
+  { code: 'DM', name: 'Demographics (SEND)', cls: 'Special-Purpose', structure: 'One record per subject (animal)', detail: true },
+  { code: 'EX', name: 'Exposure (SEND)', cls: 'Interventions', structure: 'One record per constant dosing interval per treatment per subject or pool', detail: true },
+  { code: 'BW', name: 'Body Weights', cls: 'Findings', structure: 'One record per test per observation time per subject', detail: true },
+  { code: 'CL', name: 'Clinical Observations', cls: 'Findings', structure: 'One record per observation per time point per subject or pool', detail: true },
+  { code: 'MI', name: 'Microscopic Findings', cls: 'Findings', structure: 'One record per finding per specimen per subject', detail: true },
+  { code: 'OM', name: 'Organ Measurements', cls: 'Findings', structure: 'One record per test per specimen per subject', detail: true },
+  { code: 'TX', name: 'Trial Sets', cls: 'Trial Design', structure: 'One record per trial set parameter per trial set', detail: true },
+]
+
 export type Core = 'Req' | 'Exp' | 'Perm'
 export type Role = 'Identifier' | 'Topic' | 'Grouping Qualifier' | 'Result Qualifier' | 'Synonym Qualifier' | 'Record Qualifier' | 'Variable Qualifier' | 'Timing' | 'Rule'
 export interface VarMeta { name: string; label: string; type: 'Char' | 'Num'; role: Role; core: Core; ct?: string; note?: string; draft?: boolean }
@@ -96,6 +113,20 @@ const META_34: Record<string, VarMeta[]> = {
     v('REDTC', 'Date/Time of Test', 'Char', 'Timing', 'Exp'), v('REDY', 'Study Day of Test', 'Num', 'Timing', 'Perm'),
     v('RETPT', 'Planned Time Point Name', 'Char', 'Timing', 'Perm'), v('RETPTNUM', 'Planned Time Point Number', 'Num', 'Timing', 'Perm'),
   ],
+  EG: [
+    ...ids('EG'), v('EGGRPID', 'Group ID', 'Char', 'Identifier', 'Perm'), v('EGREFID', 'ECG Reference ID', 'Char', 'Identifier', 'Perm'), v('EGSPID', 'Sponsor-Defined Identifier', 'Char', 'Identifier', 'Perm'),
+    v('EGTESTCD', 'ECG Test or Examination Short Name', 'Char', 'Topic', 'Req', 'EGTESTCD'), v('EGTEST', 'ECG Test or Examination Name', 'Char', 'Synonym Qualifier', 'Req', 'EGTEST'),
+    v('EGCAT', 'Category for ECG', 'Char', 'Grouping Qualifier', 'Perm'), v('EGPOS', 'ECG Position of Subject', 'Char', 'Record Qualifier', 'Perm', 'POSITION'),
+    v('EGORRES', 'Result or Finding in Original Units', 'Char', 'Result Qualifier', 'Exp'), v('EGORRESU', 'Original Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'),
+    v('EGSTRESC', 'Character Result/Finding in Std Format', 'Char', 'Result Qualifier', 'Exp'), v('EGSTRESN', 'Numeric Result/Finding in Standard Units', 'Num', 'Result Qualifier', 'Perm'), v('EGSTRESU', 'Standard Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'),
+    v('EGSTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('EGREASND', 'Reason ECG Not Done', 'Char', 'Record Qualifier', 'Perm'),
+    v('EGNAM', 'Vendor Name', 'Char', 'Record Qualifier', 'Perm'), v('EGMETHOD', 'Method of Test or Examination', 'Char', 'Record Qualifier', 'Perm', 'EGMETHOD'),
+    v('EGLOBXFL', 'Last Observation Before Exposure Flag', 'Char', 'Record Qualifier', 'Exp', 'NY'), v('EGBLFL', 'Baseline Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('EGEVAL', 'Evaluator', 'Char', 'Record Qualifier', 'Perm'), v('EGDRVFL', 'Derived Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('VISITNUM', 'Visit Number', 'Num', 'Timing', 'Exp'), v('VISIT', 'Visit Name', 'Char', 'Timing', 'Perm'), v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'),
+    v('EGDTC', 'Date/Time of ECG', 'Char', 'Timing', 'Exp'), v('EGDY', 'Study Day of ECG', 'Num', 'Timing', 'Perm'),
+    v('EGTPT', 'Planned Time Point Name', 'Char', 'Timing', 'Perm'), v('EGTPTNUM', 'Planned Time Point Number', 'Num', 'Timing', 'Perm'), v('EGTPTREF', 'Time Point Reference', 'Char', 'Timing', 'Perm'),
+  ],
   QS: [
     ...ids('QS'), v('QSGRPID', 'Group ID', 'Char', 'Identifier', 'Perm'), v('QSSPID', 'Sponsor-Defined Identifier', 'Char', 'Identifier', 'Perm'),
     v('QSTESTCD', 'Question Short Name', 'Char', 'Topic', 'Req'), v('QSTEST', 'Question Name', 'Char', 'Synonym Qualifier', 'Req'),
@@ -105,7 +136,7 @@ const META_34: Record<string, VarMeta[]> = {
     v('QSSTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('QSREASND', 'Reason Not Performed', 'Char', 'Record Qualifier', 'Perm'),
     v('QSDRVFL', 'Derived Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('QSLOBXFL', 'Last Observation Before Exposure Flag', 'Char', 'Record Qualifier', 'Exp', 'NY'), v('QSEVAL', 'Evaluator', 'Char', 'Record Qualifier', 'Perm', 'EVAL'),
     v('VISITNUM', 'Visit Number', 'Num', 'Timing', 'Exp'), v('VISIT', 'Visit Name', 'Char', 'Timing', 'Perm'), v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'),
-    v('QSDTC', 'Date/Time of Finding', 'Char', 'Timing', 'Exp'), v('QSDY', 'Study Day of Finding', 'Num', 'Timing', 'Perm'),
+    v('QSDTC', 'Date/Time of Finding', 'Char', 'Timing', 'Exp'), v('QSDY', 'Study Day of Finding', 'Num', 'Timing', 'Perm'), v('QSEVLINT', 'Evaluation Interval', 'Char', 'Timing', 'Perm'),
   ],
   CE: [
     ...ids('CE'), v('CEGRPID', 'Group ID', 'Char', 'Identifier', 'Perm'), v('CESPID', 'Sponsor-Defined Identifier', 'Char', 'Identifier', 'Perm'), v('CELNKID', 'Link ID', 'Char', 'Identifier', 'Perm'),
@@ -268,7 +299,7 @@ const META_34: Record<string, VarMeta[]> = {
     v('EXTRT', 'Name of Treatment', 'Char', 'Topic', 'Req'), v('EXCAT', 'Category of Treatment', 'Char', 'Grouping Qualifier', 'Perm'),
     v('EXDOSE', 'Dose', 'Num', 'Record Qualifier', 'Exp'), v('EXDOSTXT', 'Dose Description', 'Char', 'Record Qualifier', 'Perm'), v('EXDOSU', 'Dose Units', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
     v('EXDOSFRM', 'Dose Form', 'Char', 'Variable Qualifier', 'Exp', 'FRM'), v('EXDOSFRQ', 'Dosing Frequency per Interval', 'Char', 'Variable Qualifier', 'Perm', 'FREQ'),
-    v('EXROUTE', 'Route of Administration', 'Char', 'Variable Qualifier', 'Perm', 'ROUTE'), v('EXLOT', 'Lot Number', 'Char', 'Record Qualifier', 'Perm'), v('EXLOC', 'Location of Dose Administration', 'Char', 'Record Qualifier', 'Perm', 'LOC'), v('EXLAT', 'Laterality', 'Char', 'Variable Qualifier', 'Perm', 'LAT'),
+    v('EXROUTE', 'Route of Administration', 'Char', 'Variable Qualifier', 'Perm', 'ROUTE'), v('EXLOT', 'Lot Number', 'Char', 'Record Qualifier', 'Perm'), v('EXLOC', 'Location of Dose Administration', 'Char', 'Record Qualifier', 'Perm', 'LOC'), v('EXLAT', 'Laterality', 'Char', 'Variable Qualifier', 'Perm', 'LAT'), v('EXADJ', 'Reason for Dose Adjustment', 'Char', 'Record Qualifier', 'Perm'),
     v('VISITNUM', 'Visit Number', 'Num', 'Timing', 'Perm'), v('VISIT', 'Visit Name', 'Char', 'Timing', 'Perm'), v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'), v('EXSTDTC', 'Start Date/Time of Treatment', 'Char', 'Timing', 'Exp'), v('EXENDTC', 'End Date/Time of Treatment', 'Char', 'Timing', 'Exp'),
     v('EXSTDY', 'Study Day of Start of Treatment', 'Num', 'Timing', 'Perm'), v('EXENDY', 'Study Day of End of Treatment', 'Num', 'Timing', 'Perm'),
   ],
@@ -293,7 +324,7 @@ const META_34: Record<string, VarMeta[]> = {
     v('CMTRT', 'Reported Name of Drug, Med, or Therapy', 'Char', 'Topic', 'Req'), v('CMDECOD', 'Standardized Medication Name', 'Char', 'Synonym Qualifier', 'Perm'),
     v('CMCAT', 'Category for Medication', 'Char', 'Grouping Qualifier', 'Perm'), v('CMINDC', 'Indication', 'Char', 'Record Qualifier', 'Perm'),
     v('CMCLAS', 'Medication Class', 'Char', 'Variable Qualifier', 'Perm'), v('CMDOSE', 'Dose per Administration', 'Num', 'Record Qualifier', 'Perm'),
-    v('CMDOSU', 'Dose Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'), v('CMDOSFRQ', 'Dosing Frequency per Interval', 'Char', 'Variable Qualifier', 'Perm', 'FREQ'),
+    v('CMDOSU', 'Dose Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'), v('CMDOSTOT', 'Total Daily Dose', 'Num', 'Record Qualifier', 'Perm'), v('CMDOSFRQ', 'Dosing Frequency per Interval', 'Char', 'Variable Qualifier', 'Perm', 'FREQ'),
     v('CMROUTE', 'Route of Administration', 'Char', 'Variable Qualifier', 'Perm', 'ROUTE'),
     v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'), v('CMSTDTC', 'Start Date/Time of Medication', 'Char', 'Timing', 'Perm'), v('CMENDTC', 'End Date/Time of Medication', 'Char', 'Timing', 'Perm'),
     v('CMSTDY', 'Study Day of Start of Medication', 'Num', 'Timing', 'Perm'), v('CMENDY', 'Study Day of End of Medication', 'Num', 'Timing', 'Perm'),
@@ -422,15 +453,85 @@ const META_34: Record<string, VarMeta[]> = {
 }
 // The dataset that carries a domain's non-standard values: SUPP-- in v3.4, NS-- in the v4.0 draft.
 // Missions name it by its v3.4 name (SUPPAE); relName gives the name for the project's version.
+
+// SENDIG v3.1.1 variables for the domains the nonclinical study maps (names, labels, types and
+// core status as in the guide).
+const NOM = (d: string) => [v(`${d}NOMDY`, 'Nominal Study Day for Tabulations', 'Num', 'Timing', 'Exp'), v(`${d}NOMLBL`, 'Label for Nominal Study Day', 'Char', 'Timing', 'Perm')]
+const META_SEND: Record<string, VarMeta[]> = {
+  DM: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Req'),
+    v('SUBJID', 'Subject Identifier for the Study', 'Char', 'Topic', 'Req'), v('RFSTDTC', 'Subject Reference Start Date/Time', 'Char', 'Record Qualifier', 'Req'), v('RFENDTC', 'Subject Reference End Date/Time', 'Char', 'Record Qualifier', 'Exp'),
+    v('RFXSTDTC', 'Date/Time of First Study Treatment', 'Char', 'Record Qualifier', 'Perm'), v('RFXENDTC', 'Date/Time of Last Study Treatment', 'Char', 'Record Qualifier', 'Perm'),
+    v('SITEID', 'Study Site Identifier', 'Char', 'Record Qualifier', 'Perm'), v('BRTHDTC', 'Date/Time of Birth', 'Char', 'Record Qualifier', 'Perm'), v('AGE', 'Age', 'Num', 'Record Qualifier', 'Perm'),
+    v('AGETXT', 'Age Range', 'Char', 'Record Qualifier', 'Perm'), v('AGEU', 'Age Unit', 'Char', 'Variable Qualifier', 'Exp', 'AGEU'), v('SEX', 'Sex', 'Char', 'Record Qualifier', 'Req', 'SEX'),
+    v('SPECIES', 'Species', 'Char', 'Record Qualifier', 'Perm', 'SPECIES'), v('STRAIN', 'Strain/Substrain', 'Char', 'Record Qualifier', 'Perm', 'STRAIN'), v('SBSTRAIN', 'Strain/Substrain Details', 'Char', 'Record Qualifier', 'Perm'),
+    v('ARMCD', 'Planned Arm Code', 'Char', 'Record Qualifier', 'Exp'), v('ARM', 'Description of Planned Arm', 'Char', 'Synonym Qualifier', 'Perm'), v('SETCD', 'Set Code', 'Char', 'Record Qualifier', 'Req'),
+  ],
+  EX: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Exp'),
+    v('POOLID', 'Pool Identifier', 'Char', 'Identifier', 'Perm'), v('EXSEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'), v('EXTRT', 'Name of Actual Treatment', 'Char', 'Topic', 'Req'),
+    v('EXDOSE', 'Dose per Administration', 'Num', 'Record Qualifier', 'Exp'), v('EXDOSTXT', 'Dose Description', 'Char', 'Record Qualifier', 'Perm'), v('EXDOSU', 'Dose Units', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('EXDOSFRM', 'Dose Form', 'Char', 'Variable Qualifier', 'Exp', 'FRM'), v('EXDOSFRQ', 'Dosing Frequency per Interval', 'Char', 'Variable Qualifier', 'Req', 'FREQ'), v('EXROUTE', 'Route of Administration', 'Char', 'Variable Qualifier', 'Req', 'ROUTE'),
+    v('EXLOT', 'Lot Number', 'Char', 'Record Qualifier', 'Exp'), v('EXLOC', 'Location of Dose Administration', 'Char', 'Record Qualifier', 'Perm'), v('EXMETHOD', 'Method of Administration', 'Char', 'Record Qualifier', 'Perm'),
+    v('EXTRTV', 'Treatment Vehicle', 'Char', 'Record Qualifier', 'Exp'), v('EXVAMT', 'Amount Administered', 'Num', 'Record Qualifier', 'Perm'), v('EXVAMTU', 'Amount Administered Units', 'Char', 'Variable Qualifier', 'Perm', 'UNIT'),
+    v('EXSTDTC', 'Start Date/Time of Treatment', 'Char', 'Timing', 'Exp'), v('EXENDTC', 'End Date/Time of Treatment', 'Char', 'Timing', 'Perm'), v('EXSTDY', 'Study Day of Start of Treatment', 'Num', 'Timing', 'Perm'), v('EXENDY', 'Study Day of End of Treatment', 'Num', 'Timing', 'Perm'),
+  ],
+  BW: [
+    ...ids('BW'), v('BWTESTCD', 'Test Short Name', 'Char', 'Topic', 'Req', 'BWTESTCD'), v('BWTEST', 'Test Name', 'Char', 'Synonym Qualifier', 'Req', 'BWTEST'),
+    v('BWORRES', 'Result or Findings as Collected', 'Char', 'Result Qualifier', 'Exp'), v('BWORRESU', 'Unit of the Original Result', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('BWSTRESC', 'Standardized Result in Character Format', 'Char', 'Result Qualifier', 'Exp'), v('BWSTRESN', 'Standardized Result in Numeric Format', 'Num', 'Result Qualifier', 'Exp'), v('BWSTRESU', 'Unit of the Standardized Result', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('BWSTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('BWREASND', 'Reason Not Done', 'Char', 'Record Qualifier', 'Perm'), v('BWBLFL', 'Baseline Flag', 'Char', 'Record Qualifier', 'Exp', 'NY'),
+    v('BWFAST', 'Fasting Status', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('BWEXCLFL', 'Exclusion Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('BWREASEX', 'Reason for Exclusion', 'Char', 'Record Qualifier', 'Perm'),
+    v('BWUSCHFL', 'Unscheduled Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('VISITDY', 'Planned Study Day of Collection', 'Num', 'Timing', 'Perm'),
+    v('BWDTC', 'Date/Time Animal Weighed', 'Char', 'Timing', 'Exp'), v('BWDY', 'Study Day Animal Weighed', 'Num', 'Timing', 'Perm'), ...NOM('BW'),
+  ],
+  CL: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('USUBJID', 'Unique Subject Identifier', 'Char', 'Identifier', 'Exp'),
+    v('CLSEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'), v('CLTESTCD', 'Test Short Name', 'Char', 'Topic', 'Req'), v('CLTEST', 'Test Name', 'Char', 'Synonym Qualifier', 'Req'),
+    v('CLCAT', 'Category for Clinical Observations', 'Char', 'Grouping Qualifier', 'Req', 'CLCAT'), v('CLSCAT', 'Subcategory for Clinical Observations', 'Char', 'Grouping Qualifier', 'Perm'),
+    v('CLORRES', 'Result or Findings as Collected', 'Char', 'Result Qualifier', 'Exp'), v('CLSTRESC', 'Standardized Result in Character Format', 'Char', 'Result Qualifier', 'Exp'),
+    v('CLSTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('CLREASND', 'Reason Not Done', 'Char', 'Record Qualifier', 'Perm'),
+    v('CLLOC', 'Location of a Finding', 'Char', 'Record Qualifier', 'Exp'), v('CLSEV', 'Severity', 'Char', 'Record Qualifier', 'Perm'), v('CLUSCHFL', 'Unscheduled Flag', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('VISITDY', 'Planned Study Day of Collection', 'Num', 'Timing', 'Perm'), v('CLDTC', 'Date/Time of Observation', 'Char', 'Timing', 'Exp'), v('CLDY', 'Study Day of Observation', 'Num', 'Timing', 'Perm'), ...NOM('CL'),
+  ],
+  MI: [
+    ...ids('MI'), v('MIREFID', 'Specimen Reference Identifier', 'Char', 'Identifier', 'Perm'), v('MITESTCD', 'Microscopic Examination Short Name', 'Char', 'Topic', 'Req', 'MITESTCD'), v('MITEST', 'Microscopic Examination Name', 'Char', 'Synonym Qualifier', 'Req', 'MITEST'),
+    v('MIORRES', 'Result or Findings as Collected', 'Char', 'Result Qualifier', 'Exp'), v('MISTRESC', 'Standardized Result in Character Format', 'Char', 'Result Qualifier', 'Exp', 'NONNEO'),
+    v('MIRESCAT', 'Result Category', 'Char', 'Result Qualifier', 'Perm'), v('MICHRON', 'Chronicity of Finding', 'Char', 'Variable Qualifier', 'Exp'), v('MIDISTR', 'Distribution Pattern of Finding', 'Char', 'Variable Qualifier', 'Exp'),
+    v('MISTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('MIREASND', 'Reason Not Done', 'Char', 'Record Qualifier', 'Perm'), v('MINAM', 'Laboratory Name', 'Char', 'Record Qualifier', 'Perm'),
+    v('MISPEC', 'Specimen Material Type', 'Char', 'Record Qualifier', 'Req', 'SPEC'), v('MIANTREG', 'Anatomical Region of Specimen', 'Char', 'Variable Qualifier', 'Perm'),
+    v('MISPCCND', 'Specimen Condition', 'Char', 'Record Qualifier', 'Exp'), v('MISPCUFL', 'Specimen Usability for the Test', 'Char', 'Record Qualifier', 'Exp', 'NY'),
+    v('MILAT', 'Specimen Laterality within Subject', 'Char', 'Variable Qualifier', 'Perm', 'LAT'), v('MIEVAL', 'Evaluator', 'Char', 'Record Qualifier', 'Perm'),
+    v('MISEV', 'Severity', 'Char', 'Record Qualifier', 'Exp', 'MISEV'), v('MIDTHREL', 'Relationship to Death', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('MIDTC', 'Date/Time', 'Char', 'Timing', 'Perm'), v('MIDY', 'Study Day', 'Num', 'Timing', 'Perm'),
+  ],
+  OM: [
+    ...ids('OM'), v('OMTESTCD', 'Test Short Name', 'Char', 'Topic', 'Req', 'OMTESTCD'), v('OMTEST', 'Test Name', 'Char', 'Synonym Qualifier', 'Req', 'OMTEST'),
+    v('OMORRES', 'Result or Findings as Collected', 'Char', 'Result Qualifier', 'Exp'), v('OMORRESU', 'Unit of the Original Result', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('OMSTRESC', 'Standardized Result in Character Format', 'Char', 'Result Qualifier', 'Exp'), v('OMSTRESN', 'Standardized Result in Numeric Format', 'Num', 'Result Qualifier', 'Exp'), v('OMSTRESU', 'Unit of the Standardized Result', 'Char', 'Variable Qualifier', 'Exp', 'UNIT'),
+    v('OMSTAT', 'Completion Status', 'Char', 'Record Qualifier', 'Perm', 'ND'), v('OMREASND', 'Reason Not Done', 'Char', 'Record Qualifier', 'Perm'),
+    v('OMSPEC', 'Specimen Material Type', 'Char', 'Record Qualifier', 'Req', 'SPEC'), v('OMLAT', 'Specimen Laterality within Subject', 'Char', 'Variable Qualifier', 'Perm', 'LAT'),
+    v('OMDTC', 'Date/Time Organ Measured', 'Char', 'Timing', 'Exp'), v('OMDY', 'Study Day of Measurement', 'Num', 'Timing', 'Perm'), ...NOM('OM'),
+  ],
+  TX: [
+    v('STUDYID', 'Study Identifier', 'Char', 'Identifier', 'Req'), v('DOMAIN', 'Domain Abbreviation', 'Char', 'Identifier', 'Req', 'DOMAIN'), v('SETCD', 'Set Code', 'Char', 'Identifier', 'Req'),
+    v('SET', 'Set Description', 'Char', 'Synonym Qualifier', 'Req'), v('TXSEQ', 'Sequence Number', 'Num', 'Identifier', 'Req'), v('TXPARMCD', 'Trial Set Parameter Short Name', 'Char', 'Topic', 'Req', 'TXPARMCD'),
+    v('TXPARM', 'Trial Set Parameter', 'Char', 'Synonym Qualifier', 'Req', 'TXPARM'), v('TXVAL', 'Trial Set Parameter Value', 'Char', 'Result Qualifier', 'Req'),
+  ],
+}
+
 export const isRel = (d: string) => /^(SUPP|NS)[A-Z]{2}$/.test(d)
 export const relParent = (d: string) => d.replace(/^(SUPP|NS)/, '')
-export const relName = (parent: string, ver: Version) => `${ver === '3.4' ? 'SUPP' : 'NS'}${parent}`
+export const relName = (parent: string, ver: Version) => `${usesSupp(ver) ? 'SUPP' : 'NS'}${parent}`
 export const dsName = (d: string, ver: Version) => (isRel(d) ? relName(relParent(d), ver) : d)
 export const relMetaKey = (d: string) => (d.startsWith('NS') ? 'NSQUAL' : 'SUPPQUAL')
 export const relLabel = (d: string) => (d.startsWith('NS') ? `Non-standard Variables for ${relParent(d)}` : `Supplemental Qualifiers for ${relParent(d)}`)
 export const DETAIL_DOMAINS = Object.keys(META_34).filter((d) => !['SE', 'TA', 'TE', 'TV', 'TI', 'TS', 'SUPPQUAL', 'NSQUAL', 'RELREC'].includes(d))
 export const TRIAL_DESIGN = ['TA', 'TE', 'TV', 'TI', 'TS']
-export const hasMeta = (d: string) => !!META_34[d]
+// The domains a project can map, and browse, under its standard.
+export const detailDomains = (ver: Version) => (ver === 'send' ? Object.keys(META_SEND) : DETAIL_DOMAINS)
+export const domainsFor = (ver: Version) => (ver === 'send' ? SEND_DOMAINS : DOMAINS)
+export const hasMeta = (d: string, ver?: Version) => (ver === 'send' ? !!META_SEND[d] : !!META_34[d])
 
 // The SDTMIG v4.0 public-review draft, as CDISC presented it in February 2026: SUBJID in every
 // general-observation-class domain, --BLFL retired in favour of --LOBXFL, collected race and
@@ -484,6 +585,7 @@ export function customCodeProblem(code: string): string {
 }
 
 export function varsOf(domain: string, ver: Version): VarMeta[] {
+  if (ver === 'send') return META_SEND[domain] ?? CUSTOM[domain]?.vars ?? []
   const base = META_34[domain] ?? CUSTOM[domain]?.vars ?? REF_CUSTOM[domain]?.vars ?? []
   if (ver === '3.4') return base
   let out = base.filter((x) => !(x.name.length > 2 && x.name.endsWith('BLFL') && x.name.startsWith(domain)))
@@ -498,7 +600,7 @@ export function varsOf(domain: string, ver: Version): VarMeta[] {
   return out
 }
 export const metaOf = (domain: string, name: string, ver: Version) => varsOf(domain, ver).find((x) => x.name === name)
-export const domainInfo = (code: string): DomainInfo | undefined => DOMAINS.find((d) => d.code === code) ?? (CUSTOM[code] ? { code, name: `${CUSTOM[code].name} (custom)`, cls: CUSTOM[code].cls, structure: CUSTOM[code].structure, detail: true } : undefined)
+export const domainInfo = (code: string, ver?: Version): DomainInfo | undefined => (ver === 'send' ? SEND_DOMAINS.find((d) => d.code === code) : undefined) ?? DOMAINS.find((d) => d.code === code) ?? SEND_DOMAINS.find((d) => d.code === code) ?? (CUSTOM[code] ? { code, name: `${CUSTOM[code].name} (custom)`, cls: CUSTOM[code].cls, structure: CUSTOM[code].structure, detail: true } : undefined)
 
 // ---------- controlled terminology (bundled subset) ----------
 // CDISC Controlled Terminology is published quarterly through NCI EVS. The trainer bundles the
@@ -517,11 +619,11 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('ETHNIC', 'Ethnic Group', false, ['HISPANIC OR LATINO', 'NOT HISPANIC OR LATINO', 'NOT REPORTED', 'UNKNOWN']),
   cl('AGEU', 'Age Unit', false, ['YEARS', 'MONTHS', 'WEEKS', 'DAYS', 'HOURS']),
   cl('ARMNULRS', 'Arm Null Reason', true, ['ASSIGNED, NOT TREATED', 'NOT ASSIGNED', 'SCREEN FAILURE', 'UNPLANNED TREATMENT']),
-  cl('COUNTRY', 'Country (ISO 3166-1 alpha-3)', false, [['USA', 'United States'], ['JPN', 'Japan'], ['DEU', 'Germany'], ['IND', 'India'], ['BRA', 'Brazil'], ['GBR', 'United Kingdom']]),
+  cl('COUNTRY', 'Country (ISO 3166-1 alpha-3)', false, [['USA', 'United States'], ['JPN', 'Japan'], ['DEU', 'Germany'], ['IND', 'India'], ['BRA', 'Brazil'], ['GBR', 'United Kingdom'], ['MEX', 'Mexico'], ['CAN', 'Canada'], ['ESP', 'Spain'], ['POL', 'Poland'], ['AUS', 'Australia'], ['FRA', 'France']]),
   cl('VSTESTCD', 'Vital Signs Test Code', true, [['SYSBP', 'Systolic Blood Pressure'], ['DIABP', 'Diastolic Blood Pressure'], ['PULSE', 'Pulse Rate'], ['WEIGHT', 'Weight'], ['HEIGHT', 'Height'], ['BMI', 'Body Mass Index'], ['TEMP', 'Temperature']]),
   cl('VSTEST', 'Vital Signs Test Name', true, ['Systolic Blood Pressure', 'Diastolic Blood Pressure', 'Pulse Rate', 'Weight', 'Height', 'Body Mass Index', 'Temperature']),
   cl('VSRESU', 'Units for Vital Signs Results', true, ['mmHg', 'beats/min', 'kg', 'LB', 'cm', 'in', 'kg/m2', 'C', 'F']),
-  cl('UNIT', 'Unit', true, ['mg', 'g', 'mL', 'TABLET', 'CAPSULE', 'kg', 'cm', 'mm', '%', 'mg/dL', 'mmol/L', 'umol/L', 'U/L', 'mmol/mol', 'ng/mL', 'mg/m2', 'Gy', 'L', 'ug', 'C', 'titer']),
+  cl('UNIT', 'Unit', true, ['mg', 'g', 'mL', 'mg/kg', 'mg/kg/day', 'mL/kg', 'U', 'msec', 'beats/min', 'TABLET', 'CAPSULE', 'kg', 'cm', 'mm', '%', 'mg/dL', 'mmol/L', 'umol/L', 'U/L', 'mmol/mol', 'ng/mL', 'mg/m2', 'Gy', 'L', 'ug', 'C', 'titer']),
   cl('POSITION', 'Position', true, ['SITTING', 'STANDING', 'SUPINE']),
   cl('ND', 'Not Done', false, ['NOT DONE']),
   cl('LOC', 'Anatomical Location', true, ['ARM', 'DELTOID MUSCLE', 'ORAL CAVITY', 'LUNG', 'LIVER', 'LYMPH NODE', 'ADRENAL GLAND', 'BONE', 'BRAIN', 'PLEURA', 'CHEST WALL']),
@@ -538,15 +640,15 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('RETESTCD', 'Respiratory Test Code', true, [['FEV1', 'Forced Expiratory Volume in 1 Second'], ['FVC', 'Forced Vital Capacity'], ['FEV1FVC', 'FEV1/FVC'], ['FEV1PP', 'Percent Predicted FEV1']]),
   cl('RETEST', 'Respiratory Test Name', true, ['Forced Expiratory Volume in 1 Second', 'Forced Vital Capacity', 'FEV1/FVC', 'Percent Predicted FEV1']),
   cl('ASDSTC', 'Airway Symptom Diary Score Test Code (fictional instrument)', false, [['ASDS01', 'ASDS1-Daytime Wheeze'], ['ASDS02', 'ASDS1-Night-time Waking'], ['ASDS03', 'ASDS1-Breathless on Exertion'], ['ASDS04', 'ASDS1-Chest Tightness'], ['ASDS05', 'ASDS1-Reliever Use'], ['ASDSTOT', 'ASDS1-Total Score']]),
-  cl('FATESTCD', 'Findings About Test Code', true, [['OCCUR', 'Occurrence Indicator'], ['SEV', 'Severity/Intensity'], ['LDIAM', 'Longest Diameter']]),
-  cl('FATEST', 'Findings About Test Name', true, ['Occurrence Indicator', 'Severity/Intensity', 'Longest Diameter']),
+  cl('FATESTCD', 'Findings About Test Code', true, [['OCCUR', 'Occurrence Indicator'], ['SEV', 'Severity/Intensity'], ['LDIAM', 'Longest Diameter'], ['CECENDPT', 'Endpoint Event per CEC'], ['CECCAT', 'CEC Adjudicated Category']]),
+  cl('FATEST', 'Findings About Test Name', true, ['Occurrence Indicator', 'Severity/Intensity', 'Longest Diameter', 'Endpoint Event per CEC', 'CEC Adjudicated Category']),
   cl('DTHDXCD', 'Death Details Test Code', true, [['PRCDTH', 'Primary Cause of Death']]),
   cl('DTHDX', 'Death Details Test Name', true, ['Primary Cause of Death']),
   cl('LAT', 'Laterality', true, ['LEFT', 'RIGHT', 'BILATERAL']),
   cl('EPOCH', 'Epoch', true, ['SCREENING', 'RUN-IN', 'TREATMENT', 'FOLLOW-UP']),
-  cl('FRM', 'Pharmaceutical Dosage Form', true, ['TABLET', 'CAPSULE', 'SOLUTION', 'POWDER, METERED', 'INJECTION, SUSPENSION']),
+  cl('FRM', 'Pharmaceutical Dosage Form', true, ['TABLET', 'CAPSULE', 'SOLUTION', 'SUSPENSION', 'INJECTION, SOLUTION', 'POWDER, METERED', 'INJECTION, SUSPENSION']),
   cl('FREQ', 'Frequency', true, ['QD', 'BID', 'TID', 'PRN', 'ONCE']),
-  cl('ROUTE', 'Route of Administration', true, ['ORAL', 'INTRAVENOUS', 'SUBCUTANEOUS', 'INTRAMUSCULAR', 'TOPICAL', 'RESPIRATORY (INHALATION)']),
+  cl('ROUTE', 'Route of Administration', true, ['ORAL', 'INTRAVENOUS', 'SUBCUTANEOUS', 'INTRAMUSCULAR', 'TOPICAL', 'RESPIRATORY (INHALATION)', 'ORAL GAVAGE']),
   cl('AESEV', 'Severity/Intensity Scale for Adverse Events', false, ['MILD', 'MODERATE', 'SEVERE']),
   cl('ACN', 'Action Taken with Study Treatment', false, ['DOSE INCREASED', 'DOSE NOT CHANGED', 'DOSE REDUCED', 'DRUG INTERRUPTED', 'DRUG WITHDRAWN', 'NOT APPLICABLE', 'UNKNOWN']),
   cl('OUT', 'Outcome of Event', false, ['FATAL', 'NOT RECOVERED/NOT RESOLVED', 'RECOVERED/RESOLVED', 'RECOVERED/RESOLVED WITH SEQUELAE', 'RECOVERING/RESOLVING', 'UNKNOWN']),
@@ -561,7 +663,7 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('PKPARMCD', 'PK Parameters Code', true, [['CMAX', 'Max Conc'], ['TMAX', 'Time of CMAX'], ['AUCLST', 'AUC to Last Nonzero Conc'], ['AUCIFO', 'AUC Infinity Obs'], ['AUCTAU', 'AUC Over Dosing Interval'], ['LAMZHL', 'Half-Life Lambda z'], ['CTROUGH', 'Trough Concentration']]),
   cl('PKPARM', 'PK Parameters', true, ['Max Conc', 'Time of CMAX', 'AUC to Last Nonzero Conc', 'AUC Infinity Obs', 'AUC Over Dosing Interval', 'Half-Life Lambda z', 'Trough Concentration']),
   cl('PKUNIT', 'PK Units of Measure', true, ['ng/mL', 'h', 'h*ng/mL', 'ug/mL', 'h*ug/mL', 'L', 'L/h']),
-  cl('SPECTYPE', 'Specimen Type', true, ['BLOOD', 'SERUM', 'PLASMA', 'URINE']),
+  cl('SPECTYPE', 'Specimen Type', true, ['BLOOD', 'CAPILLARY BLOOD', 'SERUM', 'PLASMA', 'URINE']),
   cl('IECAT', 'Category for Inclusion/Exclusion', false, ['INCLUSION', 'EXCLUSION']),
   cl('INTMODEL', 'Intervention Model', true, ['PARALLEL', 'CROSS-OVER', 'SINGLE GROUP', 'FACTORIAL', 'SEQUENTIAL']),
   cl('INTTYPE', 'Intervention Type', true, ['DRUG', 'BIOLOGIC', 'DEVICE', 'PROCEDURE', 'DIETARY SUPPLEMENT', 'BEHAVIORAL']),
@@ -571,10 +673,28 @@ export const CT: Record<string, Codelist> = Object.fromEntries([
   cl('STYPE', 'Study Type Response', true, ['INTERVENTIONAL', 'OBSERVATIONAL']),
   cl('TTYPE', 'Trial Type Response', true, ['EFFICACY', 'SAFETY', 'PHARMACOKINETIC', 'PHARMACODYNAMIC']),
   cl('TBLIND', 'Trial Blinding Schema Response', true, ['DOUBLE BLIND', 'OPEN LABEL', 'SINGLE BLIND']),
-  cl('TCNTRL', 'Control Type Response', true, ['PLACEBO', 'ACTIVE', 'NONE']),
+  cl('TCNTRL', 'Control Type Response', true, ['PLACEBO', 'ACTIVE', 'NONE', 'VEHICLE CONTROL']),
   cl('TINDTP', 'Trial Intent Type Response', true, ['TREATMENT', 'PREVENTION', 'DIAGNOSIS']),
   cl('SEXPOP', 'Sex of Study Group Response', false, ['BOTH', 'F', 'M']),
-  cl('DOMAIN', 'SDTM Domain Abbreviation', true, DOMAINS.filter((d) => /^[A-Z]{2}$/.test(d.code)).map((d) => d.code)),
+  cl('DOMAIN', 'SDTM Domain Abbreviation', true, [...new Set([...DOMAINS, ...SEND_DOMAINS].filter((d) => /^[A-Z]{2}$/.test(d.code)).map((d) => d.code))]),
+  cl('EGTESTCD', 'ECG Test Code', true, [['EGHRMN', 'ECG Mean Heart Rate'], ['PRAG', 'PR Interval, Aggregate'], ['QRSAG', 'QRS Duration, Aggregate'], ['QTAG', 'QT Interval, Aggregate'], ['QTCFAG', 'QTcF Interval, Aggregate'], ['INTP', 'Interpretation']]),
+  cl('EGTEST', 'ECG Test Name', true, ['ECG Mean Heart Rate', 'PR Interval, Aggregate', 'QRS Duration, Aggregate', 'QT Interval, Aggregate', 'QTcF Interval, Aggregate', 'Interpretation']),
+  cl('EGMETHOD', 'ECG Test Method', true, ['12 LEAD STANDARD']),
+  // SEND terminology used by the nonclinical study (CDISC SEND Controlled Terminology, subset).
+  cl('SPECIES', 'Species', true, ['RAT', 'MOUSE', 'DOG', 'MONKEY', 'RABBIT', 'MINIPIG']),
+  cl('STRAIN', 'Strain/Substrain', true, ['SPRAGUE-DAWLEY', 'WISTAR', 'WISTAR HAN', 'BEAGLE', 'CD-1']),
+  cl('BWTESTCD', 'Body Weight Test Code', false, [['BW', 'Body Weight'], ['TERMBW', 'Terminal Body Weight']]),
+  cl('BWTEST', 'Body Weight Test Name', false, ['Body Weight', 'Terminal Body Weight']),
+  cl('CLCAT', 'Category for Clinical Observations', true, ['CLINICAL SIGNS', 'PHYSICAL EXAM', 'OPHTHALMOLOGY']),
+  cl('MITESTCD', 'Microscopic Examination Test Code', true, [['MIEXAM', 'Microscopic Examination']]),
+  cl('MITEST', 'Microscopic Examination Test Name', true, ['Microscopic Examination']),
+  cl('NONNEO', 'Non-Neoplastic Finding Type', true, ['UNREMARKABLE', 'HYPERTROPHY, HEPATOCELLULAR', 'INFILTRATE, MONONUCLEAR CELL', 'NECROSIS', 'VACUOLATION']),
+  cl('MISEV', 'Severity (SEND)', false, ['MINIMAL', 'MILD', 'MODERATE', 'MARKED', 'SEVERE']),
+  cl('OMTESTCD', 'Organ Measurement Test Code', true, [['WEIGHT', 'Weight'], ['OWBW', 'Organ to Body Weight Ratio'], ['OWBR', 'Organ to Brain Weight Ratio']]),
+  cl('OMTEST', 'Organ Measurement Test Name', true, ['Weight', 'Organ to Body Weight Ratio', 'Organ to Brain Weight Ratio']),
+  cl('SPEC', 'Specimen Type', true, ['LIVER', 'KIDNEY', 'HEART', 'SPLEEN', 'BRAIN', 'STOMACH', 'SERUM', 'BLOOD', 'URINE']),
+  cl('TXPARMCD', 'Trial Set Parameter Short Name', true, [['ARMCD', 'Arm Code'], ['SPGRPCD', 'Sponsor-Defined Group Code'], ['GRPLBL', 'Group Label'], ['TRTDOS', 'Dose Level'], ['TRTDOSU', 'Dose Units'], ['SEXPOP', 'Sex of Participants'], ['PLANMSUB', 'Planned Number of Male Subjects'], ['PLANFSUB', 'Planned Number of Female Subjects'], ['TCNTRL', 'Control Type'], ['SPECIES', 'Species'], ['STRAIN', 'Strain/Substrain'], ['SETLBL', 'Set Label']]),
+  cl('TXPARM', 'Trial Set Parameter', true, ['Arm Code', 'Sponsor-Defined Group Code', 'Group Label', 'Dose Level', 'Dose Units', 'Sex of Participants', 'Planned Number of Male Subjects', 'Planned Number of Female Subjects', 'Control Type', 'Species', 'Strain/Substrain', 'Set Label']),
 ].map((c) => [c.id, c]))
 export const inCt = (id: string, value: string) => !!CT[id]?.terms.some((t) => t.value === value)
 export const decode = (id: string, value: string) => CT[id]?.terms.find((t) => t.value === value)?.decode ?? ''

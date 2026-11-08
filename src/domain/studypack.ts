@@ -15,5 +15,6 @@ export interface StudyPack {
   rawFields: Record<string, { name: string; label: string }[]>
   relrec: RelDef[]; relNeed: string[] // the reference RELREC and the domains it relates
   facts: { what: string; value: string }[]; conventions: { topic: string; rule: string }[]
+  standard?: 'send' // a nonclinical study, mapped to SENDIG rather than the SDTMIG
   arms: { code: string; name: string }[]; sites: { id: string; name: string; country: string; iso: string }[]; visits: Visit[]
 }

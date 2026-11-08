@@ -20,7 +20,11 @@ ONK-44, sponsor Meridale Oncology), their laboratory and imaging vendors and sit
 too. Docetaxel is named as the comparator only. AIR-09-202 (drug AIR-09, sponsor Northwind
 Respiratory) and ALV-3-301 (Aurelivax, sponsor Aurelis Vaccines), with their spirometry,
 e-diary and serology vendors and sites, are fictional as well; the trainer's ALV-3-301 participants are not the CDM
-Console's.
+Console's. ZEN-T-0428 (ZEN-55, Zenara Biosciences), INS-22-305 (Basalqin, Corvane Metabolic),
+CRD-31-401 (Cardelvo, Halvern Cardiovascular) and PNR-18-203 (Dorsavin, Meadowlane Pharma),
+with their test facility, core laboratory, adjudication committee, diary vendors and sites, are
+fictional too. Insulin glargine and paracetamol are named as the comparator and the rescue
+medicine only.
 
 Third-party software served with the site:
 - webR 0.6.0 (https://github.com/r-wasm/webr): R compiled to WebAssembly. The webR binaries

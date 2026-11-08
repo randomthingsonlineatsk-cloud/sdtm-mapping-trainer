@@ -53,8 +53,8 @@ export function buildDefine(inp: DefineInput, now = new Date()): DefineModel {
   const m: DefineModel = {
     study: inp.study?.id ?? STUDY.id, title: inp.study?.title ?? STUDY.title, version: ver, created: now.toISOString().slice(0, 19),
     standards: [
-      { oid: 'STD.1', name: 'SDTMIG', type: 'IG', version: ver === '3.4' ? '3.4' : '4.0', status: ver === '3.4' ? 'Final' : 'Draft' },
-      { oid: 'STD.2', name: 'CDISC/NCI', type: 'CT', publishingSet: 'SDTM', version: /(\d{4}-\d{2}(-\d{2})?)/.exec(CT_INFO.label)?.[1] ?? 'bundled', status: 'Final' },
+      { oid: 'STD.1', name: ver === 'send' ? 'SENDIG' : 'SDTMIG', type: 'IG', version: ver === '3.4' ? '3.4' : ver === 'send' ? '3.1.1' : '4.0', status: ver === '4.0d' ? 'Draft' : 'Final' },
+      { oid: 'STD.2', name: 'CDISC/NCI', type: 'CT', publishingSet: ver === 'send' ? 'SEND' : 'SDTM', version: /(\d{4}-\d{2}(-\d{2})?)/.exec(CT_INFO.label)?.[1] ?? 'bundled', status: 'Final' },
     ],
     datasets: [], items: [], valueLists: [], wheres: [], codelists: [], methods: [], comments: [],
     leaves: [{ id: 'LF.acrf', href: 'acrf.pdf', title: 'Annotated CRF' }, { id: 'LF.csdrg', href: 'csdrg.pdf', title: 'Clinical Study Data Reviewer’s Guide' }],

@@ -42,7 +42,7 @@ const USE: Record<string, string> = { AE: 'Safety', LB: 'Efficacy, safety', VS: 
 export function suggestNotes(p: Project, all: Map<string, Built>): Record<string, string> {
   const out: Record<string, string> = {}
   const supp = (d: string) => (p.specs[d]?.supp ?? []).map((q) => `${q.qnam} (${q.qlabel})`).join(', ')
-  const rel = p.version === '3.4' ? 'SUPP' : 'NS'
+  const rel = p.version !== '4.0d' ? 'SUPP' : 'NS'
   for (const d of [...all.keys()].filter((k) => !isRel(k) && !TRIAL_DESIGN.includes(k))) {
     const parts: string[] = []
     if (d === 'DM') parts.push('All screened subjects are included; screen failures have no planned or actual arm and ARMNRS gives the reason. One subject was randomised but never dosed (ARMNRS ASSIGNED, NOT TREATED); one received the other arm’s kits for the whole study, so ACTARM differs from ARM.')
@@ -69,7 +69,7 @@ export function buildCsdrg(p: Project, data: StudyData, all: Map<string, Built>,
   const t = TRANSFERS[p.transfer ?? 1]
   const fact = (w: string) => PROTOCOL_FACTS.find((x) => x.what === w)?.value ?? ''
   const model = buildDefine({ builts: all, specs: p.specs, version: p.version, laid: layoutAcrf(crfPages(data.forms), p.acrf ?? {}), designDomains: TRIAL_DESIGN })
-  const ig = p.version === '3.4' ? 'SDTMIG 3.4 (with SDTM 2.0)' : 'SDTMIG 4.0 (draft, for training)'
+  const ig = p.version === '3.4' ? 'SDTMIG 3.4 (with SDTM 2.0)' : p.version === 'send' ? 'SENDIG 3.1.1' : 'SDTMIG 4.0 (draft, for training)'
   const S: CsdrgSection[] = []
   const sec = (num: string, title: string, paras: string[] = [], table?: CsdrgTable) => S.push({ num, title, level: num.split('.').length as 1 | 2 | 3, paras: paras.filter(Boolean), table })
   sec('1', 'Introduction')

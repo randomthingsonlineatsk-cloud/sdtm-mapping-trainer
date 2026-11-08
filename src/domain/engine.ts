@@ -65,6 +65,7 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
       return how === 'min' ? s[0] : s[s.length - 1]
     }
     if (how === 'count') return String(v.length)
+    if (how === 'mean') { const n = v.map(toNum).filter((x): x is number => x !== null); return n.length ? String(n.reduce((a, b) => a + b, 0) / n.length) : '' }
     return v[0]
   }
   const dm = (v: Val) => data.refDm?.get(subj)?.[S(v)] ?? ''
@@ -99,6 +100,7 @@ export function studyFns(data: StudyData, row: Record<string, string>, subj: str
     },
     subj: (form, field, how) => agg(mine(S(form)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     subjwhere: (form, field, wf, wv, how) => agg(mine(S(form)).filter((r) => (r[S(wf)] ?? '') === S(wv)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
+    subjwhere2: (form, field, wf1, wv1, wf2, wv2, how) => agg(mine(S(form)).filter((r) => (r[S(wf1)] ?? '') === S(wv1) && (r[S(wf2)] ?? '') === S(wv2)).map((r) => r[S(field)] ?? ''), S(how) || 'first'),
     irt: (field) => mine('IRT')[0]?.[S(field)] ?? '',
     country: (site) => (data.sites ?? SITES).find((s) => s.id === S(site))?.iso ?? '',
     // The protocol's eligibility criteria (as in TI): ti('IN02', 'text') or ti('IN02', 'cat').
@@ -171,7 +173,8 @@ export const FN_HELP: { sig: string; what: string }[] = [
   { sig: "if(condition, a, b)", what: 'a when the condition is true, otherwise b' },
   { sig: 'coalesce(a, b, …)', what: 'The first value that is not blank' },
   { sig: "contains(x, 'text'), present(x), isblank(x), x in ('A', 'B')", what: 'Tests' },
-  { sig: "subj(form, field, how)", what: "One value per subject from another raw form; how = 'first', 'last', 'min', 'max' or 'count'. subj('EX', 'EXSTDAT', 'min')" },
+  { sig: "subj(form, field, how)", what: "One value per subject from another raw form; how = 'first', 'last', 'min', 'max', 'count' or 'mean'. subj('EX', 'EXSTDAT', 'min')" },
+  { sig: "subjwhere2(form, field, f1, v1, f2, v2, how)", what: "As subjwhere, with two conditions. subjwhere2('ECG', 'QTCF', 'VISIT', VISIT, 'TPT', TPT, 'mean')" },
   { sig: "subjwhere(form, field, whereField, whereValue, how)", what: "As subj, only rows where whereField equals whereValue. subjwhere('DS', 'DSSTDAT', 'DSDECOD', 'Death', 'first')" },
   { sig: "irt(field)", what: "The subject's value in the IRT randomisation file: irt('RANDARM')" },
   { sig: "ti(code, what)", what: "A protocol eligibility criterion, as in TI: ti('IN02', 'text') is its text, ti('IN02', 'cat') INCLUSION or EXCLUSION" },
@@ -217,6 +220,9 @@ export function build(spec: DomainSpec, data: StudyData, ver: Version = '3.4'): 
     const pspec: DomainSpec = { ...spec, rules: part.rules, transpose: part.transpose }
     const order = evalOrder(pspec, new Set([...Object.keys(src[0] ?? {}), ...(part.transpose ? PSEUDO : [])]))
     const firstOf = new Map<string, string>()
+    // A part that reads a form an earlier part also reads (derived records from the same rows) marks
+    // its traces, so every record still has its own.
+    const again = parts.slice(0, pi).some((x) => x.source === part.source) ? `~${pi + 1}` : ''
     for (const r of src) {
       const subj = r.SUBJID ?? ''
       const fns = studyFns(data, r, subj)
@@ -229,9 +235,9 @@ export function build(spec: DomainSpec, data: StudyData, ver: Version = '3.4'): 
         for (const t of part.transpose.tests) {
           const values = { ...r, __TESTCD: t.code, __FIELD: t.field, __RESULT: r[t.field] ?? '', __UNIT: t.unitField ? r[t.unitField] ?? '' : t.unit ?? '' }
           try { if (part.transpose.drop.trim() && evalIn(part.transpose.drop, values, {}) === true) continue } catch (e) { pfail('(drop)', (e as Error).message); continue }
-          variants.push({ values, trace: `${part.source}:${r.__id}:${t.field}` })
+          variants.push({ values, trace: `${part.source}:${r.__id}:${t.field}${again}` })
         }
-      } else variants.push({ values: r, trace: `${part.source}:${r.__id}` })
+      } else variants.push({ values: r, trace: `${part.source}:${r.__id}${again}` })
       for (const { values, trace } of variants) {
         const out: OutRow = { __trace: trace, __subj: subj } as OutRow
         for (const v of order) {
@@ -279,7 +285,7 @@ export function build(spec: DomainSpec, data: StudyData, ver: Version = '3.4'): 
     }
   }
   const out: Built = { domain: spec.domain, vars: spec.vars, rows, errors, warnings }
-  if (spec.supp?.length || spec.parts?.some((p) => p.supp?.length)) out.supp = ver === '3.4' ? suppDataset(spec, supp) : nsDataset(spec, supp)
+  if (spec.supp?.length || spec.parts?.some((p) => p.supp?.length)) out.supp = ver !== '4.0d' ? suppDataset(spec, supp) : nsDataset(spec, supp)
   return out
 }
 

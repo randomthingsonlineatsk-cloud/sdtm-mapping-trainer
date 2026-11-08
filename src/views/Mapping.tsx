@@ -3,8 +3,8 @@ import { useStore } from '../state'
 import { useNav } from '../App'
 import { build, ruleError, fieldsFor, FN_HELP, RULE_LABEL, PSEUDO, type Rule, type DomainSpec, type TestMap, type Part, type SuppQual } from '../domain/engine'
 import { toR, toSAS } from '../domain/codegen'
-import { MISSIONS } from '../domain/missions'
-import { varsOf, DETAIL_DOMAINS, domainInfo, CT, customVars, customCodeProblem, standardCandidates, type VarMeta, type CustomDomain } from '../domain/standards'
+import { MISSIONS, missionsFor } from '../domain/missions'
+import { varsOf, detailDomains, domainInfo, CT, customVars, customCodeProblem, standardCandidates, type VarMeta, type CustomDomain, type Version } from '../domain/standards'
 import { emptySpec, log, type Project, isGlv } from '../domain/project'
 import { currentVersion } from '../domain/plan'
 import { SORT, DEFAULT_SOURCE } from '../domain/reference'
@@ -18,7 +18,7 @@ export default function Mapping() {
   const nav = useNav()
   // nav.arg is a domain (DM) or a QC program (qc:VS).
   const argQc = nav.arg?.startsWith('qc:'), argDomain = argQc ? nav.arg!.slice(3) : nav.arg
-  const domains = [...DETAIL_DOMAINS, ...(p.custom ?? []).map((c) => c.code)]
+  const domains = [...detailDomains(p.version), ...(p.custom ?? []).map((c) => c.code)]
   const [domain, setDomain] = useState(argDomain && domains.includes(argDomain) ? argDomain : 'DM')
   const [defining, setDefining] = useState(false)
   // Production is the program delivered; QC is the second programmer's independent program.
@@ -31,13 +31,13 @@ export default function Mapping() {
   return (
     <div className="space-y-4">
       <Panel title="Mapping workspace" sub="Raw data on the left, SDTM variables on the right. Pick a variable, choose how it is filled, and watch the dataset rebuild below. Follow the study’s SDTM conventions on the Study tab."
-        right={<Select aria-label="Domain to map" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={domains.map((d) => ({ value: d, label: `${d} · ${domainInfo(d)?.name}${bag[d]?.vars.length ? ` (${bag[d].vars.length} vars)` : ''}` }))} />}>
+        right={<Select aria-label="Domain to map" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={domains.map((d) => ({ value: d, label: `${d} · ${domainInfo(d, p.version)?.name}${bag[d]?.vars.length ? ` (${bag[d].vars.length} vars)` : ''}` }))} />}>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Program">
           <Btn tone={track === 'prod' ? 'solid' : 'grey'} className="py-0.5" aria-pressed={track === 'prod'} onClick={() => setTrack('prod')}>Production</Btn>
           <Btn tone={track === 'qc' ? 'solid' : 'grey'} className="py-0.5" aria-pressed={track === 'qc'} onClick={() => setTrack('qc')}>QC (independent)</Btn>
           <span className="text-[11px] text-lab-text-muted">{track === 'qc' ? 'You are the QC programmer: write this domain again from the specification and conventions, without reading the production rules, then compare on the QC compare tab.' : 'The program that produces the delivered dataset.'}</span>
         </div>
-        <p className="text-xs text-lab-text-muted">{domainInfo(domain)?.cls} · {domainInfo(domain)?.structure}. {(() => { const ms = MISSIONS.filter((m) => m.domains.includes(domain)); return ms.length ? `Scored by mission${ms.length > 1 ? 's' : ''} ${ms.map((m) => m.id).join(', ')} against a hidden reference.` : 'Free practice: no mission scores this domain.' })()} Trial design domains (TA, TE, TV, TI, TS) are built as tables on the Trial design tab.</p>
+        <p className="text-xs text-lab-text-muted">{domainInfo(domain, p.version)?.cls} · {domainInfo(domain, p.version)?.structure}. {(() => { const ms = missionsFor(p).filter((m) => m.domains.includes(domain)); return ms.length ? `Scored by mission${ms.length > 1 ? 's' : ''} ${ms.map((m) => m.id).join(', ')} against a hidden reference.` : 'Free practice: no mission scores this domain.' })()}{isGlv(p) ? ' Trial design domains (TA, TE, TV, TI, TS) are built as tables on the Trial design tab.' : ''}</p>
         <div className="flex flex-wrap gap-2">
           {!spec && <Btn tone="solid" onClick={start}>{track === 'qc' ? `Start QC programming of ${domain}` : `Start mapping ${domain}`}</Btn>}
           {isGlv(p) && <Btn tone="grey" onClick={() => setDefining(!defining)}>{defining ? 'Close' : 'Define a custom domain…'}</Btn>}
@@ -120,7 +120,7 @@ function Workspace({ domain, spec, data, track }: { domain: string; spec: Domain
           {sel && <RuleEditor key={`${domain}-${pi}-${sel}`} m={meta.find((x) => x.name === sel)!} spec={view} fields={fields} rawRows={rawRows} upd={upd} included={included.has(sel)} include={() => toggle(sel)} runErr={built.errors[sel]} />}
         </div>
       </div>
-      <SuppEditor spec={spec} fields={fields} built={built} updDom={updDom} ns={p.version !== '3.4'} />
+      <SuppEditor spec={spec} fields={fields} built={built} updDom={updDom} ns={p.version === '4.0d'} />
       <Preview built={built} spec={spec} />
       <CodeView spec={spec} ver={p.version} />
     </>
@@ -281,7 +281,7 @@ function SuppEditor({ spec, fields, built, updDom, ns }: { spec: DomainSpec; fie
 }
 
 // The same mapping as an R (dplyr) or SAS program, to read alongside the visual rules.
-function CodeView({ spec, ver }: { spec: DomainSpec; ver: '3.4' | '4.0d' }) {
+function CodeView({ spec, ver }: { spec: DomainSpec; ver: Version }) {
   const [lang, setLang] = useState<'R' | 'SAS' | ''>('')
   const code = lang === 'R' ? toR(spec, ver) : lang === 'SAS' ? toSAS(spec, ver) : ''
   return (

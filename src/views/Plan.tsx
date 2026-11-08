@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../state'
 import { useNav } from '../App'
 import { startPlan, currentVersion, nextVersion, incomplete, mismatches, diffRows, planCsv, PLAN_ORIGINS, type Plan, type PlanRow, type PlanOrigin } from '../domain/plan'
-import { varsOf, DETAIL_DOMAINS, domainInfo } from '../domain/standards'
+import { varsOf, detailDomains, domainInfo } from '../domain/standards'
 import { log } from '../domain/project'
 import { download } from '../domain/store'
 import { Panel, Pill, Btn, Select, Table, ic } from './ui'
@@ -29,7 +29,7 @@ export default function PlanView() {
   return (
     <div className="space-y-4">
       <Panel title="Mapping specification" sub="Write the specification before programming, as companies do: for each variable its origin, the raw field it comes from or how it is derived. It is reviewed and approved by someone other than the author, programmed against, and every later change becomes a new version with a reason."
-        right={<Select aria-label="Domain to specify" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={DETAIL_DOMAINS.map((d) => ({ value: d, label: `${d} · ${domainInfo(d)?.name}${p.plan?.[d] ? ` (${currentVersion(p.plan[d])?.version ?? 'draft'})` : ''}` }))} />}>
+        right={<Select aria-label="Domain to specify" className="w-64" value={domain} onChange={(e) => setDomain(e.target.value)} options={detailDomains(p.version).map((d) => ({ value: d, label: `${d} · ${domainInfo(d, p.version)?.name}${p.plan?.[d] ? ` (${currentVersion(p.plan[d])?.version ?? 'draft'})` : ''}` }))} />}>
         {!plan ? <Btn tone="solid" onClick={() => act((pp) => { (pp.plan ??= {})[domain] = startPlan(domain, pp.version, pp.userId); log(pp, `Specification ${domain} started`) })}>Start the specification of {domain}</Btn> : (
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <Pill tone={plan.status === 'Approved' ? 'green' : plan.status === 'In review' ? 'amber' : 'blue'}>{plan.status === 'Draft' ? (cur ? `Revision ${nextVersion(plan)} in draft` : 'Version 0.1 draft') : plan.status === 'In review' ? `Version ${nextVersion(plan)} in review` : `Version ${cur!.version} approved`}</Pill>

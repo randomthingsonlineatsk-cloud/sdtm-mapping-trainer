@@ -58,6 +58,8 @@ const newId = () => `p_${Date.now().toString(36)}_${hash(String(Math.random())).
 export const STUDIES = [STUDY.id, ...Object.keys(PACKS)]
 export function createProject(userId = 'local-user', classId = 'none', version: Version = '3.4', study: string = STUDY.id): Project {
   const now = new Date().toISOString()
+  if (PACKS[study]?.standard === 'send') version = 'send'
+  else if (version === 'send') version = '3.4'
   return { schema: 1, id: newId(), name: `${study} SDTM mapping`, userId, classId, createdUtc: now, updatedUtc: now, version, study, specs: {}, design: {}, ruleSet: 'CDISC', missions: [], quiz: {}, log: [{ utc: now, what: 'Project created' }] }
 }
 export function migrate(p: Project): Project {

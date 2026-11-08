@@ -117,7 +117,7 @@ export function toDatasetJson(b: Built, ver: Version, keys: string[] = [], now =
     originator: 'SDTM Mapping Trainer (training data, fictional study)',
     sourceSystem: { name: 'SDTM Mapping Trainer', version: '2' },
     studyOID: study,
-    metaDataVersionOID: `MDV.${study}.${ver === '3.4' ? 'SDTMIG.3.4' : 'SDTMIG.4.0.DRAFT'}`,
+    metaDataVersionOID: `MDV.${study}.${ver === '3.4' ? 'SDTMIG.3.4' : ver === 'send' ? 'SENDIG.3.1.1' : 'SDTMIG.4.0.DRAFT'}`,
     metaDataRef: 'define.xml',
     itemGroupOID: `IG.${b.domain}`,
     records: b.rows.length,

@@ -130,6 +130,7 @@ export const BUILTINS: Record<string, (...a: Val[]) => Val> = {
   all: (...xs) => xs.every(truthy),
   abs: (x) => { const n = num(x); return n === null ? '' : Math.abs(n) },
   round: (x, d) => { const n = num(x), k = num(d) ?? 0; return n === null ? '' : Math.round(n * 10 ** k) / 10 ** k },
+  floor: (x) => { const n = num(x); return n === null ? '' : Math.floor(n) },
   isnum: (x) => blank(x) || num(x) !== null,
   isdate: (x) => blank(x) || (typeof x === 'string' && DATE.test(x) && !Number.isNaN(Date.parse(x + 'T00:00:00Z')) && new Date(x + 'T00:00:00Z').toISOString().slice(0, 10) === x),
   days: (a, b) => {

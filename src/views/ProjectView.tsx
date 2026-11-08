@@ -46,6 +46,10 @@ export default function ProjectView() {
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'ONK-44-302'))}>New ONK-44-302 project (phase 3 oncology)</Btn>
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'AIR-09-202'))}>New AIR-09-202 project (phase 2 asthma)</Btn>
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'ALV-3-301'))}>New ALV-3-301 project (phase 3 vaccine)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'ZEN-T-0428'))}>New ZEN-T-0428 project (SEND rat toxicity)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'INS-22-305'))}>New INS-22-305 project (diabetes, insulin)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'CRD-31-401'))}>New CRD-31-401 project (cardiovascular)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'PNR-18-203'))}>New PNR-18-203 project (pain)</Btn>
           <Btn tone="grey" onClick={() => cdm.current?.click()}>Import a CDM Console study</Btn>
           <input ref={cdm} type="file" accept=".json,application/json" className="hidden" aria-label="CDM Console project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const im = importCdmProject(t); const np = createProject(p.userId, p.classId, p.version); np.study = im.protocol; np.imported = im; np.name = `${im.protocol} (imported) SDTM mapping`; log(np, `Imported ${im.protocol} from the CDM Console: ${Object.keys(im.forms).length} forms`); switchTo(np); setMsg(`Imported ${im.protocol}: ${Object.values(im.forms).reduce((a, r) => a + r.length, 0)} rows in ${Object.keys(im.forms).length} forms. Missions stay on GLV-12-301.`) }); e.target.value = '' }} />
         </div>
@@ -56,9 +60,11 @@ export default function ProjectView() {
       </Panel>}
       <Panel title="Standard" sub={`Which SDTM version this project maps to. Terminology: ${CT_INFO.label}.`}>
         <div className="flex flex-wrap gap-2">
-          {(['3.4', '4.0d'] as Version[]).map((v) => <Btn key={v} tone={p.version === v ? 'solid' : 'grey'} onClick={() => setVersion(v)}>{VERSION_LABEL[v]}</Btn>)}
+          {((p.version === 'send' ? ['send'] : ['3.4', '4.0d']) as Version[]).map((v) => <Btn key={v} tone={p.version === v ? 'solid' : 'grey'} onClick={() => setVersion(v)}>{VERSION_LABEL[v]}</Btn>)}
         </div>
-        {p.version === '4.0d'
+        {p.version === 'send'
+          ? <p className="text-xs text-lab-text-muted">A nonclinical study: mapped to SEND (SENDIG v3.1.1), the standard FDA requires for the nonclinical studies it lists in its Data Standards Catalog. SEND datasets go in eCTD module 4.</p>
+          : p.version === '4.0d'
           ? <div className="text-xs space-y-1"><p className="text-lab-ema">Draft mode. SDTMIG v4.0 is not final: it is built here from the public-review draft and will be updated when CDISC publishes the standard. FDA requires SDTMIG v3.4.</p><ul className="list-disc pl-5 text-lab-text-muted">{DRAFT_CHANGES.map((c) => <li key={c.what}>{c.what}</li>)}</ul></div>
           : <p className="text-xs text-lab-text-muted">SDTMIG v3.4 with SDTM v2.0: required by FDA for studies starting on or after 15 March 2025.</p>}
         <p className="text-[11px] text-lab-text-muted">Switching keeps your mappings. Variables that do not exist in the other version stay in your specification but are not part of the expected structure; missions record the version they ran against.</p>
@@ -74,7 +80,7 @@ export default function ProjectView() {
         <p className="text-[11px] text-lab-text-muted">Missions are scored with whichever terminology is in use; the study’s values are in both. A newer release may retire or add terms: the checks then report values that are no longer in their codelist.</p>
       </Panel>
       <Panel title="Saved projects" sub="All projects in this browser.">
-        <Table head={['Project', 'Study', 'Standard', 'Missions', 'Updated', '']} rows={all.map((x) => [x.name, x.study, x.version === '3.4' ? 'v3.4' : 'v4.0 draft', (x.missions ?? []).filter((m) => m.passed).length + ' passed', x.updatedUtc.slice(0, 16).replace('T', ' '),
+        <Table head={['Project', 'Study', 'Standard', 'Missions', 'Updated', '']} rows={all.map((x) => [x.name, x.study, x.version === '3.4' ? 'v3.4' : x.version === 'send' ? 'SENDIG 3.1.1' : 'v4.0 draft', (x.missions ?? []).filter((m) => m.passed).length + ' passed', x.updatedUtc.slice(0, 16).replace('T', ' '),
           x.id === p.id ? <Pill tone="blue">Open</Pill> : <div className="flex gap-1"><Btn tone="grey" className="py-0.5" onClick={() => switchTo(migrate(x))}>Open</Btn>
             {confirmDel === x.id ? <Btn tone="red" className="py-0.5" onClick={() => { deleteProject(x.id).then(refresh); setConfirmDel(null) }}>Confirm delete</Btn> : <Btn tone="red" className="py-0.5" onClick={() => setConfirmDel(x.id)}>Delete</Btn>}</div>])} />
       </Panel>

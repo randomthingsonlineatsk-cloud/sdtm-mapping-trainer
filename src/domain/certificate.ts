@@ -1,9 +1,10 @@
 // The course certificate: pass most of the missions (12 of them, on any of the studies) and the
 // capstone S22, in any of your projects in this browser under the same user ID. The verification
 // code is made from the name, the passed missions with their scores and levels, and the user ID,
-// so a changed name or score gives a different code.
+// so a changed name or score gives a different code. Endorsements recognise the SEND study, three or
+// more completed therapeutic-area studies and the specialist capstone S40.
 
-import { MISSIONS } from './missions'
+import { MISSIONS, specialistProgress, SEND_ID, PORTFOLIO } from './missions'
 import { hash } from './util'
 import type { MissionRun, Project } from './project'
 
@@ -18,6 +19,13 @@ export function certificate(projects: Project[], userId: string, name: string) {
   }).filter((x): x is Passed => !!x)
   const h = hash(`${name.trim().toLowerCase()}|${passed.map((r) => `${r.id}:${r.score}:${r.level}`).join(',')}|${userId}`).slice(-10).toUpperCase()
   const capstone = passed.some((r) => r.id === CAPSTONE)
-  return { passed, capstone, eligible: passed.length >= CERT_NEEDED && capstone, total: MISSIONS.length, code: `SDTM-${h.slice(0, 5)}-${h.slice(5)}`, studies: [...new Set(passed.map((r) => r.study))] }
+  // Endorsements: what the learner has done beyond the course's core.
+  const prog = specialistProgress(projects, userId)
+  const endorsements = [
+    ...(prog.find((x) => x.study === SEND_ID)?.complete ? ['Nonclinical data (SEND)'] : []),
+    ...(prog.filter((x) => x.study !== SEND_ID && x.complete).length >= 3 ? [`Therapeutic areas (${prog.filter((x) => x.study !== SEND_ID && x.complete).map((x) => x.study).join(', ')})`] : []),
+    ...(passed.some((r) => r.id === PORTFOLIO) ? ['Specialist capstone S40'] : []),
+  ]
+  return { passed, capstone, endorsements, eligible: passed.length >= CERT_NEEDED && capstone, total: MISSIONS.length, code: `SDTM-${h.slice(0, 5)}-${h.slice(5)}`, studies: [...new Set(passed.map((r) => r.study))] }
 }
 export type Certificate = ReturnType<typeof certificate>

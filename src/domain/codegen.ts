@@ -72,7 +72,7 @@ function relR(spec: DomainSpec, quals: NonNullable<DomainSpec['supp']>, ver: Ver
   const d = spec.domain.toLowerCase(), rel = relName(spec.domain, ver), seq = seqOf(spec), names = quals.map((q) => q.qnam)
   const head = `  transmute(STUDYID, RDOMAIN = "${spec.domain}", USUBJID, IDVAR = ${seq ? `"${seq}"` : 'NA_character_'}, `
   const cols = names.map((n) => `${n} = .${n}`).join(', ')
-  if (ver === '3.4') return [
+  if (ver !== '4.0d') return [
     `${rel.toLowerCase()} <- ${d}_all %>%`, `${head}IDVARVAL = ${seq ? `as.character(${seq})` : 'NA_character_'}, ${cols}) %>%`,
     `  pivot_longer(c(${names.join(', ')}), names_to = "QNAM", values_to = "QVAL") %>%`, '  filter(!is_blank(QVAL)) %>%',
     `  mutate(QLABEL = recode(QNAM, ${quals.map((q) => `${q.qnam} = ${JSON.stringify(q.qlabel)}`).join(', ')}),`,
@@ -117,7 +117,7 @@ export function toR(spec: DomainSpec, ver: Version = '3.4'): string {
     `# ${(spec.rules.STUDYID as { value?: string } | undefined)?.value ?? STUDY.id} · ${spec.domain} — generated from your mapping rules (read-only sketch).`,
     `# raw$<form> are the raw datasets; iso8601(), study_day(), epoch_of(), subj_value() and the other`,
     `# helpers are the study's shared functions, doing what the trainer's functions of the same purpose do.`,
-    'library(dplyr)', ...(quals.length && ver === '3.4' ? ['library(tidyr)'] : []), '',
+    'library(dplyr)', ...(quals.length && ver !== '4.0d' ? ['library(tidyr)'] : []), '',
     ...parts.map((p, i) => partR(spec, p, i + 1) + '\n'),
     `${d}${quals.length ? '_all' : ''} <- bind_rows(${parts.map((_, i) => `${d}_${i + 1}`).join(', ')}) %>%`,
     `  arrange(${spec.sort.join(', ')})${seq || fr ? ' %>%' : ''}`,
@@ -160,7 +160,7 @@ export function toSAS(spec: DomainSpec, ver: Version = '3.4'): string {
   const quals = allQuals(spec)
   if (quals.length) {
     const rel = relName(spec.domain, ver), seq = seqOf(spec), names = quals.map((q) => q.qnam)
-    if (ver === '3.4') out.push(`data ${rel.toLowerCase()} (keep=STUDYID RDOMAIN USUBJID IDVAR IDVARVAL QNAM QLABEL QVAL QORIG QEVAL);`, `  set ${d};`, '  length RDOMAIN $2 IDVAR $8 IDVARVAL $200 QNAM $8 QLABEL $40 QVAL $200 QORIG $20 QEVAL $40;',
+    if (ver !== '4.0d') out.push(`data ${rel.toLowerCase()} (keep=STUDYID RDOMAIN USUBJID IDVAR IDVARVAL QNAM QLABEL QVAL QORIG QEVAL);`, `  set ${d};`, '  length RDOMAIN $2 IDVAR $8 IDVARVAL $200 QNAM $8 QLABEL $40 QVAL $200 QORIG $20 QEVAL $40;',
       `  RDOMAIN = '${spec.domain}'; IDVAR = '${seq}'; IDVARVAL = ${seq ? `strip(put(${seq}, best.))` : "''"};`,
       ...quals.map((q) => `  if not missing(_${q.qnam}) then do; QNAM = '${q.qnam}'; QLABEL = '${q.qlabel.replace(/'/g, "''")}'; QVAL = _${q.qnam}; QORIG = '${q.qorig}'; QEVAL = '${q.qeval ?? ''}'; output; end;`), 'run;',
       `proc sort data=${rel.toLowerCase()}; by USUBJID IDVARVAL QNAM; run;`)
