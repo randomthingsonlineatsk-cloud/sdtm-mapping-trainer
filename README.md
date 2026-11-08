@@ -234,10 +234,23 @@ rules; no vendor rule text or tool is copied.
   repository, routes under `/sdtm/v1` with its own `sdtm_` tables. Set `VITE_CLASSROOM_API` at
   build time to use your own.
 
+- **SEND lesson:** how the same model carries nonclinical (animal) studies: SENDIG, trial
+  sets, BW, MI and the rest, with a quiz.
+- **AIR-09-202, an asthma study (missions S27 and S28):** a spirometry vendor's file to RE
+  (only the reportable BEST row, FEV1, FVC, the ratio and % predicted, pre- and
+  post-bronchodilator at screening, a session with no acceptable manoeuvre kept as NOT DONE),
+  a symptom questionnaire to QS (item scores and a derived total only when every item was
+  answered), and inhaled doses to EX.
+- **ALV-3-301, a vaccine study (missions S29 and S30):** the e-diary's solicited reactions to
+  CE (one record per reaction per dose, occurred or not, worst grade by the FDA 2007 toxicity
+  grading scale, a reaction continuing past Day 7) and FA (each day's grade or diameter, missed
+  diary days NOT DONE), diary temperatures to VS, serology titres to IS (reciprocal titres,
+  results below the lowest dilution, a sample with too little serum), and two intramuscular
+  doses to EX. A lesson on the respiratory and vaccine therapeutic area guides goes with them.
+
 ## Coming next
 
-- **Rest of Phase 5:** a SEND lesson, an asthma study (RE, QS) and the vaccine study's CE,
-  FACE and IS domains.
+- Further therapeutic areas and a SEND practice study, on request.
 
 ## Run it
 

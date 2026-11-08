@@ -111,7 +111,7 @@ function Certificate() {
     } finally { setBusy(false) }
   }
   return (
-    <Panel title="Certificate" sub={`Pass ${CERT_NEEDED} of the ${c.total} missions at 70% or more, on either study, including the capstone ${CAPSTONE}, in any of your projects in this browser under user ID ${p.userId}. The certificate shows a verification code made from your name, your scores and levels, and your user ID.`}>
+    <Panel title="Certificate" sub={`Pass ${CERT_NEEDED} of the ${c.total} missions at 70% or more, on any of the studies, including the capstone ${CAPSTONE}, in any of your projects in this browser under user ID ${p.userId}. The certificate shows a verification code made from your name, your scores and levels, and your user ID.`}>
       <p className="text-sm">{c.passed.length} of {c.total} missions passed{c.capstone ? ', capstone included' : `; the capstone ${CAPSTONE} is not passed yet`}.</p>
       {c.eligible ? (
         <div className="space-y-2">

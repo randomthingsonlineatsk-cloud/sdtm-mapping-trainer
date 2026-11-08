@@ -288,6 +288,30 @@ export const TOPICS: Topic[] = [
       { q: 'The investigator recorded PR; the measurements show a 26% decrease. What goes into RSORRES?', options: ['SD, recalculated', 'PR, as collected', 'NE', 'Nothing until the query is answered'], answer: 1, why: 'SDTM keeps the assessor’s judgement; the discrepancy is a data review question, and the independent review has its own record.' },
       { q: 'How is TU related to TR in RELREC?', options: ['Record by record through --SEQ', 'Dataset level through TULNKID and TRLNKID, ONE to MANY', 'Through VISITNUM', 'It is not related'], answer: 1, why: 'One lesion has many assessments; the link ID carries the relationship.' },
     ] },
+  { id: 'send', title: 'SEND: the same model for nonclinical studies',
+    body: [
+      'SEND (the Standard for Exchange of Nonclinical Data) is SDTM applied to animal toxicology and safety pharmacology studies. Its implementation guide is SENDIG (v3.1.1 is the version FDA requires for studies started after March 2023). The FDA requires SEND for most IND and NDA nonclinical studies; this trainer maps clinical data only, but the ideas carry over.',
+      'What stays the same: the general observation classes, DOMAIN, --SEQ, --TESTCD and --ORRES, ISO 8601 dates, define.xml, the trial design idea, SUPP-- datasets and RELREC, and conformance checking before submission.',
+      'What differs: the subjects are animals, identified by USUBJID with SPECIES and STRAIN in DM and the dose group in ARM; studies are designed by sets of animals (TX, trial sets, with SETCD on every animal in DM) rather than visits, and timing is by study day (--DY) and nominal day (--NOMDY) more than by visit. There are domains with no clinical counterpart: BW (body weights), BG (body weight gains), CL (clinical observations), FW (food and water), MA (macroscopic findings at necropsy), MI (microscopic histopathology), OM (organ measurements), TF (tumour findings), PM (palpable masses), and POOLDEF for pooled samples. LB, PC, PP, EX, DS and EG are shared.',
+      'Pathology is coded in --STRESC with the SEND controlled terminology (NONNEO, NEOPLASM) and severity in --SEV; a finding of “unremarkable” is a record too, not a missing one. Nonclinical studies send data through the same gateway, with the same technical rejection criteria, and a reviewer’s guide of their own: the nSDRG.',
+    ],
+    quiz: [
+      { q: 'Which dataset says which animals belong to which dose group in SEND?', options: ['TA', 'TX (trial sets), with SETCD in DM', 'SV', 'SUPPDM'], answer: 1, why: 'SEND designs studies by trial sets; each animal’s SETCD points to its set in TX.' },
+      { q: 'Where do body weights go in SEND?', options: ['VS', 'BW', 'LB', 'CL'], answer: 1, why: 'SEND has its own BW domain (and BG for gains); VS in SEND is for vital signs.' },
+      { q: 'A tissue examined under the microscope shows no findings. What is submitted?', options: ['Nothing', 'An MI record with the result UNREMARKABLE', 'A comment in CO', 'A record in MA'], answer: 1, why: 'Every tissue examined has a record; “unremarkable” is a result.' },
+    ] },
+  { id: 'tauas', title: 'Therapeutic areas: respiratory and vaccines',
+    body: [
+      'CDISC therapeutic area user guides (TAUGs) show how the SDTMIG domains carry the data of one disease area. Two of the trainer’s studies follow them: the asthma study AIR-09-202 (TAUG-Asthma) and the vaccine study ALV-3-301 (the Vaccines TAUG and the SDTMIG’s own vaccine examples).',
+      'Respiratory: lung function tests go to RE (Respiratory System Findings), not LB or VS. A spirometry vendor sends every manoeuvre; only the reportable result of a session is submitted, one record per test (FEV1, FVC, FEV1/FVC, FEV1 % predicted), with RETPT for before and after a bronchodilator. Questionnaires go to QS: one record per item, the answer as collected in QSORRES and its score in QSSTRESC/QSSTRESN; a total the sponsor derives is a record with QSDRVFL Y and no QSORRES.',
+      'Vaccines: the reactions a protocol asks about (solicited reactions) go to CE (Clinical Events) with CEPRESP Y, one record per reaction per dose whether it occurred or not (CEOCCUR Y or N), its worst severity, and when it started and ended. Each diary day’s grade or diameter goes to FA (Findings About) with FAOBJ naming the reaction. Diary temperatures go to VS; antibody titres to IS (Immunogenicity Specimen Assessments), with ISBDAGNT the antigen the antibodies bind. Unsolicited reactions are ordinary adverse events in AE.',
+      'Time points tie it together: CETPTREF, FATPTREF and VSTPTREF name the dose (DOSE 1, DOSE 2) and --RFTDTC gives its date and time; FATPT DAY 1 to DAY 7 count from it. A day the participant did not complete is a NOT DONE record, not a missing one.',
+    ],
+    quiz: [
+      { q: 'A participant had no headache after dose 1. What is in CE?', options: ['Nothing', 'A record with CEPRESP Y and CEOCCUR N', 'A record in AE', 'A record with CEOCCUR Y and CESEV NONE'], answer: 1, why: 'Solicited reactions are pre-specified: every one gets a record, and CEOCCUR says whether it occurred.' },
+      { q: 'Where does the daily diameter of injection site redness go?', options: ['CE, one record per day', 'FA, with FATESTCD LDIAM and FAOBJ the reaction', 'VS', 'SUPPCE'], answer: 1, why: 'Findings about an event are FA records; FAOBJ ties them to the CE record’s term.' },
+      { q: 'The spirometry vendor sends three manoeuvres and a BEST row per session. Which go to RE?', options: ['All four', 'The three manoeuvres', 'The BEST row: the reportable values', 'None: spirometry goes to LB'], answer: 2, why: 'Only the reportable result is submitted; single manoeuvres are the vendor’s raw data.' },
+    ] },
   { id: 'v40', title: 'What changes in the SDTMIG v4.0 draft',
     body: [
       'CDISC put SDTM v3.0 and SDTMIG v4.0 out for public review from February to April 2026, with publication targeted for late 2026. FDA still requires SDTMIG v3.4; v4.0 will only be used for submissions once it is final and listed in the FDA and PMDA catalogues.',

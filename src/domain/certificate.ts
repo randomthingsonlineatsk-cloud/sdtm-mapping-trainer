@@ -1,4 +1,4 @@
-// The course certificate: pass most of the missions (12 of the 22, on either study) and the
+// The course certificate: pass most of the missions (12 of them, on any of the studies) and the
 // capstone S22, in any of your projects in this browser under the same user ID. The verification
 // code is made from the name, the passed missions with their scores and levels, and the user ID,
 // so a changed name or score gives a different code.

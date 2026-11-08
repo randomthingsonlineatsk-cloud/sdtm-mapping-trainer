@@ -44,6 +44,8 @@ export default function ProjectView() {
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version))}>New GLV-12-301 project (phase 3)</Btn>
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, PK_STUDY.id))}>New PKX-07-101 project (phase 1 PK)</Btn>
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'ONK-44-302'))}>New ONK-44-302 project (phase 3 oncology)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'AIR-09-202'))}>New AIR-09-202 project (phase 2 asthma)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'ALV-3-301'))}>New ALV-3-301 project (phase 3 vaccine)</Btn>
           <Btn tone="grey" onClick={() => cdm.current?.click()}>Import a CDM Console study</Btn>
           <input ref={cdm} type="file" accept=".json,application/json" className="hidden" aria-label="CDM Console project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const im = importCdmProject(t); const np = createProject(p.userId, p.classId, p.version); np.study = im.protocol; np.imported = im; np.name = `${im.protocol} (imported) SDTM mapping`; log(np, `Imported ${im.protocol} from the CDM Console: ${Object.keys(im.forms).length} forms`); switchTo(np); setMsg(`Imported ${im.protocol}: ${Object.values(im.forms).reduce((a, r) => a + r.length, 0)} rows in ${Object.keys(im.forms).length} forms. Missions stay on GLV-12-301.`) }); e.target.value = '' }} />
         </div>
