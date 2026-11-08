@@ -76,7 +76,7 @@ export const RULES: Rule[] = [
   { id: 'TRN-047', sev: 'Error', text: 'More than one disposition event for a subject in the same epoch', basis: 'SDTMIG DS: one disposition event per epoch' },
   { id: 'TRN-048', sev: 'Error', text: 'DSDECOD not in the codelist for its DSCAT (NCOMPLT for disposition events, PROTMLST for milestones)', basis: 'CDISC CT: DSDECOD codelist depends on DSCAT' },
   { id: 'TRN-049', sev: 'Error', text: 'SUPP-- or NS--: a qualifier or non-standard variable name that is not a valid SAS V5 name or reuses a standard variable, a label over 40 characters, or a record with no parent record', basis: 'SDTMIG v3.4 supplemental qualifiers; SDTMIG v4.0 draft non-standard variable datasets; SAS V5 transport limits' },
-  { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, object, visit, date/time, link ID, evaluator and time point)', basis: 'FDA validator rules: duplicate records' },
+  { id: 'TRN-050', sev: 'Warning', text: 'Duplicate findings records (same subject, test, object, specimen, location, visit, date/time, link ID, evaluator and time point)', basis: 'FDA validator rules: duplicate records' },
   { id: 'TRN-052', sev: 'Error', text: 'Value longer than 200 characters', basis: 'SAS V5 transport format limit (Study Data Technical Conformance Guide)' },
   { id: 'TRN-053', sev: 'Error', text: '--TESTCD over 8 characters or not starting with a letter, or --TEST over 40 (IETEST over 200)', basis: 'SDTMIG findings; SAS V5 transport limits' },
 ]
@@ -86,6 +86,9 @@ export const isIso8601 = (s: string) => ISO.test(s)
 const isNum = (s: string) => /^-?\d+(\.\d+)?(e-?\d+)?$/i.test(s)
 
 export interface CheckContext { dm?: Built; ta?: Built; tv?: Built; ts?: Built; tu?: Built; set?: RuleSet }
+// Morphology findings (clinical signs, microscopic and macroscopic findings): several findings for
+// one test are told apart by the finding itself.
+const MORPH = new Set(['CL', 'MI', 'MA', 'TF'])
 export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): Finding[] {
   const ctx: CheckContext = dmOrCtx && 'rows' in dmOrCtx ? { dm: dmOrCtx } : (dmOrCtx as CheckContext) ?? {}
   const dm = ctx.dm
@@ -168,7 +171,7 @@ export function check(b: Built, ver: Version, dmOrCtx?: Built | CheckContext): F
   })
   if (has(`${d}TESTCD`) && has(`${d}DTC`)) {
     const seen = new Map<string, number>()
-    b.rows.forEach((r, i) => { if (r[`${d}STAT`] === 'NOT DONE') return; const k = `${r.USUBJID}|${r[`${d}TESTCD`]}|${r.VISITNUM ?? ''}|${r[`${d}DTC`]}|${['OBJ', 'LNKID', 'EVAL', 'EVALID', 'TPTREF', 'TPTNUM'].map((x) => r[`${d}${x}`] ?? '').join('|')}`; if (seen.has(k)) add('TRN-050', `${d}TESTCD`, `${r[`${d}TESTCD`]} for ${r.USUBJID} at ${r[`${d}DTC`]} repeats record ${seen.get(k)! + 1}`, i); else seen.set(k, i) })
+    b.rows.forEach((r, i) => { if (r[`${d}STAT`] === 'NOT DONE') return; const k = `${r.USUBJID}|${r[`${d}TESTCD`]}|${r.VISITNUM ?? ''}|${r[`${d}DTC`]}|${['OBJ', 'SPEC', 'LOC', 'LNKID', 'EVAL', 'EVALID', 'TPTREF', 'TPTNUM', 'DRVFL', ...(MORPH.has(d) ? ['STRESC'] : [])].map((x) => r[`${d}${x}`] ?? '').join('|')}`; if (seen.has(k)) add('TRN-050', `${d}TESTCD`, `${r[`${d}TESTCD`]} for ${r.USUBJID} at ${r[`${d}DTC`]} repeats record ${seen.get(k)! + 1}`, i); else seen.set(k, i) })
   }
   // Oncology: TU, TR, RS and DD against each other.
   if (d === 'TR' && ctx.tu && has('TRLNKID')) {

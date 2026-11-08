@@ -127,7 +127,7 @@ function SpecTab({ all }: { all: Map<string, Built> }) {
     return specRows(s, all.get(d)!, p.version, raw)
   })
   const supp = Object.keys(p.specs).sort().flatMap((d) => (p.specs[d].supp ?? []).map((q) => ({ d, q })))
-  const ns = p.version !== '3.4'
+  const ns = p.version === '4.0d'
   const vlm = Object.keys(p.specs).sort().flatMap((d) => valueLevel(p.specs[d]).map((v) => ({ d, ...v })))
   return (
     <>

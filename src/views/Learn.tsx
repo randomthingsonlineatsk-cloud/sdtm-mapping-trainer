@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../state'
 import { useNav } from '../App'
 import { TOPICS } from '../domain/learn'
-import { DOMAINS, varsOf, domainInfo, DETAIL_DOMAINS, DRAFT_CHANGES, VERSION_LABEL, type Cls } from '../domain/standards'
+import { domainsFor, detailDomains, varsOf, domainInfo, DRAFT_CHANGES, VERSION_LABEL, type Cls } from '../domain/standards'
 import { log } from '../domain/project'
 import { Panel, Pill, Btn, Table, Tabs } from './ui'
 
@@ -34,19 +34,20 @@ const CLS_ORDER: { cls: Cls; what: string }[] = [
 ]
 function StructureMap() {
   const { go } = useNav()
+  const { p } = useStore()
   return (
     <div className="grid md:grid-cols-2 gap-3">
       {CLS_ORDER.map(({ cls, what }) => (
         <Panel key={cls} title={cls} sub={what}>
           <div className="flex flex-wrap gap-1">
-            {DOMAINS.filter((d) => d.cls === cls).map((d) => (
-              <button key={d.code} title={d.name} onClick={() => go('learn', d.code)} className={`rounded border px-1.5 py-0.5 font-mono text-[11px] ${DETAIL_DOMAINS.includes(d.code) ? 'border-lab-fda/60 text-lab-fda' : 'border-lab-line text-lab-text-muted'}`}>{d.code}</button>
+            {domainsFor(p.version).filter((d) => d.cls === cls).map((d) => (
+              <button key={d.code} title={d.name} onClick={() => go('learn', d.code)} className={`rounded border px-1.5 py-0.5 font-mono text-[11px] ${detailDomains(p.version).includes(d.code) ? 'border-lab-fda/60 text-lab-fda' : 'border-lab-line text-lab-text-muted'}`}>{d.code}</button>
             ))}
           </div>
-          <p className="text-[11px] text-lab-text-muted">{DOMAINS.filter((d) => d.cls === cls).map((d) => `${d.code} ${d.name}`).join(' · ')}</p>
+          <p className="text-[11px] text-lab-text-muted">{domainsFor(p.version).filter((d) => d.cls === cls).map((d) => `${d.code} ${d.name}`).join(' · ')}</p>
         </Panel>
       ))}
-      <p className="text-[11px] text-lab-text-muted md:col-span-2">Highlighted domains are mapped in this trainer and have full variable metadata under Domain reference. Domain list as in SDTMIG v3.4.</p>
+      <p className="text-[11px] text-lab-text-muted md:col-span-2">Highlighted domains are mapped in this trainer and have full variable metadata under Domain reference. {p.version === 'send' ? 'SENDIG v3.1.1: the domains this study maps (the guide has more, among them LB, MA, PC, PP, TF, DS and the other trial design datasets).' : 'Domain list as in SDTMIG v3.4.'}</p>
     </div>
   )
 }
@@ -92,12 +93,12 @@ function Topics() {
 function Reference() {
   const { p } = useStore()
   const nav = useNav()
-  const [code, setCode] = useState(nav.arg && domainInfo(nav.arg) ? nav.arg : 'DM')
-  const d = domainInfo(code)!
+  const [code, setCode] = useState(nav.arg && domainInfo(nav.arg, p.version) ? nav.arg : 'DM')
+  const d = domainInfo(code, p.version)!
   const vars = varsOf(code, p.version)
   return (
     <div className="space-y-4">
-      <Panel title={`${d.code} · ${d.name}`} sub={`${d.cls}${d.structure ? ` · ${d.structure}` : ''} · ${VERSION_LABEL[p.version]}`} right={<select aria-label="Domain" className="rounded border border-lab-line bg-lab-panel-strong px-2 py-1 text-xs" value={code} onChange={(e) => setCode(e.target.value)}>{DOMAINS.map((x) => <option key={x.code} value={x.code}>{x.code} · {x.name}</option>)}</select>}>
+      <Panel title={`${d.code} · ${d.name}`} sub={`${d.cls}${d.structure ? ` · ${d.structure}` : ''} · ${VERSION_LABEL[p.version]}`} right={<select aria-label="Domain" className="rounded border border-lab-line bg-lab-panel-strong px-2 py-1 text-xs" value={code} onChange={(e) => setCode(e.target.value)}>{domainsFor(p.version).map((x) => <option key={x.code} value={x.code}>{x.code} · {x.name}</option>)}</select>}>
         {vars.length ? (
           <Table head={['Variable', 'Label', 'Type', 'Role', 'Core', 'Codelist', '']} rows={vars.map((v) => [<span className="font-mono">{v.name}</span>, v.label, v.type, v.role, <Pill tone={v.core === 'Req' ? 'red' : v.core === 'Exp' ? 'amber' : 'grey'}>{v.core}</Pill>, v.ct ?? '', v.draft ? <Pill tone="purple">v4.0 draft</Pill> : ''])} />
         ) : <p className="text-sm text-lab-text-muted">Variable metadata for {d.code} is not bundled; the trainer details the domains it maps (DM, SV, VS, EX, AE, CM, DS, LB, SE, the trial design domains and SUPP--). See the SDTMIG for the rest.</p>}

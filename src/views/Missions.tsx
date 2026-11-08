@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
 import { useNav } from '../App'
-import { MISSIONS, missionsFor, activeRun, bestRun, startMission, finishMission, evaluateMission, LEVEL_TEXT, levelOf } from '../domain/missions'
-import { emptySpec, log, type Level } from '../domain/project'
+import { MISSIONS, missionsFor, activeRun, bestRun, startMission, finishMission, evaluateMission, LEVEL_TEXT, levelOf, specialistProgress, evaluatePortfolio, PORTFOLIO, SEND_ID } from '../domain/missions'
+import { emptySpec, log, packOf, type Level } from '../domain/project'
 import { DEFAULT_SOURCE } from '../domain/reference'
 import { VERSION_LABEL, isRel, dsName } from '../domain/standards'
 import { Panel, Pill, Btn, Table, Stat } from './ui'
@@ -19,7 +19,7 @@ export default function Missions() {
   return (
     <div className="space-y-4">
       <Panel title="Missions" sub="Each mission scores your datasets against the study’s hidden reference mapping, variable by variable, and runs the conformance checks under your project’s rule set.">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-xl"><Stat label="Passed" value={passed} tone="green" /><Stat label="Missions" value={list.length} tone="blue" /><Stat label="Standard" value={p.version === '3.4' ? 'v3.4' : 'v4.0 draft'} /><Stat label="Rule set" value={p.ruleSet} /></div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-xl"><Stat label="Passed" value={passed} tone="green" /><Stat label="Missions" value={list.length} tone="blue" /><Stat label="Standard" value={p.version === '3.4' ? 'v3.4' : p.version === 'send' ? 'SENDIG 3.1.1' : 'v4.0 draft'} /><Stat label="Rule set" value={p.ruleSet} /></div>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Level">
           <span className="text-xs text-lab-text-muted">Level</span>
           {(['guided', 'standard', 'expert'] as Level[]).map((l) => <Btn key={l} tone={(p.missionLevel ?? 'standard') === l ? 'solid' : 'grey'} className="py-0.5" aria-pressed={(p.missionLevel ?? 'standard') === l} onClick={() => act((pp) => { pp.missionLevel = l; log(pp, `Mission level: ${l}`) })}>{l[0].toUpperCase() + l.slice(1)}</Btn>)}
@@ -28,6 +28,7 @@ export default function Missions() {
         <p className="text-xs text-lab-text-muted">Scoring, per domain: for each variable in the reference, the share of records where your value matches, averaged, minus 3 points (6 at expert level) for each kind of Error or Reject finding left and not explained (at most 30, or 60). A domain passes at 70% with no blocking finding (a missing Required variable, a wrong DOMAIN, a duplicate subject or --SEQ, an empty Required value, or anything the rule set rejects). A mission passes when all its domains pass, and its score is their mean. Records are matched to the raw row they came from (trial design tables by their key), so one wrong variable costs credit on that variable only.</p>
       </Panel>
       {list.map((m) => <MissionCard key={m.id} id={m.id} />)}
+      <PortfolioCard />
       <Certificate />
     </div>
   )
@@ -45,7 +46,7 @@ function MissionCard({ id }: { id: string }) {
   const [confirm, setConfirm] = useState(false)
   const start = () => act((pp) => {
     startMission(pp, id)
-    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d) && d !== 'RELREC') pp.specs[d] ??= emptySpec(d, DEFAULT_SOURCE[d] ?? d)
+    if (m.kind === 'map') for (const d of m.domains) if (!isRel(d) && d !== 'RELREC') pp.specs[d] ??= emptySpec(d, packOf(pp)?.refSpec(d, pp.version).source ?? DEFAULT_SOURCE[d] ?? d)
   })
   const open = m.kind === 'design' ? <Btn onClick={() => go('design')}>Open the Trial design tab</Btn>
     : m.kind === 'acrf' ? <Btn onClick={() => go('acrf')}>Open the aCRF</Btn>
@@ -93,13 +94,36 @@ function MissionCard({ id }: { id: string }) {
   )
 }
 
-function Certificate() {
+function useAllProjects() {
   const { p, tick } = useStore()
   const [others, setOthers] = useState<Project[]>([])
+  useEffect(() => { listProjects().then(setOthers).catch(() => setOthers([])) }, [tick])
+  return [...others.filter((x) => x.id !== p.id), p]
+}
+
+// S40, the specialist capstone: scored across every project in this browser.
+function PortfolioCard() {
+  const { p, act } = useStore()
+  const all = useAllProjects()
+  const m = MISSIONS.find((x) => x.id === PORTFOLIO)!
+  const prog = specialistProgress(all, p.userId)
+  const now = evaluatePortfolio(all, p.userId)
+  const best = all.filter((x) => x.userId === p.userId).flatMap((x) => x.missions).filter((r) => r.id === PORTFOLIO && r.score !== undefined).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
+  return (
+    <Panel title={`${m.id} · ${m.title}`} sub={<>Across your projects · Pass: {m.pass}</>} right={best ? <Pill tone={best.passed ? 'green' : 'red'}>best {best.score}%</Pill> : null}>
+      <p className="text-sm">{m.brief}</p>
+      <Table head={['Study', 'Missions (best passing score, standard or expert)', 'Complete', 'Mean']} rows={prog.map((x) => [<span className="font-mono">{x.study}{x.study === SEND_ID ? ' (SEND)' : ''}</span>, x.missions.map((id) => `${id} ${x.best[id] || '–'}`).join(' · '), x.complete ? <Pill tone="green">yes</Pill> : <Pill tone="grey">no</Pill>, `${x.mean}%`])} />
+      <p className="text-xs text-lab-text-muted">If you recorded it now: <b>{now.score}%</b> ({now.passed ? 'passes' : 'not yet'}).</p>
+      <Btn tone="solid" onClick={() => act((pp) => { startMission(pp, PORTFOLIO); finishMission(pp, PORTFOLIO, all) })}>Record the capstone in this project</Btn>
+    </Panel>
+  )
+}
+
+function Certificate() {
+  const { p } = useStore()
+  const all = useAllProjects()
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
-  useEffect(() => { listProjects().then(setOthers).catch(() => setOthers([])) }, [tick])
-  const all = [...others.filter((x) => x.id !== p.id), p]
   const c = certificate(all, p.userId, name || 'Learner')
   const pdf = async () => {
     setBusy(true)
@@ -113,13 +137,15 @@ function Certificate() {
   return (
     <Panel title="Certificate" sub={`Pass ${CERT_NEEDED} of the ${c.total} missions at 70% or more, on any of the studies, including the capstone ${CAPSTONE}, in any of your projects in this browser under user ID ${p.userId}. The certificate shows a verification code made from your name, your scores and levels, and your user ID.`}>
       <p className="text-sm">{c.passed.length} of {c.total} missions passed{c.capstone ? ', capstone included' : `; the capstone ${CAPSTONE} is not passed yet`}.</p>
+      <p className="text-xs text-lab-text-muted">Endorsements, added to the certificate when earned: Nonclinical data (SEND) for every mission of ZEN-T-0428; Therapeutic areas for every mission of three or more clinical specialist studies; Specialist capstone for {PORTFOLIO}. {c.endorsements.length ? <>Earned: <b className="text-lab-text">{c.endorsements.join('; ')}</b>.</> : 'None earned yet.'}</p>
       {c.eligible ? (
         <div className="space-y-2">
           <input aria-label="Name on the certificate" className="w-full max-w-sm rounded-md border border-lab-line bg-lab-panel-strong px-2 py-1.5 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name as it should appear" />
           {name.trim() && <div id="certificate" className="rounded-lg border-2 border-lab-fda/70 p-6 text-center space-y-2 bg-lab-panel-strong/50">
             <p className="font-mono text-xs uppercase text-lab-text-muted">Certificate of completion · training</p>
             <p className="text-xl">{name.trim()}</p>
-            <p className="text-sm">has completed the SDTM Mapping Trainer course on {c.studies.length > 1 ? `the fictional studies ${c.studies.join(' and ')}` : `the fictional study ${c.studies[0]}`}, passing {c.passed.length} of {c.total} scored missions, including the capstone submission package:</p>
+            <p className="text-sm">has completed the SDTM Mapping Trainer course on {c.studies.length > 1 ? `the fictional studies ${c.studies.slice(0, -1).join(', ')} and ${c.studies.at(-1)}` : `the fictional study ${c.studies[0]}`}, passing {c.passed.length} of {c.total} scored missions, including the capstone submission package:</p>
+            {c.endorsements.length > 0 && <p className="text-sm font-semibold">Endorsements: {c.endorsements.join('; ')}</p>}
             <p className="text-xs text-lab-text-muted">{c.passed.map((r) => `${r.id} ${r.title} (${r.score}%, ${r.level})`).join(' · ')}</p>
             <p className="font-mono text-sm">Verification code {c.code}</p>
             <p className="text-[11px] text-lab-text-muted">Issued {new Date().toISOString().slice(0, 10)}. A practice certificate from a training simulator; not an accredited qualification. Built by Khan Gulrez Shagufa Fazal Ahmed.</p>

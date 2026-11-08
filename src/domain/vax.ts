@@ -251,7 +251,7 @@ const VAX_REF: Record<string, Ref> = {
 export const VAX_DOMAINS = Object.keys(VAX_REF)
 export function vaxReferenceSpec(domain: string, ver: Version): DomainSpec {
   const r = VAX_REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain} in ${VAX_STUDY.id}`)
-  const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name) || (ver !== '3.4' && m.name === 'SUBJID')) && r.rules[m.name]).map((m) => m.name)
+  const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name) || (ver === '4.0d' && m.name === 'SUBJID')) && r.rules[m.name]).map((m) => m.name)
   return { domain, source: r.source ?? domain, vars, rules: Object.fromEntries(vars.map((v) => [v, r.rules[v]])), sort: SORT[domain] ?? ['USUBJID'], ...(r.filter ? { filter: r.filter } : {}), ...(r.transpose ? { transpose: r.transpose } : {}) }
 }
 let dmCache: Map<string, OutRow> | null = null

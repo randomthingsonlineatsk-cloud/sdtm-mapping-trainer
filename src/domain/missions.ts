@@ -18,7 +18,7 @@ import { STUDY } from './study'
 import { rBuilt, rekey } from './rlib'
 // Natural keys that match an R program's rows to the reference's.
 export const R_KEYS: Record<string, string[]> = { CM: ['USUBJID', 'CMSPID'] }
-import { TRIAL_DESIGN } from './standards'
+import { TRIAL_DESIGN, VERSION_LABEL } from './standards'
 import { canExplain, explanationOf, issueKey, findingKey, packageFindings, toIssues, statusOf } from './validation'
 import { planPackage } from './package'
 import { currentVersion, mismatches } from './plan'
@@ -28,10 +28,12 @@ import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } f
 import type { MissionRun, Project } from './project'
 import { log } from './project'
 
-export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package' | 'capstone' | 'r'
+export type MissionKind = 'map' | 'design' | 'fix' | 'qc' | 'rerun' | 'spec' | 'relrec' | 'custom' | 'acrf' | 'package' | 'capstone' | 'r' | 'portfolio'
 export interface MissionDef { id: string; domains: string[]; kind: MissionKind; phase: number; title: string; brief: string; watch: string[]; pass: string; study?: string }
 // The missions of the project's study (GLV-12-301 unless a mission names another).
-export const missionsFor = (p: Project) => MISSIONS.filter((m) => (m.study ?? STUDY.id) === studyIdOf(p))
+export const missionsFor = (p: Project) => MISSIONS.filter((m) => m.kind !== 'portfolio' && (m.study ?? STUDY.id) === studyIdOf(p))
+// The specialist capstone S40 is scored across all of a learner's projects, whatever the open one.
+export const PORTFOLIO = 'S40'
 const PASS = '70% or more in every domain, with no Required-variable, DOMAIN, duplicate-subject, --SEQ or Reject findings'
 export const MISSIONS: MissionDef[] = [
   { id: 'S1', domains: ['DM', 'SUPPDM'], kind: 'map', phase: 1, title: 'Map DM end to end, with SUPPDM', pass: PASS,
@@ -115,6 +117,36 @@ export const MISSIONS: MissionDef[] = [
   { id: 'S30', study: 'ALV-3-301', domains: ['DM', 'EX', 'VS', 'IS'], kind: 'map', phase: 5, title: 'Vaccine: DM, EX, diary temperatures and antibody titres', pass: PASS,
     brief: 'Map DM (the participant with fever on Day 1 was never vaccinated), EX (two 0.5 mL intramuscular doses with the arm used), the diary’s daily temperatures to VS, and the serology laboratory’s titres to IS: the reciprocal titre as the standard result, results below the lowest dilution kept as reported, and the sample with too little serum.',
     watch: ['A placebo injection’s dose is its volume: EXDOSE 0.5 mL', 'EXLAT from the injection site, and EXLOC DELTOID MUSCLE', 'VS: one TEMP record per diary day, timed from the dose', '1:640 is reported as titre 640; <1:10 stays <10 with ISSTRESN null', 'QNS: ISSTAT NOT DONE, ISREASND QUANTITY NOT SUFFICIENT', 'ISLOBXFL on the Day 1 sample, taken before the dose'] },
+  { id: 'S31', study: 'ZEN-T-0428', domains: ['DM', 'TX', 'EX'], kind: 'map', phase: 6, title: 'SEND: animals, trial sets and dosing', pass: PASS,
+    brief: 'ZEN-T-0428 is a 4-week rat toxicity study, submitted in SEND (SENDIG v3.1.1). Map the animal list to DM (species, strain, the set each animal belongs to), the protocol’s group table to TX (one record per parameter per set) and the dosing records to EX (one constant dosing interval per animal).',
+    watch: ['SETCD is Required in SEND DM: every animal belongs to a set', 'Recovery animals are their own sets and arms (1R, 4R) but share the group code (SPGRPCD)', 'TX has no USUBJID: TXSEQ is numbered across the whole dataset', 'TCNTRL only for the control sets', 'The control group’s EXTRT is the test article with EXDOSE 0; the vehicle goes in EXTRTV', 'The animal euthanised early stops dosing on Day 17'] },
+  { id: 'S32', study: 'ZEN-T-0428', domains: ['BW', 'CL'], kind: 'map', phase: 6, title: 'SEND: body weights and clinical observations', pass: PASS,
+    brief: 'Map the weighings to BW (scheduled, terminal and unscheduled) and the detailed clinical observations to CL, including the normal ones: in SEND, an animal examined and found normal has a record.',
+    watch: ['The fasted terminal weight is TERMBW with BWFAST Y', 'A weighing not done keeps its record: BWSTAT NOT DONE and the reason', 'A weight the study director excluded is kept, flagged with BWEXCLFL and BWREASEX', 'Unscheduled weighings and examinations: --USCHFL Y and no nominal day', 'NORMAL in CLSTRESC for a normal examination'] },
+  { id: 'S33', study: 'ZEN-T-0428', domains: ['OM', 'MI'], kind: 'map', phase: 6, title: 'SEND: organ weights and microscopic findings', pass: PASS,
+    brief: 'Map the necropsy organ weights to OM (the weight and the facility’s ratios to body and brain weight) and the pathologist’s findings to MI (one record per finding per tissue, the finding’s CT term and the severity grade).',
+    watch: ['Three tests per organ: WEIGHT, OWBW and OWBR; no OWBR for the brain', 'OMSPEC and MISPEC are specimen CT terms in upper case', 'No visible lesions is MISTRESC UNREMARKABLE, and it is a record', 'MIORRES keeps the pathologist’s words with the modifier', 'A tissue not examined: MISTAT NOT DONE with the reason', 'No organ weights for the animal that died early, but full histopathology'] },
+  { id: 'S34', study: 'INS-22-305', domains: ['DM', 'EX'], kind: 'map', phase: 6, title: 'Diabetes: DM and a titrated insulin dose in EX', pass: PASS,
+    brief: 'INS-22-305 starts insulin-naive people with type 2 diabetes on a basal insulin and titrates it every week. Map DM and the dose log to EX: one record per period on a constant dose, in units, with the reason each dose changed.',
+    watch: ['One EX record per constant-dosing interval, not one per day', 'EXDOSU U (units) and EXDOSFRM INJECTION, SOLUTION', 'EXADJ says why the dose changed: TITRATION or HYPOGLYCAEMIA; null for the starting dose', 'The comparator keeps its generic name: INSULIN GLARGINE', 'RFENDTC is the last stop date in the dose log'] },
+  { id: 'S35', study: 'INS-22-305', domains: ['CE', 'LB', 'RELREC'], kind: 'map', phase: 6, title: 'Diabetes: hypoglycaemia in CE, meter glucose in LB, related', pass: PASS,
+    brief: 'Map the participants’ meter readings to LB (capillary blood, the meter’s own date and time, no visit) and each reported hypoglycaemic episode to CE with the protocol’s level, then relate each episode to the reading taken during it on the Relationships tab. CE and LB must be mapped first.',
+    watch: ['Level 3 is about needing help, whatever the glucose', 'An episode at 70 mg/dL or above is kept, without a level', 'LBSTRESN in mmol/L: × 0.0555, 1 decimal', 'No reference ranges for meter readings', 'CEGRPID and LBGRPID carry the episode number: the RELREC is by group', 'An episode with no reading has nothing to relate'] },
+  { id: 'S36', study: 'CRD-31-401', domains: ['DM', 'EG'], kind: 'map', phase: 6, title: 'Cardiovascular: DM with a death, triplicate ECGs in EG', pass: PASS,
+    brief: 'Map DM (including the participant who died) and the core laboratory’s ECG file to EG: one record per test per tracing, the triplicates grouped, and a derived mean record per triplicate for each interval, the value the analyses use.',
+    watch: ['Use the CDISC test codes: EGHRMN, PRAG, QRSAG, QTAG, QTCFAG, INTP', 'EGGRPID groups a triplicate, EGSPID numbers the tracing', 'Derived means: EGDRVFL Y, EGORRES null, the mean in EGSTRESC/EGSTRESN', 'An unreadable tracing stays NOT DONE; the mean uses the other two', 'EGLOBXFL on the derived pre-dose means of Day 1 only', 'Day 1 pre-dose ECGs come before the first dose: EPOCH SCREENING'] },
+  { id: 'S37', study: 'CRD-31-401', domains: ['CE', 'FA'], kind: 'map', phase: 6, title: 'Cardiovascular: suspected events and the committee’s decisions', pass: PASS,
+    brief: 'Map the sites’ suspected cardiovascular events to CE and the clinical events committee’s adjudication file to FA: findings about each event, by the committee.',
+    watch: ['CE holds what the investigator reported; the committee’s category goes to FA, not over CETERM', 'FAOBJ is the CETERM the decision is about; FALNKID the event ID', 'FAEVAL ADJUDICATION COMMITTEE', 'Sponsor-defined test codes must be in define.xml', 'An event not yet adjudicated has no FA records'] },
+  { id: 'S38', study: 'PNR-18-203', domains: ['DM', 'QS'], kind: 'map', phase: 6, title: 'Pain: DM and the daily pain diary in QS', pass: PASS,
+    brief: 'Map DM and the electronic diary’s daily ratings to QS: two items per entry, the recall period in QSEVLINT, the entry’s date and time, and the baseline flag from the screening diary week.',
+    watch: ['QSEVLINT -P1D: each rating covers the last 24 hours', 'No VISITNUM for diary entries', 'A missed day has no record: do not create one', 'No weekly means in SDTM', 'Screen failures’ diary entries are submitted too'] },
+  { id: 'S39', study: 'PNR-18-203', domains: ['EX', 'CM'], kind: 'map', phase: 6, title: 'Pain: study drug in EX, rescue medicine in CM', pass: PASS,
+    brief: 'Map the bottles dispensed to EX and the diary’s rescue paracetamol to CM: one record per day any was taken, with the total daily dose.',
+    watch: ['CMCAT RESCUE MEDICATION', 'CMDOSE is per tablet; CMDOSTOT the day’s total', 'No CM record for a day with 0 tablets', 'A day above the 4 g limit is data, kept as reported', 'Placebo: EXTRT PLACEBO with EXDOSE 0'] },
+  { id: 'S40', domains: [], kind: 'portfolio', phase: 6, title: 'Capstone 2: the specialist portfolio', pass: '70% or more, with every mission of the SEND study and of two clinical specialist studies passed at standard or expert level',
+    brief: 'The second capstone spans studies, as a programmer moving between projects does. Pass every mission of the nonclinical SEND study ZEN-T-0428 and of at least two of the clinical specialist studies (PKX-07-101, ONK-44-302, AIR-09-202, ALV-3-301, INS-22-305, CRD-31-401, PNR-18-203), each in its own project in this browser, at standard or expert level. The score is the mean of the SEND study’s and your two best studies’ mission scores. Record it from any project.',
+    watch: ['Guided runs do not count towards it', 'Each study keeps its own conventions: read its Study tab before mapping', 'SEND is a different implementation guide: DM and EX have other variables', 'All of a study’s missions must pass, not just one'] },
   { id: 'S19', study: 'PKX-07-101', domains: ['DM', 'EX'], kind: 'map', phase: 3, title: 'PK study: DM and EX with exact dose times', pass: PASS,
     brief: 'PKX-07-101 is a first-in-human study: every concentration is timed from a dose, so the dose times matter. Map DM (reference dates to the minute, arms from the IRT, screen failures) and EX (one record per dose, unblinded from the IRT kit arm, with the clock time from the dosing log).',
     watch: ['RFSTDTC and RFXSTDTC carry the time of the first dose; RFENDTC the last dose', 'Part A doses once (EXDOSFRQ ONCE), Part B daily for 7 days (QD)', 'Placebo: EXTRT PLACEBO, EXDOSE 0', 'The dosing log time is 24-hour HH:MM'] },
@@ -167,15 +199,16 @@ export function startMission(p: Project, id: string): MissionRun {
   if (def.kind === 'spec') for (const d of def.domains) { delete p.specs[d]; if (p.plan) delete p.plan[d] }
   if (def.kind === 'qc') { p.specs.VS = brokenSpec('VS', p.version); if (p.qc) delete p.qc.VS; if (p.qcLog) delete p.qcLog.VS; if (p.qcSignoff) delete p.qcSignoff.VS }
   p.missions.push(run)
-  log(p, `Mission ${id} started (${p.version === '3.4' ? 'SDTMIG v3.4' : 'SDTMIG v4.0 draft'}, ${p.ruleSet} rules)`)
+  log(p, `Mission ${id} started (${VERSION_LABEL[p.version]}, ${p.ruleSet} rules)`)
   return run
 }
 export const activeRun = (p: Project, id: string) => [...p.missions].reverse().find((m) => m.id === id && m.score === undefined)
 export const bestRun = (p: Project, id: string) => p.missions.filter((m) => m.id === id && m.score !== undefined).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]
 
 export interface DomainResult { domain: string; score: number; passed: boolean; comparison: Comparison; findings: Finding[]; counted?: number }
-export function evaluateMission(p: Project, id: string): { score: number; passed: boolean; domains: DomainResult[]; detail: string[] } {
+export function evaluateMission(p: Project, id: string, projects: Project[] = [p]): { score: number; passed: boolean; domains: DomainResult[]; detail: string[] } {
   const def = MISSIONS.find((m) => m.id === id)!
+  if (def.kind === 'portfolio') return evaluatePortfolio(projects.some((x) => x.id === p.id) ? projects : [...projects, p], p.userId)
   if (p.imported) throw new Error('Missions run on the trainer’s studies. Open or start a GLV-12-301 or PKX-07-101 project.')
   if ((def.study ?? STUDY.id) !== studyIdOf(p)) throw new Error(`Mission ${id} runs on ${def.study ?? STUDY.id}: open a project on that study.`)
   const pack = packOf(p)
@@ -296,9 +329,9 @@ export const LEVEL_TEXT: Record<Level, string> = {
 }
 export const levelOf = (p: Project, id: string): Level => activeRun(p, id)?.level ?? p.missionLevel ?? 'standard'
 
-export function finishMission(p: Project, id: string) {
+export function finishMission(p: Project, id: string, projects: Project[] = [p]) {
   const run = activeRun(p, id) ?? startMission(p, id)
-  const r = evaluateMission(p, id)
+  const r = evaluateMission(p, id, projects)
   Object.assign(run, {
     endedUtc: new Date().toISOString(), score: r.score, passed: r.passed, detail: [...r.detail, `Level: ${run.level ?? 'standard'}`], ruleSet: p.ruleSet,
     perVar: r.domains.flatMap((d) => d.comparison.perVar.map((x) => ({ ...x, v: r.domains.length > 1 ? `${d.domain}.${x.v}` : x.v, credit: Math.round(x.credit * 1000) / 1000 }))),
@@ -417,4 +450,32 @@ function evaluatePackage(p: Project, data: ReturnType<typeof studyData>) {
   ]
   const comparison = { perVar, matched: legit.length, refRows: need.size, learnerRows: issues.length, extra: wrong.length }
   return { score, passed, domains: [{ domain: 'Package', score, passed, comparison, findings: [] }], detail }
+}
+
+// S40: every mission of the SEND study and of two clinical specialist studies, passed at standard or
+// expert level in this learner's projects; scored as the mean of those three studies' best scores.
+export const SEND_ID = 'ZEN-T-0428'
+export interface StudyProgress { study: string; missions: string[]; best: Record<string, number>; complete: boolean; mean: number }
+export function specialistProgress(projects: Project[], userId: string): StudyProgress[] {
+  const runs = projects.filter((x) => x.userId === userId && !x.imported).flatMap((x) => x.missions.map((r) => ({ ...r, study: x.study })))
+  const studies = [...new Set(MISSIONS.filter((m) => m.study).map((m) => m.study!))]
+  return studies.map((study) => {
+    const ms = MISSIONS.filter((m) => m.study === study).map((m) => m.id)
+    const best = Object.fromEntries(ms.map((id) => [id, Math.max(0, ...runs.filter((r) => r.id === id && r.study === study && r.passed && (r.level ?? 'standard') !== 'guided').map((r) => r.score ?? 0))]))
+    const complete = ms.every((id) => best[id] > 0)
+    return { study, missions: ms, best, complete, mean: Math.round(ms.reduce((a, id) => a + best[id], 0) / ms.length) }
+  })
+}
+export function evaluatePortfolio(projects: Project[], userId: string): { score: number; passed: boolean; domains: DomainResult[]; detail: string[] } {
+  const prog = specialistProgress(projects, userId)
+  const send = prog.find((x) => x.study === SEND_ID)!
+  const clinical = prog.filter((x) => x.study !== SEND_ID).sort((a, b) => Number(b.complete) - Number(a.complete) || b.mean - a.mean).slice(0, 2)
+  const counted = [send, ...clinical]
+  const score = Math.round(counted.reduce((a, x) => a + x.mean, 0) / 3)
+  const ok = counted.every((x) => x.complete)
+  return { score, passed: ok && score >= 70, domains: [], detail: [
+    ...counted.map((x) => `${x.study}: ${x.complete ? 'every mission passed' : 'not complete'} · mean ${x.mean}% (${x.missions.map((id) => `${id} ${x.best[id] || '–'}`).join(', ')})`),
+    `Other specialist studies complete: ${prog.filter((x) => x.complete && !counted.includes(x)).map((x) => x.study).join(', ') || 'none'}`,
+    'Runs at guided level do not count; each study’s missions count in any of your projects on that study.',
+  ] }
 }

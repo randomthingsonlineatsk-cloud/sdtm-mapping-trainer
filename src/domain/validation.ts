@@ -83,7 +83,7 @@ const row = (xs: unknown[]) => xs.map(q).join(',')
 // explanation that goes into the reviewer's guide.
 export function reportCsv(p: Project, issues: Issue[], run: ValidationRun): string {
   const head = ['Study', 'Run (UTC)', 'Rule set', 'Transfer', 'SDTMIG', 'Dataset', 'Check', 'Severity', 'Variable', 'Records', 'Subjects', 'Check description', 'First message', 'Status', 'Explanation', 'Explained by', 'Explained (UTC)']
-  return [row(head), ...issues.map((i) => { const e = explanationOf(p, i.key); return row([p.study, run.utc, run.ruleSet, run.transfer, run.version === '3.4' ? '3.4' : '4.0 draft', i.dataset, i.rule, i.sev, i.variable, i.count, i.subjects, i.check, i.message, statusOf(i, p), e?.text ?? '', e?.by ?? '', e?.utc ?? '']) })].join('\r\n') + '\r\n'
+  return [row(head), ...issues.map((i) => { const e = explanationOf(p, i.key); return row([p.study, run.utc, run.ruleSet, run.transfer, run.version === '3.4' ? '3.4' : run.version === 'send' ? 'SENDIG 3.1.1' : '4.0 draft', i.dataset, i.rule, i.sev, i.variable, i.count, i.subjects, i.check, i.message, statusOf(i, p), e?.text ?? '', e?.by ?? '', e?.utc ?? '']) })].join('\r\n') + '\r\n'
 }
 // The details: one line per finding, with the record it was raised on.
 export function detailsCsv(issues: Issue[]): string {

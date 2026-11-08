@@ -21,6 +21,7 @@ whose studies can be imported.
   SUBJID in every general-class domain, --BLFL retired in favour of --LOBXFL, CRACE and
   CETHNIC in DM, and NS-- datasets in place of SUPP--. It will be updated when CDISC publishes
   the final standard.
+- **SENDIG v3.1.1** for the nonclinical study ZEN-T-0428 (DM, EX, TX, BW, CL, OM, MI).
 - **CDISC Controlled Terminology**: the codelists the study needs, bundled and version-stamped,
   or the full quarterly SDTM terminology file from NCI EVS, loaded in the browser.
 
@@ -248,9 +249,36 @@ rules; no vendor rule text or tool is copied.
   results below the lowest dilution, a sample with too little serum), and two intramuscular
   doses to EX. A lesson on the respiratory and vaccine therapeutic area guides goes with them.
 
+## Phase 6
+
+- **ZEN-T-0428, a nonclinical study in SEND (missions S31 to S33):** a 4-week oral gavage rat
+  toxicity study with a 2-week recovery period, mapped to SENDIG v3.1.1 instead of the SDTMIG.
+  A project on it switches the standard to SEND, with SEND's own DM and EX, trial sets in TX,
+  body weights (BW), clinical observations (CL), organ measurements (OM) and microscopic
+  findings (MI), and the SEND terminology the study needs. The control group gets the test
+  article at 0 mg/kg with the vehicle in EXTRTV; normal examinations and unremarkable tissues
+  are records; an animal euthanised early, a missed weighing, an excluded weight and a missing
+  tissue are planted.
+- **INS-22-305, diabetes (S34, S35):** a basal insulin titrated weekly (EX as constant-dosing
+  intervals with EXADJ), meter glucose in LB, hypoglycaemic episodes in CE with the
+  International Hypoglycaemia Study Group levels, related to the meter reading by RELREC.
+- **CRD-31-401, cardiovascular (S36, S37):** triplicate ECGs from a central core laboratory in
+  EG with a derived mean per triplicate, an unreadable tracing and a prolonged QTcF; suspected
+  events in CE and the clinical events committee's decisions as findings about them in FA; a
+  cardiovascular death in DM.
+- **PNR-18-203, pain (S38, S39):** a daily pain diary in QS with the recall period in QSEVLINT
+  and missed days left empty, rescue paracetamol in CM with the daily total, study drug in EX.
+- **Capstone 2, S40:** scored across a learner's projects: every mission of the SEND study and
+  of two clinical specialist studies, at standard or expert level.
+- **Certificate endorsements:** Nonclinical data (SEND), Therapeutic areas (three or more
+  specialist studies completed) and Specialist capstone, printed on the certificate.
+- **Lessons:** the SEND lesson points to the practice study; a new lesson covers the diabetes,
+  cardiovascular and pain studies.
+
 ## Coming next
 
-- Further therapeutic areas and a SEND practice study, on request.
+- **SDTMIG v4.0 final:** the v4.0 mode follows the public-review draft; it will be updated when
+  CDISC publishes the final standard.
 
 ## Run it
 

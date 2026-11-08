@@ -341,7 +341,7 @@ export const ONK_RELREC: RelDef[] = [
 ]
 export function onkReferenceSpec(domain: string, ver: Version): DomainSpec {
   const r = ONK_REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain} in ${ONK_STUDY.id}`)
-  const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name) || (ver !== '3.4' && m.name === 'SUBJID')) && r.rules[m.name]).map((m) => m.name)
+  const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name) || (ver === '4.0d' && m.name === 'SUBJID')) && r.rules[m.name]).map((m) => m.name)
   const pick = (rules: Record<string, Rule>) => Object.fromEntries(vars.filter((v) => rules[v]).map((v) => [v, rules[v]]))
   return {
     domain, source: r.source ?? domain, vars, rules: pick(r.rules), sort: SORT[domain] ?? ['USUBJID'],

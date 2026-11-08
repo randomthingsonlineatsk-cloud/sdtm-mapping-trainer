@@ -9,16 +9,26 @@ import { isPk } from '../domain/project'
 import { AIR_STUDY, AIR_VENDOR, airRaw } from '../domain/air'
 import { VAX_STUDY, VAX_DIARY, VAX_LAB, vaxRaw } from '../domain/vax'
 import { PACKS } from '../domain/studies'
+import { SEND_STUDY, SEND_SETS, SEND_FACILITY, sendRaw } from '../domain/send'
+import { INS_STUDY, insRaw } from '../domain/ins'
+import { CVO_STUDY, CVO_CORELAB, cvoRaw } from '../domain/cvo'
+import { PAIN_STUDY, PAIN_DIARY, painRaw } from '../domain/pain'
 import { ONK_STUDY, ONK_ARMS, ONK_SITES, ONK_VISITS, ONK_FACTS, ONK_CONVENTIONS, ONK_IRC, ONK_CUT, onkRaw } from '../domain/onc'
 
 // The asthma and vaccine studies: the same layout from the pack, with each study's own figures.
 function PackStudy({ id }: { id: string }) {
   const { p } = useStore()
   const pack = PACKS[id]
-  const air = id === AIR_STUDY.id
-  const { forms, subjects } = air ? airRaw() : vaxRaw()
+  const air = id === AIR_STUDY.id, send = id === SEND_STUDY.id
+  const raw = { [AIR_STUDY.id]: airRaw, [SEND_STUDY.id]: sendRaw, [VAX_STUDY.id]: vaxRaw, [INS_STUDY.id]: insRaw, [CVO_STUDY.id]: cvoRaw, [PAIN_STUDY.id]: painRaw }[id]!
+  const { forms, subjects } = raw()
   const rand = subjects.filter((s) => s.arm)
-  const stats: [string, number, ('blue' | 'red')?][] = air
+  const stats: [string, number, ('blue' | 'red')?][] = send
+    ? [['Animals', subjects.length, 'blue'], ['Trial sets', forms.SETS.length], ['Weighings', forms.BWT.length], ['Organs weighed', forms.OWT.length], ['Tissue findings', forms.HISTO.length]]
+    : id === INS_STUDY.id ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['Dose periods', forms.DOSE.length], ['Meter readings', forms.SMBG.length], ['Hypoglycaemic episodes', forms.HYPO.length, 'red']]
+    : id === CVO_STUDY.id ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['ECG tracings', forms.ECG.length], ['Suspected events', forms.CVEV.length], ['Adjudicated', forms.CEC.length]]
+    : id === PAIN_STUDY.id ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['Diary entries', forms.DIARY.length], ['Bottles', forms.DISP.length]]
+    : air
     ? [['Screened', subjects.length], ['Randomised', rand.length, 'blue'], ['Spirometry sessions', forms.SPI.filter((r) => r.TRIAL === 'BEST').length], ['Questionnaires', forms.ASD.length]]
     : [['Consented', subjects.length], ['Vaccinated', rand.length, 'blue'], ['Doses', forms.VAX.length], ['Diary rows', forms.DIARY.length], ['Serum samples', forms.IMM.length]]
   return (
@@ -26,13 +36,15 @@ function PackStudy({ id }: { id: string }) {
       <Panel title={pack.title} sub={`Protocol ${pack.id} · ${pack.sponsor} · ${pack.phase} · ${pack.indication}`} right={<Pill tone="blue">Fictional</Pill>}>
         <p className="text-sm">{pack.design}.</p>
         <div className={`grid grid-cols-2 ${stats.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-5"} gap-2`}>{stats.map(([l, v, t]) => <Stat key={l} label={l} value={v} tone={t} />)}</div>
-        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {pack.sites.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. {air ? `Spirometry: ${AIR_VENDOR}.` : `E-diary: ${VAX_DIARY}. Serology: ${VAX_LAB}.`}</p>
+        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {pack.sites.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. {send ? `Test facility: ${SEND_FACILITY}.` : id === CVO_STUDY.id ? `ECGs: ${CVO_CORELAB}.` : id === PAIN_STUDY.id ? `Diary: ${PAIN_DIARY}.` : id === INS_STUDY.id ? 'Meter readings downloaded at each visit.' : air ? `Spirometry: ${AIR_VENDOR}.` : `E-diary: ${VAX_DIARY}. Serology: ${VAX_LAB}.`}</p>
       </Panel>
       <div className="grid lg:grid-cols-2 gap-4">
-        <Panel title="Arms" sub="Planned arms, as they appear in DM."><Table head={['ARMCD', 'ARM']} rows={pack.arms.map((a) => [<span className="font-mono">{a.code}</span>, a.name])} /></Panel>
+        {send
+          ? <Panel title="Trial sets" sub="Each set is a group of animals treated and scheduled alike; recovery animals are their own sets."><Table head={['SETCD', 'Set', 'Group', 'Dose (mg/kg/day)', 'Males', 'Females']} rows={SEND_SETS.map((x) => [<span className="font-mono">{x.setcd}</span>, x.set, x.spgrpcd, x.dose, x.m, x.f])} /></Panel>
+          : <Panel title="Arms" sub="Planned arms, as they appear in DM."><Table head={['ARMCD', 'ARM']} rows={pack.arms.map((a) => [<span className="font-mono">{a.code}</span>, a.name])} /></Panel>}
         <Panel title="Raw sources" sub="What each form or transfer holds."><Table head={['Form', 'Source', 'What it holds']} rows={Object.entries(pack.formInfo).map(([k, f]) => [<span className="font-mono">{k}</span>, f.source, f.note])} /></Panel>
       </div>
-      <Panel title="Schedule (visits)"><Table head={['Visit (raw)', 'VISITNUM', 'VISIT', 'Planned day']} rows={pack.visits.map((v) => [v.raw, v.num, <span className="font-mono">{v.name}</span>, v.day])} /></Panel>
+      {pack.visits.length > 0 && <Panel title="Schedule (visits)"><Table head={['Visit (raw)', 'VISITNUM', 'VISIT', 'Planned day']} rows={pack.visits.map((v) => [v.raw, v.num, <span className="font-mono">{v.name}</span>, v.day])} /></Panel>}
       <Panel title="Protocol facts"><Table head={['Item', 'Protocol']} rows={pack.facts.map((f) => [<span className="whitespace-nowrap">{f.what}</span>, f.value])} /></Panel>
       <Panel title="SDTM conventions for this study" sub="The sponsor’s rules for what the SDTMIG leaves to the sponsor. The reference mappings that score the missions follow them exactly.">
         <Table head={['Topic', 'Convention']} rows={pack.conventions.map((c) => [<span className="font-mono whitespace-nowrap">{c.topic}</span>, c.rule])} />
@@ -116,7 +128,7 @@ export default function StudyView() {
   if (p.imported) return <Imported />
   if (isPk(p)) return <PkStudy />
   if (p.study === ONK_STUDY.id) return <OnkStudy />
-  if (p.study === AIR_STUDY.id || p.study === VAX_STUDY.id) return <PackStudy id={p.study} />
+  if ([AIR_STUDY.id, VAX_STUDY.id, SEND_STUDY.id, INS_STUDY.id, CVO_STUDY.id, PAIN_STUDY.id].includes(p.study)) return <PackStudy id={p.study} />
   const subs = raw().subjects
   return (
     <div className="space-y-4">
