@@ -32,6 +32,7 @@ export interface Project {
   version: Version
   study: string // GLV-12-301, or the protocol of an imported CDM Console study
   imported?: ImportedStudy
+  cdm?: { source: string; importedUtc: string; exportedUtc: string; lock: string; forms: Record<string, Row[]> } // HRP-301: the learner's own locked database from the CDM Console
   specs: Record<string, DomainSpec>
   design: Record<string, DesignRow[]> // TA, TE, TV, TI, TS as tables
   ruleSet: RuleSet
@@ -85,7 +86,7 @@ export const refSpecFor = (p: Project, domain: string): DomainSpec => packOf(p)?
 export const refDomainsFor = (p: Project): string[] => (p.imported ? [] : packOf(p)?.domains ?? REF_DOMAINS)
 
 export function dataFor(p: Project): StudyData {
-  const pack = packOf(p); if (pack) return pack.data()
+  const pack = packOf(p); if (pack) return p.cdm && pack.dataFrom ? pack.dataFrom(p.cdm.forms) : pack.data()
   if (!p.imported) return studyData(p.transfer ?? 1)
   const base: StudyData = { forms: p.imported.forms, studyId: p.imported.protocol, visits: p.imported.visits }
   const dmSpec = p.specs.DM

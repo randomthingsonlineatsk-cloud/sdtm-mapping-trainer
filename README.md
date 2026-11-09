@@ -290,6 +290,18 @@ rules; no vendor rule text or tool is copied.
   Conformance Guide v6.0, technical rejection criteria, SDSP and reviewer's guides, XPT and the
   status of Dataset-JSON, eCTD v4.0, CDISC CORE, pharmaverse sdtm.oak and metadata-driven work.
 
+## The Ostrevia trial from the CDM Console
+
+- **HRP-301 (VERDANT-1)**, the Ostrevia phase 3 trial in chronic hand eczema, comes as the CDM
+  Query & Edit-Check Console locked it (mission M20): the eCRF forms with the console's coded
+  terms, the IRT's unblinded list released at lock and the central laboratory's final transfer.
+- **Your own locked database:** import your exported HRP-301 console project on the Project tab
+  and the pack works on your data, with the same reference mapping and missions S45 to S47
+  (DM and EX; QS for IGA-CHE, HECSI and itch with sponsor-defined codes; LB from the central
+  laboratory; AE, CM and MH with the coding as it came). The hand-off records which database it
+  was made from, and its lock status.
+- Hepatitis B serology and HBV DNA belong in MB and are left out of the reference mapping.
+
 ## Traceability Graph
 
 - **Click any value** in a dataset on the Datasets & checks tab to see its path back to where it

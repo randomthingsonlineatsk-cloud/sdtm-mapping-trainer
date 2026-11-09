@@ -5,7 +5,8 @@ import { decode } from '../domain/standards'
 import { CT_INFO, VERSION_LABEL } from '../domain/standards'
 import { raw } from '../domain/seed'
 import { Panel, Table, Stat, Pill } from './ui'
-import { isPk } from '../domain/project'
+import { isPk, dataFor } from '../domain/project'
+import { HRP_STUDY, HRP_LAB } from '../domain/hrp'
 import { AIR_STUDY, AIR_VENDOR, airRaw } from '../domain/air'
 import { VAX_STUDY, VAX_DIARY, VAX_LAB, vaxRaw } from '../domain/vax'
 import { PACKS } from '../domain/studies'
@@ -20,13 +21,16 @@ function PackStudy({ id }: { id: string }) {
   const { p } = useStore()
   const pack = PACKS[id]
   const air = id === AIR_STUDY.id, send = id === SEND_STUDY.id
-  const raw = { [AIR_STUDY.id]: airRaw, [SEND_STUDY.id]: sendRaw, [VAX_STUDY.id]: vaxRaw, [INS_STUDY.id]: insRaw, [CVO_STUDY.id]: cvoRaw, [PAIN_STUDY.id]: painRaw }[id]!
+  const hrp = id === HRP_STUDY.id
+  const hrpRaw = () => { const forms = dataFor(p).forms; const arms = new Map(forms.IRT.map((r) => [r.SUBJID, r.RANDARM])); return { forms, subjects: forms.DM.map((r) => ({ subj: r.SUBJID, arm: arms.get(r.SUBJID) })) } }
+  const raw = { [AIR_STUDY.id]: airRaw, [SEND_STUDY.id]: sendRaw, [VAX_STUDY.id]: vaxRaw, [INS_STUDY.id]: insRaw, [CVO_STUDY.id]: cvoRaw, [PAIN_STUDY.id]: painRaw, [HRP_STUDY.id]: hrpRaw }[id]!
   const { forms, subjects } = raw()
   const rand = subjects.filter((s) => s.arm)
   const stats: [string, number, ('blue' | 'red')?][] = send
     ? [['Animals', subjects.length, 'blue'], ['Trial sets', forms.SETS.length], ['Weighings', forms.BWT.length], ['Organs weighed', forms.OWT.length], ['Tissue findings', forms.HISTO.length]]
     : id === INS_STUDY.id ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['Dose periods', forms.DOSE.length], ['Meter readings', forms.SMBG.length], ['Hypoglycaemic episodes', forms.HYPO.length, 'red']]
     : id === CVO_STUDY.id ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['ECG tracings', forms.ECG.length], ['Suspected events', forms.CVEV.length], ['Adjudicated', forms.CEC.length]]
+    : hrp ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['Severity assessments', forms.HEA.length], ['Lab results', forms.CLAB.length], ['Adverse events', forms.AE.length, 'red']]
     : id === PAIN_STUDY.id ? [['Screened', subjects.length], ['Randomised', subjects.filter((x) => x.arm).length, 'blue'], ['Diary entries', forms.DIARY.length], ['Bottles', forms.DISP.length]]
     : air
     ? [['Screened', subjects.length], ['Randomised', rand.length, 'blue'], ['Spirometry sessions', forms.SPI.filter((r) => r.TRIAL === 'BEST').length], ['Questionnaires', forms.ASD.length]]
@@ -36,7 +40,7 @@ function PackStudy({ id }: { id: string }) {
       <Panel title={pack.title} sub={`Protocol ${pack.id} · ${pack.sponsor} · ${pack.phase} · ${pack.indication}`} right={<Pill tone="blue">Fictional</Pill>}>
         <p className="text-sm">{pack.design}.</p>
         <div className={`grid grid-cols-2 ${stats.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-5"} gap-2`}>{stats.map(([l, v, t]) => <Stat key={l} label={l} value={v} tone={t} />)}</div>
-        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {pack.sites.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. {send ? `Test facility: ${SEND_FACILITY}.` : id === CVO_STUDY.id ? `ECGs: ${CVO_CORELAB}.` : id === PAIN_STUDY.id ? `Diary: ${PAIN_DIARY}.` : id === INS_STUDY.id ? 'Meter readings downloaded at each visit.' : air ? `Spirometry: ${AIR_VENDOR}.` : `E-diary: ${VAX_DIARY}. Serology: ${VAX_LAB}.`}</p>
+        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {pack.sites.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. {hrp ? `Central laboratory: ${HRP_LAB}. Data: ${p.cdm ? `your own database from the CDM Console (${p.cdm.source}, ${p.cdm.lock === 'hard' ? 'hard-locked' : `lock status ${p.cdm.lock}`})` : 'the database as locked in the CDM Console (mission M20); import your own locked project file on the Project tab to map your data instead'}.` : send ? `Test facility: ${SEND_FACILITY}.` : id === CVO_STUDY.id ? `ECGs: ${CVO_CORELAB}.` : id === PAIN_STUDY.id ? `Diary: ${PAIN_DIARY}.` : id === INS_STUDY.id ? 'Meter readings downloaded at each visit.' : air ? `Spirometry: ${AIR_VENDOR}.` : `E-diary: ${VAX_DIARY}. Serology: ${VAX_LAB}.`}</p>
       </Panel>
       <div className="grid lg:grid-cols-2 gap-4">
         {send
@@ -128,7 +132,7 @@ export default function StudyView() {
   if (p.imported) return <Imported />
   if (isPk(p)) return <PkStudy />
   if (p.study === ONK_STUDY.id) return <OnkStudy />
-  if ([AIR_STUDY.id, VAX_STUDY.id, SEND_STUDY.id, INS_STUDY.id, CVO_STUDY.id, PAIN_STUDY.id].includes(p.study)) return <PackStudy id={p.study} />
+  if ([AIR_STUDY.id, VAX_STUDY.id, SEND_STUDY.id, INS_STUDY.id, CVO_STUDY.id, PAIN_STUDY.id, HRP_STUDY.id].includes(p.study)) return <PackStudy id={p.study} />
   const subs = raw().subjects
   return (
     <div className="space-y-4">

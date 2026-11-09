@@ -3,7 +3,7 @@ import { useStore } from '../state'
 import { PK_STUDY } from '../domain/pk'
 import { createProject, log, migrate, isGlv, type Project } from '../domain/project'
 import { exportFile, importFile, deleteProject, listProjects, saveProject, download } from '../domain/store'
-import { importCdmProject } from '../domain/cdmImport'
+import { importCdmProject, cdmForms } from '../domain/cdmImport'
 import { VERSION_LABEL, DRAFT_CHANGES, CT_INFO, type Version } from '../domain/standards'
 import { Panel, Pill, Btn, Table, ic } from './ui'
 import { TransferSwitch } from './Transfer'
@@ -50,8 +50,9 @@ export default function ProjectView() {
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'INS-22-305'))}>New INS-22-305 project (diabetes, insulin)</Btn>
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'CRD-31-401'))}>New CRD-31-401 project (cardiovascular)</Btn>
           <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'PNR-18-203'))}>New PNR-18-203 project (pain)</Btn>
+          <Btn tone="grey" onClick={() => switchTo(createProject(p.userId, p.classId, p.version, 'HRP-301'))}>New HRP-301 project (Ostrevia, locked in the CDM Console)</Btn>
           <Btn tone="grey" onClick={() => cdm.current?.click()}>Import a CDM Console study</Btn>
-          <input ref={cdm} type="file" accept=".json,application/json" className="hidden" aria-label="CDM Console project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const im = importCdmProject(t); const np = createProject(p.userId, p.classId, p.version); np.study = im.protocol; np.imported = im; np.name = `${im.protocol} (imported) SDTM mapping`; log(np, `Imported ${im.protocol} from the CDM Console: ${Object.keys(im.forms).length} forms`); switchTo(np); setMsg(`Imported ${im.protocol}: ${Object.values(im.forms).reduce((a, r) => a + r.length, 0)} rows in ${Object.keys(im.forms).length} forms. Missions stay on GLV-12-301.`) }); e.target.value = '' }} />
+          <input ref={cdm} type="file" accept=".json,application/json" className="hidden" aria-label="CDM Console project file" onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (t) => { const head = cdmForms(t); if (head.protocol === 'HRP-301') { const np = createProject(p.userId, p.classId, p.version, 'HRP-301'); np.cdm = { source: head.name, importedUtc: new Date().toISOString(), exportedUtc: head.exportedUtc, lock: head.lock, forms: head.forms }; np.name = 'HRP-301 SDTM mapping (your locked database)'; log(np, `Imported your HRP-301 database from the CDM Console (${head.lock === 'hard' ? 'hard-locked' : `lock status ${head.lock}`}): ${Object.values(head.forms).reduce((a, r) => a + r.length, 0)} rows`); switchTo(np); setMsg(head.lock === 'hard' ? 'Imported your hard-locked HRP-301 database. The reference mapping and missions S45 to S47 work on your data; the IRT list and the central laboratory file come with it.' : `Imported HRP-301, but the database is not hard-locked (status: ${head.lock}). SDTM for submission is made from the locked database: lock it in the console (mission M20) and import it again.`); return } const im = importCdmProject(t); const np = createProject(p.userId, p.classId, p.version); np.study = im.protocol; np.imported = im; np.name = `${im.protocol} (imported) SDTM mapping`; log(np, `Imported ${im.protocol} from the CDM Console: ${Object.keys(im.forms).length} forms`); switchTo(np); setMsg(`Imported ${im.protocol}: ${Object.values(im.forms).reduce((a, r) => a + r.length, 0)} rows in ${Object.keys(im.forms).length} forms. Missions stay on GLV-12-301.`) }); e.target.value = '' }} />
         </div>
         {msg && <p className="text-xs text-lab-cdsco" role="status">{msg}</p>}
       </Panel>
