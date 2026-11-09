@@ -8,6 +8,7 @@ import { VERSION_LABEL, isRel, dsName } from '../domain/standards'
 import { Panel, Pill, Btn, Table, Stat } from './ui'
 import { listProjects } from '../domain/store'
 import { certificate, CERT_NEEDED, CAPSTONE } from '../domain/certificate'
+import { passportRecord, downloadRecord, PASSPORT_PAGE } from '../domain/passport'
 import type { Project } from '../domain/project'
 
 
@@ -151,7 +152,8 @@ function Certificate() {
             <p className="font-mono text-sm">Verification code {c.code}</p>
             <p className="text-[11px] text-lab-text-muted">Issued {new Date().toISOString().slice(0, 10)}. A practice certificate from a training simulator; not an accredited qualification. Built by Khan Gulrez Shagufa Fazal Ahmed.</p>
           </div>}
-          {name.trim() && <Btn tone="solid" disabled={busy} onClick={pdf}>{busy ? 'Writing…' : 'Download the certificate (PDF)'}</Btn>}
+          {name.trim() && <div className="flex flex-wrap gap-2"><Btn tone="solid" disabled={busy} onClick={pdf}>{busy ? 'Writing…' : 'Download the certificate (PDF)'}</Btn><Btn tone="grey" onClick={() => { const date = new Date().toISOString().slice(0, 10); downloadRecord(`sdtm-trainer-passport-${date}.json`, passportRecord({ app: 'sdtm-mapping-trainer', appName: 'SDTM Mapping Trainer', certificate: 'Certificate of completion', appUrl: 'https://randomthingsonlineatsk-cloud.github.io/sdtm-mapping-trainer/', name: name.trim(), userId: p.userId, issued: date, basis: c.basis, code: c.code, criteria: [{ label: `${CERT_NEEDED} of the ${c.total} missions passed at 70% or more: ${c.passed.length} passed`, met: c.passed.length >= CERT_NEEDED }, { label: `Capstone ${CAPSTONE} passed`, met: c.capstone }], distinction: false, endorsements: c.endorsements })) }}>Passport record (JSON)</Btn></div>}
+          {name.trim() && <p className="text-xs text-lab-text-muted">The passport record carries this certificate to the <a className="underline" href={PASSPORT_PAGE} target="_blank" rel="noopener">Regulatory Skills Passport</a>, which checks it and puts it on one page with your certificates from the other apps.</p>}
         </div>
       ) : <p className="text-xs text-lab-text-muted">{Math.max(0, CERT_NEEDED - c.passed.length)} more to pass{c.capstone ? '' : `, and the capstone ${CAPSTONE}`}.</p>}
     </Panel>
