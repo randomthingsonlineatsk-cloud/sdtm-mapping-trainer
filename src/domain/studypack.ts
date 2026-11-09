@@ -11,6 +11,7 @@ export interface StudyPack {
   domains: string[] // domains with a reference mapping
   refSpec(domain: string, ver: Version): DomainSpec
   data(): StudyData
+  dataFrom?(forms: Record<string, import('./seed').Row[]>): StudyData // the same study from the learner's own file (HRP-301 from the CDM Console)
   formInfo: Record<string, { name: string; source: string; note: string }>
   rawFields: Record<string, { name: string; label: string }[]>
   relrec: RelDef[]; relNeed: string[] // the reference RELREC and the domains it relates

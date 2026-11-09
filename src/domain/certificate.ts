@@ -26,6 +26,7 @@ export function certificate(projects: Project[], userId: string, name: string) {
     ...(prog.find((x) => x.study === SEND_ID)?.complete ? ['Nonclinical data (SEND)'] : []),
     ...(prog.filter((x) => x.study !== SEND_ID && x.complete).length >= 3 ? [`Therapeutic areas (${prog.filter((x) => x.study !== SEND_ID && x.complete).map((x) => x.study).join(', ')})`] : []),
     ...(passed.some((r) => r.id === PORTFOLIO) ? ['Specialist capstone S40'] : []),
+    ...(prog.find((x) => x.study === 'HRP-301')?.complete ? ['Ostrevia lifecycle (HRP-301 from the CDM Console’s locked database)'] : []),
   ]
   return { passed, basis, capstone, endorsements, eligible: passed.length >= CERT_NEEDED && capstone, total: MISSIONS.length, code: `SDTM-${h.slice(0, 5)}-${h.slice(5)}`, studies: [...new Set(passed.map((r) => r.study))] }
 }

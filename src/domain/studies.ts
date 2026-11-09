@@ -8,5 +8,6 @@ import { SEND_PACK } from './send'
 import { INS_PACK } from './ins'
 import { CVO_PACK } from './cvo'
 import { PAIN_PACK } from './pain'
+import { HRP_PACK } from './hrp'
 
-export const PACKS: Record<string, StudyPack> = { [PK_PACK.id]: PK_PACK, [ONK_PACK.id]: ONK_PACK, [AIR_PACK.id]: AIR_PACK, [VAX_PACK.id]: VAX_PACK, [SEND_PACK.id]: SEND_PACK, [INS_PACK.id]: INS_PACK, [CVO_PACK.id]: CVO_PACK, [PAIN_PACK.id]: PAIN_PACK }
+export const PACKS: Record<string, StudyPack> = { [PK_PACK.id]: PK_PACK, [ONK_PACK.id]: ONK_PACK, [AIR_PACK.id]: AIR_PACK, [VAX_PACK.id]: VAX_PACK, [SEND_PACK.id]: SEND_PACK, [INS_PACK.id]: INS_PACK, [CVO_PACK.id]: CVO_PACK, [PAIN_PACK.id]: PAIN_PACK, [HRP_PACK.id]: HRP_PACK }
