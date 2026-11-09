@@ -17,6 +17,10 @@ import { RuleHelp } from './RuleHelp'
 import { allDatasets } from '../domain/datasets'
 import { buildRelrec, checkRelrec } from '../domain/relrec'
 import { studyData } from '../domain/reference'
+import { traceValue, coverage } from '../domain/trace'
+import { crfPages, layoutAcrf } from '../domain/acrf'
+import { formInfoOf } from './shared'
+import { TraceGraph } from './TraceGraph'
 
 const SEV_TONE = { Reject: 'purple', Error: 'red', Warning: 'amber' } as const
 function saveBytes(name: string, bytes: Uint8Array) {
@@ -73,7 +77,13 @@ function DataTab({ built, findings }: { built: Built; findings: ReturnType<typeo
   const [row, setRow] = useState<number | null>(null)
   const [report, setReport] = useState<string[] | null>(null)
   const [explain, setExplain] = useState<string | null>(null)
+  const [tr, setTr] = useState<{ i: number; v: string } | null>(null)
+  const data = useData()
   const domain = built.domain
+  const traceable = !!p.specs[domain]?.vars.length && !isRel(domain)
+  const laid = useMemo(() => (traceable ? layoutAcrf(crfPages(data.forms), p.acrf ?? {}) : []), [traceable, data, p.acrf])
+  const trace = useMemo(() => { if (!tr || !traceable || !built.rows[tr.i]) return null; try { return traceValue({ domain, built, rowIndex: tr.i, variable: tr.v, spec: p.specs[domain], forms: data.forms, version: p.version, laid, specs: p.specs, findings, plan: p.plan?.[domain], formInfo: formInfoOf(p) }) } catch { return null } }, [tr, built, findings, laid])
+  const cov = useMemo(() => { if (!traceable) return null; try { return coverage({ domain, built, spec: p.specs[domain], forms: data.forms, version: p.version, laid, specs: p.specs, findings, plan: p.plan?.[domain], formInfo: formInfoOf(p) }) } catch { return null } }, [traceable, built, findings, laid])
   const rows = built.rows.map((r, i) => ({ r, i })).filter((x) => !subj || x.r.USUBJID?.includes(subj))
   const per = 50, pages = Math.max(1, Math.ceil(rows.length / per))
   const sum = summarise(findings)
@@ -109,9 +119,11 @@ function DataTab({ built, findings }: { built: Built; findings: ReturnType<typeo
         </details>
       </Panel>
       <Panel title={`${domain} records`} right={<input aria-label="Filter by USUBJID" className={ic('w-56 text-xs')} value={subj} onChange={(e) => { setSubj(e.target.value); setPage(0) }} placeholder="Filter: part of USUBJID" />}>
-        <Table head={['#', ...built.vars]} rows={rows.slice(page * per, page * per + per).map(({ r, i }) => [<span className={`font-mono ${row === i ? 'text-lab-amber' : 'text-lab-text-muted'}`}>{i + 1}{row === i ? ' ◀' : ''}</span>, ...built.vars.map((v) => <span className="font-mono whitespace-nowrap">{r[v]}</span>)])} />
+        <Table head={['#', ...built.vars]} rows={rows.slice(page * per, page * per + per).map(({ r, i }) => [<span className={`font-mono ${row === i ? 'text-lab-amber' : 'text-lab-text-muted'}`}>{i + 1}{row === i ? ' ◀' : ''}</span>, ...built.vars.map((v) => traceable ? <button className={`font-mono whitespace-nowrap text-left hover:underline ${tr?.i === i && tr.v === v ? 'text-lab-amber font-semibold' : ''}`} title={`Trace ${domain}.${v} for record ${i + 1}`} aria-label={`Trace ${v} of record ${i + 1}`} onClick={() => setTr({ i, v })}>{r[v] === '' ? '·' : r[v]}</button> : <span className="font-mono whitespace-nowrap">{r[v]}</span>)])} />
+        {traceable && <p className="text-[11px] text-lab-text-muted">Click any value to see its traceability graph.{cov ? <> Traceability: <b>{cov.filter((c) => c.ok).length} of {cov.length}</b> variables trace back to their source without a break{cov.some((c) => !c.ok) ? <> (breaks in <span className="font-mono">{cov.filter((c) => !c.ok).map((c) => c.variable).join(', ')}</span>: click one to see why)</> : ''}.</> : null}</p>}
         <div className="flex items-center gap-2 text-xs"><Btn tone="grey" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Btn><span>Page {page + 1} of {pages}</span><Btn tone="grey" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Next</Btn></div>
       </Panel>
+      {trace && <TraceGraph trace={trace} onClose={() => setTr(null)} />}
     </>
   )
 }
