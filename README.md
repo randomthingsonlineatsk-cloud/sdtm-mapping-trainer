@@ -290,6 +290,19 @@ rules; no vendor rule text or tool is copied.
   Conformance Guide v6.0, technical rejection criteria, SDSP and reviewer's guides, XPT and the
   status of Dataset-JSON, eCTD v4.0, CDISC CORE, pharmaverse sdtm.oak and metadata-driven work.
 
+## Traceability Graph
+
+- **Click any value** in a dataset on the Datasets & checks tab to see its path back to where it
+  was collected, drawn as a graph: the CRF page (from the aCRF annotations) or the vendor file, the
+  raw record and the fields the rule reads, the mapping rule, the approved specification version
+  it was programmed against, the SDTM value, its define.xml origin, and the validation findings on
+  that record and variable.
+- **Breaks in the chain** are named: a CRF variable with no aCRF page, an origin "Collected" with
+  no page reference, a variable the approved specification does not list, a raw record missing
+  from the current transfer.
+- **Coverage:** under each dataset, how many of its variables trace back without a break, and
+  which do not.
+
 ## Coming next
 
 - **SDTMIG v4.0 final:** the v4.0 mode follows the public-review draft; it will be updated when
