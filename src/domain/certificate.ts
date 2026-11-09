@@ -17,7 +17,8 @@ export function certificate(projects: Project[], userId: string, name: string) {
     const best = runs.filter((r) => r.id === m.id && r.passed).sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (a.endedUtc ?? '').localeCompare(b.endedUtc ?? ''))[0]
     return best && { id: m.id, title: m.title, score: best.score ?? 0, level: (best.level ?? 'standard') as string, utc: best.endedUtc ?? best.startedUtc, study: m.study ?? 'GLV-12-301' }
   }).filter((x): x is Passed => !!x)
-  const h = hash(`${name.trim().toLowerCase()}|${passed.map((r) => `${r.id}:${r.score}:${r.level}`).join(',')}|${userId}`).slice(-10).toUpperCase()
+  const basis = `${name.trim().toLowerCase()}|${passed.map((r) => `${r.id}:${r.score}:${r.level}`).join(',')}|${userId}`
+  const h = hash(basis).slice(-10).toUpperCase()
   const capstone = passed.some((r) => r.id === CAPSTONE)
   // Endorsements: what the learner has done beyond the course's core.
   const prog = specialistProgress(projects, userId)
@@ -26,6 +27,6 @@ export function certificate(projects: Project[], userId: string, name: string) {
     ...(prog.filter((x) => x.study !== SEND_ID && x.complete).length >= 3 ? [`Therapeutic areas (${prog.filter((x) => x.study !== SEND_ID && x.complete).map((x) => x.study).join(', ')})`] : []),
     ...(passed.some((r) => r.id === PORTFOLIO) ? ['Specialist capstone S40'] : []),
   ]
-  return { passed, capstone, endorsements, eligible: passed.length >= CERT_NEEDED && capstone, total: MISSIONS.length, code: `SDTM-${h.slice(0, 5)}-${h.slice(5)}`, studies: [...new Set(passed.map((r) => r.study))] }
+  return { passed, basis, capstone, endorsements, eligible: passed.length >= CERT_NEEDED && capstone, total: MISSIONS.length, code: `SDTM-${h.slice(0, 5)}-${h.slice(5)}`, studies: [...new Set(passed.map((r) => r.study))] }
 }
 export type Certificate = ReturnType<typeof certificate>
