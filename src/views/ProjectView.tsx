@@ -13,8 +13,8 @@ import { CT } from '../domain/standards'
 const LINKS = [
   { name: 'CDM Query & Edit-Check Console', url: 'https://randomthingsonlineatsk-cloud.github.io/cdm-query-console/', what: 'Where the raw data comes from: edit checks, queries, coding, reconciliation and lock on HLV-204-201 and the vaccine trial ALV-3-301. Its project files import here.' },
   { name: 'eCTD Dossier Builder', url: 'https://randomthingsonlineatsk-cloud.github.io/ectd-dossier-builder/', what: 'Where SDTM datasets end up: Module 5 of the submission.' },
-  { name: 'EDC Study Build Lab (planned)', url: '', what: 'Designs the eCRF and the edit checks that produce the raw data.' },
-  { name: 'TLF Programming Lab (planned)', url: '', what: 'Takes these SDTM datasets on to ADaM, tables, listings and figures.' },
+  { name: 'EDC Study Build Lab', url: 'https://randomthingsonlineatsk-cloud.github.io/edc-study-build-lab/', what: 'Designs the eCRF and the edit checks that produce the raw data.' },
+  { name: 'TLF Programming Lab', url: 'https://randomthingsonlineatsk-cloud.github.io/tlf-programming-lab/', what: 'Takes these SDTM datasets on to ADaM, tables, listings and figures in R: upload the hand-off zip from the Datasets tab.' },
 ]
 
 export default function ProjectView() {
