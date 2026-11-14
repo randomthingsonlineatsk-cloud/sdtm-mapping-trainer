@@ -192,6 +192,7 @@ function Handoff() {
   return (
     <Panel title="Hand-off to the TLF Programming Lab" sub="What the analysis programmers receive at database lock: every dataset as Dataset-JSON v1.1 and XPT v5, define.xml with its stylesheet, and handoff.json, a manifest with the study, the standards, the transfer, each dataset’s keys and variable metadata (label, type, length, role, codelist, origin, derivation) and the validation status with your explanations."
       right={<Btn tone="solid" disabled={busy} onClick={go}>{busy ? 'Building…' : 'Download the hand-off (.zip)'}</Btn>}>
+      <p className="text-xs text-lab-text-muted">Open the <a className="underline" href="https://randomthingsonlineatsk-cloud.github.io/tlf-programming-lab/" target="_blank" rel="noopener">TLF Programming Lab</a> and upload the zip on its Home page to program ADaM, tables, listings and figures in R from these datasets (GLV-12-301).</p>
       {done && <p className="text-xs" role="status">{done.files} files, {done.datasets} datasets.{done.must || done.open ? <span className="text-lab-amber"> The manifest records {done.must} issue{done.must === 1 ? '' : 's'} to fix and {done.open} not explained: the Lab will see them.</span> : ' Validation issues are all explained.'}</p>}
     </Panel>
   )
