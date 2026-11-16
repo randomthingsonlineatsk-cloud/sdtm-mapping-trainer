@@ -23,7 +23,7 @@ export function designKey(d: string, r: DesignRow, rank: number): string {
 }
 export const DESIGN_SORT: Record<string, string[]> = { TA: ['ARMCD', 'TAETORD'], TE: ['ETCD'], TV: ['VISITNUM'], TI: ['IETESTCD'], TS: ['TSPARMCD', 'TSVAL'] }
 export const TEXT_VARS: Record<string, string[]> = { TA: ['TABRANCH'], TE: ['TESTRL', 'TEENRL'], TV: ['TVSTRL', 'TVENRL'], TI: ['IETEST'], TS: ['TSVAL1'] }
-export const TS_TEXT_PARAMS = ['TITLE', 'INDIC', 'SPONSOR', 'TRT', 'OBJPRIM', 'OBJSEC', 'OUTMSPRI', 'STOPRULE', 'DCUTDESC', 'PCLAS']
+export const TS_TEXT_PARAMS = ['TITLE', 'INDIC', 'SPONSOR', 'TRT', 'OBJPRIM', 'OBJSEC', 'OUTMSPRI', 'OUTMSSEC', 'STOPRULE', 'DCUTDESC', 'PCLAS']
 
 export function designBuilt(d: string, rows: DesignRow[], ver: Version): Built {
   const vars = DESIGN_VARS(d, ver)
@@ -97,4 +97,25 @@ export function deriveSE(): Built {
     els.forEach(([etcd, el, ord, ep, st, en], i) => rows.push({ __trace: `SE:${d.__subj}:${i}`, __subj: d.__subj, STUDYID: STUDY.id, DOMAIN: 'SE', USUBJID: d.USUBJID, SESEQ: String(i + 1), ETCD: etcd, ELEMENT: el, TAETORD: ord, EPOCH: ep, SESTDTC: st, SEENDTC: en, SESTDY: String(studyDay(st, d.RFSTDTC)), SEENDY: String(studyDay(en, d.RFSTDTC)) } as OutRow))
   }
   return { domain: 'SE', vars, rows, errors: {}, warnings: [] }
+}
+
+// ---------- the reference from the protocol (Protocol Builder) ----------
+// The Protocol Builder writes TA, TE, TV, TI and TS from the protocol. Loaded here, they replace
+// the built-in reference for the trial design mission, so the learner's tables are checked against
+// that protocol. TS parameters that come from the data stay the trainer's own.
+export interface ProtocolDesignRef { source: string; study: string; protocolVersion: string; loadedUtc: string; datasets: Record<string, DesignRow[]> }
+export const TS_FROM_DATA = ['ACTSUB', 'SSTDTC', 'SENDTC', 'DCUTDTC', 'DCUTDESC', 'SDTMVER', 'SDTIGVER']
+export function readProtocolDesign(text: string, source: string, study: string): ProtocolDesignRef {
+  let j: { format?: string; study?: string; protocolVersion?: string; datasets?: Record<string, DesignRow[]> }
+  try { j = JSON.parse(text) } catch { throw new Error('The file is not JSON.') }
+  if (j.format !== 'protocol-builder-trial-design' || !j.datasets) throw new Error('This is not a Protocol Builder trial design file. Export one from the Protocol Builder: Export, SDTM trial design datasets.')
+  if (j.study !== study) throw new Error(`The file is for ${j.study || 'another study'}; this project maps ${study}.`)
+  for (const d of ['TA', 'TE', 'TV', 'TI', 'TS']) if (!Array.isArray(j.datasets[d]) || !j.datasets[d].length) throw new Error(`The file has no ${d} records.`)
+  return { source, study, protocolVersion: j.protocolVersion ?? '', loadedUtc: new Date().toISOString(), datasets: j.datasets }
+}
+export function designReference(ver: Version, transfer: Transfer, ref?: ProtocolDesignRef): Record<string, DesignRow[]> {
+  const own = referenceDesign(ver, transfer)
+  if (!ref) return own
+  const ts = [...ref.datasets.TS.filter((r) => !TS_FROM_DATA.includes(r.TSPARMCD)), ...own.TS.filter((r) => TS_FROM_DATA.includes(r.TSPARMCD))]
+  return { TA: ref.datasets.TA, TE: ref.datasets.TE, TV: ref.datasets.TV, TI: ref.datasets.TI, TS: ts.map((r) => ({ ...r, TSVAL1: r.TSVAL1 ?? '' })) }
 }

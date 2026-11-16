@@ -75,7 +75,9 @@ rules; no vendor rule text or tool is copied.
   datasets instead (NSAE, NSDM): one horizontal record per parent record, linked by IDVAR and
   the numeric IDVARVLN, with labels and origins for define.xml.
 - **Trial design:** TA, TE, TV, TI and TS built as tables from the protocol facts (or pasted
-  from a spreadsheet), checked against each other; SE derived from DM.
+  from a spreadsheet), checked against each other; SE derived from DM. The reference for mission
+  S8 can be the trial design file the [Protocol Builder](https://randomthingsonlineatsk-cloud.github.io/protocol-builder/)
+  writes from the GLV-12-301 protocol (its TS parameters from the data stay the trainer's own).
 - **Rule sets:** 39 conformance rules with their severity under CDISC, FDA and PMDA, including
   rejections (a TS without the study start date is rejected by FDA).
 - **Mapping specification:** variable-level metadata with Define-XML 2.1 origins, sources and

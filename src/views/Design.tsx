@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../state'
 import { useNav } from '../App'
-import { designBuilt, deriveSE, type DesignRow } from '../domain/design'
+import { designBuilt, deriveSE, readProtocolDesign, type DesignRow } from '../domain/design'
 import { check, summarise } from '../domain/conformance'
 import { varsOf, domainInfo, CT, TRIAL_DESIGN } from '../domain/standards'
 import { log, isGlv } from '../domain/project'
@@ -48,8 +48,10 @@ export default function Design() {
       <Panel title="Trial design" sub="The trial design domains describe the protocol, not subjects, so you build them as tables from the protocol facts on the Study tab. Mission S8 scores them; SE is derived from DM and the design.">
         <Tabs tabs={[...TRIAL_DESIGN.map((x) => ({ id: x, label: <>{x} <span className="text-lab-text-muted">({(p.design[x] ?? []).length})</span></> })), { id: 'SE', label: 'SE (derived)' }]} value={d} onChange={(x) => { setD(x); setMsg(''); setPaste(false) }} />
         <p className="text-xs text-lab-text-muted"><b className="text-lab-text">{d} · {domainInfo(d)?.name}.</b> {d === 'SE' ? 'Subject Elements: each subject’s actual path through the elements, with start and end dates. It is derived, not built by hand: the screening element runs from consent to the first dose, the treatment element from the first to the last dose, follow-up from the last dose to the end of participation. Below is SE derived from the study’s reference DM.' : HELP[d]}</p>
-        {d !== 'SE' && <div className="flex flex-wrap gap-2">
+        {d !== 'SE' && <div className="flex flex-wrap gap-2 items-center">
           <Btn tone="grey" onClick={() => go('study')}>Protocol facts (Study tab)</Btn>
+          <label className="text-xs underline text-lab-fda cursor-pointer">Use the protocol’s design as the reference…<input type="file" accept=".json,application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; const r = new FileReader(); r.onload = () => { try { const ref = readProtocolDesign(String(r.result), f.name, STUDY.id); act((pp) => { pp.designRef = ref; log(pp, `Trial design reference loaded from ${f.name} (protocol version ${ref.protocolVersion})`) }); setMsg(`Loaded ${f.name}: mission S8 now checks your tables against this protocol.`) } catch (er) { setMsg((er as Error).message) } }; r.readAsText(f) }} /></label>
+          {p.designRef ? <span className="text-xs text-lab-text-muted">Reference: <b className="text-lab-text">{p.designRef.source}</b> (Protocol Builder, version {p.designRef.protocolVersion}) <button className="underline text-lab-fda" onClick={() => act((pp) => { delete pp.designRef; log(pp, 'Trial design reference reset to the built-in one') })}>Use the built-in reference</button></span> : <span className="text-xs text-lab-text-muted">Reference: built in. A trial design file exported from the Protocol Builder can replace it.</span>}
         </div>}
       </Panel>
       {d === 'SE' ? <SeView /> : (
