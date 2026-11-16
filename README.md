@@ -298,7 +298,7 @@ rules; no vendor rule text or tool is copied.
 - **Your own locked database:** import your exported HRP-301 console project on the Project tab
   and the pack works on your data, with the same reference mapping and missions S45 to S47
   (DM and EX; QS for IGA-CHE, HECSI and itch with sponsor-defined codes; LB from the central
-  laboratory; AE, CM and MH with the coding as it came). The hand-off records which database it
+  laboratory, with the eCRF pregnancy tests stacked as HCG; AE, CM and MH with the coding as it came). The hand-off records which database it
   was made from, and its lock status.
 - Hepatitis B serology and HBV DNA belong in MB and are left out of the reference mapping.
 

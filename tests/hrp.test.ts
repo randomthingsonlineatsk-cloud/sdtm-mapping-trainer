@@ -41,7 +41,11 @@ describe('HRP-301 from the CDM Console', () => {
     expect(bl.every((r) => r.VISIT === 'DAY 1')).toBe(true)
     expect(qs.filter((r) => r.QSTESTCD === 'ITCH01').every((r) => r.QSEVLINT === '-P1D' && !r.QSEVAL)).toBe(true)
     const lb = ref.LB.rows
-    expect(new Set(lb.map((r) => r.LBTESTCD))).toEqual(new Set(['ALT', 'AST', 'NEUT', 'LYMPH']))
+    expect(new Set(lb.map((r) => r.LBTESTCD))).toEqual(new Set(['ALT', 'AST', 'NEUT', 'LYMPH', 'HCG']))
+    // The pregnancy tests (IN04) are stacked from the eCRF: negative, for participants of childbearing potential only.
+    const hcg = lb.filter((r) => r.LBTESTCD === 'HCG')
+    expect(hcg.length).toBe(85); expect(new Set(hcg.map((r) => r.LBSTRESC))).toEqual(new Set(['NEGATIVE']))
+    expect(new Set(hcg.map((r) => r.LBSPEC))).toEqual(new Set(['SERUM', 'URINE']))
     expect(lb.some((r) => r.USUBJID === 'HRP-301-303-008' && r.LBTESTCD === 'ALT' && r.LBNRIND === 'HIGH')).toBe(true)
   })
 })

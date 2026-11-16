@@ -7,7 +7,9 @@
 // central laboratory's final transfer. Severity scales: IGA-CHE (0 to 4) and HECSI (0 to 360)
 // by the investigator, and the participant's worst itch over the last 24 hours (0 to 10); none
 // has CDISC QRS terminology, so their QS test codes are sponsor-defined. Hepatitis B serology
-// and HBV DNA belong in MB (microbiology) and are outside this pack's reference mapping.
+// and HBV DNA belong in MB (microbiology) and are outside this pack's reference mapping. The
+// pregnancy test (protocol IN04, form PREG) maps to LB as HCG, stacked under the central
+// laboratory's results.
 // Everything is fictional.
 
 import { build, type DomainSpec, type OutRow, type Rule, type StudyData } from './engine'
@@ -51,6 +53,7 @@ export const HRP_FORM_INFO: Record<string, { name: string; source: string; note:
   VS: { name: 'Vital signs', source: 'EDC', note: 'One row per visit with blood pressure, pulse and weight as columns.' },
   HBV: { name: 'Hepatitis B screening', source: 'EDC', note: 'HBsAg, anti-HBc and HBV DNA at screening, copied from the central laboratory report. Outside this pack’s reference mapping (MB).' },
   LBC: { name: 'Central lab sample', source: 'EDC', note: 'One row per sample: whether it was taken, the accession number, date and time. The results are in CLAB.' },
+  PREG: { name: 'Pregnancy test', source: 'EDC', note: 'One row per visit (screening, Day 1, Weeks 4, 8, 12 and 16): childbearing potential, and for participants of childbearing potential the test date, type (SERUM at screening, URINE after) and result.' },
   HEA: { name: 'Hand eczema assessments', source: 'EDC', note: 'One row per visit: IGA-CHE (0 clear to 4 severe) and HECSI (0 to 360) by the trained assessor, and the participant’s worst itch over the last 24 hours (0 to 10).' },
   EX: { name: 'Study drug', source: 'EDC', note: 'One row per visit from Day 1 to Week 16: whether a bottle was dispensed (EXDISP), its kit, tablets dispensed (35) and returned, and compliance. Dates are on SV.' },
   EOS: { name: 'End of study', source: 'EDC', note: 'One row per participant: status and date.' },
@@ -71,6 +74,7 @@ export const HRP_RAW_FIELDS: Record<string, { name: string; label: string }[]> =
   VS: F([...ROW.slice(0, 2), ['VSDAT', 'Date'], ['SYSBP', 'Systolic BP (mmHg)'], ['DIABP', 'Diastolic BP (mmHg)'], ['PULSE', 'Pulse (beats/min)'], ['WEIGHT', 'Weight (kg)']]),
   HBV: F([...ROW.slice(0, 1), ['HBVDAT', 'Sample date'], ['HBSAG', 'HBsAg'], ['HBCAB', 'Anti-HBc'], ['HBVDNA', 'HBV DNA']]),
   LBC: F([...ROW.slice(0, 2), ['LBPERF', 'Sample taken'], ['LBREFID', 'Accession number'], ['LBDAT', 'Collection date'], ['LBTIM', 'Collection time']]),
+  PREG: F([...ROW.slice(0, 2), ['PREGCBP', 'Childbearing potential'], ['PREGDAT', 'Test date'], ['PREGTYP', 'Test type (SERUM, URINE)'], ['PREGRES', 'Result (NEGATIVE, POSITIVE)']]),
   HEA: F([...ROW.slice(0, 2), ['HEADAT', 'Assessment date'], ['ASSESSOR', 'Assessor ID'], ['IGACHE', 'IGA-CHE (0–4)'], ['HECSI', 'HECSI total (0–360)'], ['ITCHNRS', 'Worst itch, last 24 h (0–10)']]),
   EX: F([...ROW.slice(0, 2), ['EXDISP', 'Bottle dispensed'], ['EXKIT', 'Kit number'], ['EXDSPQ', 'Tablets dispensed'], ['EXRET', 'Tablets returned'], ['EXCOMPL', 'Compliance (%)']]),
   EOS: F([...ROW.slice(0, 1), ['DSDECOD', 'Status (CT)'], ['EOSDAT', 'Date']]),
@@ -92,7 +96,7 @@ export const HRP_CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'DM', rule: 'RFSTDTC and RFXSTDTC: the Day 1 visit, when the first tablet is taken at the clinic. RFXENDTC and RFENDTC: the last dose, the day before the Week 16 visit; after early discontinuation, the day before the last visit on treatment. RFPENDTC: the end-of-study date. Only the year of birth is collected: BRTHDTC is the year and AGE is the consent year minus the birth year. ARM from the IRT; screen failures have ARMNRS SCREEN FAILURE.' },
   { topic: 'EX', rule: 'One record per bottle dispensed (EXDISP = Y): EXTRT LUMIRAVOSTAT or PLACEBO from the IRT arm, EXDOSE 10, 25 or 0 mg, EXDOSFRM TABLET, EXDOSFRQ QD, EXROUTE ORAL. EXSTDTC the dispensing visit; EXENDTC the day before the next visit, or the end-of-study date if there was no next visit.' },
   { topic: 'QS', rule: 'One record per scale per visit from HEA. QSCAT IGA-CHE, HECSI or ITCH NRS; QSTESTCD IGACHE01, HECSI01, ITCH01 (sponsor-defined); QSTEST IGA-CHE Score, HECSI Total Score, Worst Itch Past 24 Hours. QSORRES and QSSTRESC the score, QSSTRESN its number. QSEVAL INVESTIGATOR for IGA-CHE and HECSI; QSEVLINT -P1D for itch. QSLOBXFL on Day 1, the last value before the first dose.' },
-  { topic: 'LB', rule: 'From the central laboratory file (CLAB), ALT, AST, neutrophils and lymphocytes; HBV DNA rows go to MB, not LB. LBCAT CHEMISTRY or HEMATOLOGY; units as reported are the standard units (U/L, 10^9/L); LBNRIND HIGH or LOW against the laboratory’s range. LBREFID is the accession number; LBDTC the collection date and time.' },
+  { topic: 'LB', rule: 'Two sources stacked. From the central laboratory file (CLAB), ALT, AST, neutrophils and lymphocytes (LBSPEC SERUM or BLOOD); HBV DNA rows go to MB, not LB. From the eCRF pregnancy test (PREG), one record per test for participants of childbearing potential: LBTESTCD HCG, LBTEST Choriogonadotropin Beta, LBCAT CHEMISTRY (serum) or URINALYSIS (urine), LBSPEC from the test type, LBORRES and LBSTRESC NEGATIVE or POSITIVE, LBDTC the test date; childbearing potential itself belongs in RP and is outside this pack. LBCAT CHEMISTRY or HEMATOLOGY; units as reported are the standard units (U/L, 10^9/L); LBNRIND HIGH or LOW against the laboratory’s range. LBREFID is the accession number; LBDTC the collection date and time.' },
   { topic: 'AE and CM', rule: 'The coded terms come from the console’s coding (AEDECOD and the hierarchy with codes; CMDECOD and CMCLAS). Treatment-emergent: AETRTEM in SUPPAE. AESPID and CMSPID are the console record numbers. Topical medicines recorded as applications have no dose and unit: CMDOSTXT “1 APPLICATION”. Inhalation is RESPIRATORY (INHALATION) in the ROUTE codelist.' },
 ]
 
@@ -121,7 +125,7 @@ const ID = (d: string) => ({ STUDYID: c(HRP_STUDY.id), DOMAIN: c(d), USUBJID: e(
 const SVDATE = (visit: string) => `subjwhere('SV', 'VISDAT', 'VISIT', ${visit}, 'first')`
 const LASTDOSE = `adddays(coalesce(${SVDATE("'W16'")}, ${SVDATE("'W12'")}, ${SVDATE("'W8'")}, ${SVDATE("'W4'")}, ${SVDATE("'W2'")}), -1)`
 const NEXT = "if(VISIT = 'D1', 'W4', if(VISIT = 'W4', 'W8', if(VISIT = 'W8', 'W12', 'W16')))"
-type Ref = { rules: Record<string, Rule>; perm: string[]; source?: string; filter?: string; sort: string[]; transpose?: DomainSpec['transpose']; supp?: DomainSpec['supp'] }
+type Ref = { rules: Record<string, Rule>; perm: string[]; source?: string; filter?: string; sort: string[]; transpose?: DomainSpec['transpose']; supp?: DomainSpec['supp']; parts?: { source: string; rules: Record<string, Rule>; filter?: string }[] }
 const HRP_REF: Record<string, Ref> = {
   DM: {
     perm: ['BRTHDTC', 'DMDTC', 'DMDY'], sort: ['USUBJID'],
@@ -179,15 +183,23 @@ const HRP_REF: Record<string, Ref> = {
     },
   },
   LB: {
-    source: 'CLAB', filter: "LBTESTCD != 'HBVDNA'", perm: ['LBREFID', 'LBNAM', 'VISIT', 'EPOCH', 'LBDY'], sort: ['USUBJID', 'LBTESTCD', 'LBDTC'],
+    source: 'CLAB', filter: "LBTESTCD != 'HBVDNA'", perm: ['LBREFID', 'LBSPEC', 'LBNAM', 'VISIT', 'EPOCH', 'LBDY'], sort: ['USUBJID', 'LBTESTCD', 'LBDTC'],
     rules: {
-      ...ID('LB'), LBSEQ: { kind: 'seq' }, LBREFID: cp('ACCSNUM'), LBTESTCD: cp('LBTESTCD'), LBTEST: e("ctdecode('LBTESTCD', LBTESTCD)"), LBCAT: e("if(LBTESTCD in ('NEUT', 'LYMPH'), 'HEMATOLOGY', 'CHEMISTRY')"),
+      ...ID('LB'), LBSEQ: { kind: 'seq' }, LBREFID: cp('ACCSNUM'), LBTESTCD: cp('LBTESTCD'), LBTEST: e("ctdecode('LBTESTCD', LBTESTCD)"), LBCAT: e("if(LBTESTCD in ('NEUT', 'LYMPH'), 'HEMATOLOGY', 'CHEMISTRY')"), LBSPEC: e("if(LBTESTCD in ('NEUT', 'LYMPH'), 'BLOOD', 'SERUM')"),
       LBORRES: cp('LBORRES'), LBORRESU: cp('LBORRESU'), LBORNRLO: cp('LBORNRLO'), LBORNRHI: cp('LBORNRHI'),
       LBSTRESC: e('str(num(LBORRES))'), LBSTRESN: e('num(LBORRES)'), LBSTRESU: cp('LBORRESU'), LBSTNRLO: e('num(LBORNRLO)'), LBSTNRHI: e('num(LBORNRHI)'),
       LBNRIND: e("if(num(LBORRES) > num(LBORNRHI), 'HIGH', if(num(LBORRES) < num(LBORNRLO), 'LOW', 'NORMAL'))"), LBNAM: c(HRP_LAB),
       LBLOBXFL: { kind: 'lobxfl', result: 'LBSTRESC', dtc: 'LBDTC', by: 'LBTESTCD' },
       VISITNUM: e('visitnum(VISIT, COLLDT)'), VISIT: e('visitname(VISIT, COLLDT)'), EPOCH: e('epoch(LBDTC)'), LBDTC: e('iso(COLLDT, COLLTM)'), LBDY: e('studyday(LBDTC)'),
     },
+    parts: [{
+      source: 'PREG', filter: "PREGCBP = 'Y' and present(PREGRES)",
+      rules: {
+        ...ID('LB'), LBSEQ: { kind: 'seq' }, LBTESTCD: c('HCG'), LBTEST: c('Choriogonadotropin Beta'), LBCAT: e("if(PREGTYP = 'SERUM', 'CHEMISTRY', 'URINALYSIS')"), LBSPEC: cp('PREGTYP'),
+        LBORRES: cp('PREGRES'), LBSTRESC: cp('PREGRES'), LBLOBXFL: { kind: 'lobxfl', result: 'LBSTRESC', dtc: 'LBDTC', by: 'LBTESTCD' },
+        VISITNUM: e('visitnum(VISIT, PREGDAT)'), VISIT: e('visitname(VISIT, PREGDAT)'), EPOCH: e('epoch(LBDTC)'), LBDTC: e('iso(PREGDAT)'), LBDY: e('studyday(LBDTC)'),
+      },
+    }],
   },
   QS: {
     source: 'HEA', perm: ['QSEVAL', 'QSEVLINT', 'VISIT', 'EPOCH', 'QSDY'], sort: ['USUBJID', 'QSCAT', 'QSTESTCD', 'VISITNUM'],
@@ -206,7 +218,8 @@ export const HRP_DOMAINS = Object.keys(HRP_REF)
 export function hrpReferenceSpec(domain: string, ver: Version): DomainSpec {
   const r = HRP_REF[domain]; if (!r) throw new Error(`No reference mapping for ${domain} in ${HRP_STUDY.id}`)
   const vars = varsOf(domain, ver).filter((m) => (m.core !== 'Perm' || r.perm.includes(m.name) || (ver === '4.0d' && m.name === 'SUBJID')) && r.rules[m.name]).map((m) => m.name)
-  return { domain, source: r.source ?? domain, vars, rules: Object.fromEntries(vars.map((v) => [v, r.rules[v]])), sort: r.sort, ...(r.filter ? { filter: r.filter } : {}), ...(r.transpose ? { transpose: r.transpose } : {}), ...(r.supp ? { supp: r.supp } : {}) }
+  const pick = (rules: Record<string, Rule>) => Object.fromEntries(vars.filter((v) => rules[v]).map((v) => [v, rules[v]]))
+  return { domain, source: r.source ?? domain, vars, rules: Object.fromEntries(vars.map((v) => [v, r.rules[v]])), sort: r.sort, ...(r.parts ? { parts: r.parts.map((p) => ({ ...p, rules: pick(p.rules) })) } : {}), ...(r.filter ? { filter: r.filter } : {}), ...(r.transpose ? { transpose: r.transpose } : {}), ...(r.supp ? { supp: r.supp } : {}) }
 }
 // The data: the shipped locked database, or the learner's own locked console file.
 const dmCache = new WeakMap<Record<string, Row[]>, Map<string, OutRow>>()
