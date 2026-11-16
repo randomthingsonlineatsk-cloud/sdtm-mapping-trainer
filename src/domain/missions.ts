@@ -24,7 +24,7 @@ import { planPackage } from './package'
 import { planPackPackage, packageScore } from './packPackage'
 import { currentVersion, mismatches } from './plan'
 import { RAW_FIELDS } from './seed'
-import { designBuilt, referenceDesign, TEXT_VARS, TS_TEXT_PARAMS } from './design'
+import { designBuilt, referenceDesign, designReference, TEXT_VARS, TS_TEXT_PARAMS } from './design'
 import { metaOf, isRel, relParent, relName, relMetaKey, dsName, type Version } from './standards'
 import type { MissionRun, Project } from './project'
 import { log } from './project'
@@ -240,7 +240,7 @@ export function evaluateMission(p: Project, id: string, projects: Project[] = [p
   const ver = p.version
   if (def.kind === 'acrf') return evaluateAcrf(p, data)
   if (def.kind === 'package' && !pack) return evaluatePackage(p, data)
-  const refDesign = referenceDesign(ver, p.transfer ?? 1)
+  const refDesign = designReference(ver, p.transfer ?? 1, pack ? undefined : p.designRef)
   const tu = pack?.domains.includes('TU') ? build(p.specs.TU?.vars.length ? p.specs.TU : referenceSpec('TU', ver), data, ver) : undefined
   const ctxBase = { dm: build(referenceSpec('DM', ver), data, ver), tu, ...(pack ? {} : { ta: designBuilt('TA', refDesign.TA, ver), tv: designBuilt('TV', refDesign.TV, ver) }), set: p.ruleSet }
   const results: DomainResult[] = []
@@ -445,7 +445,7 @@ function evaluatePackage(p: Project, data: ReturnType<typeof studyData>) {
   const plan = planPackage(p, data)
   const issues = plan.issues
   // What the reference mapping raises on the same data: the issues that are true of the data.
-  const ref: Project = { ...p, specs: Object.fromEntries(Object.keys(p.specs).filter((d) => REF_DOMAINS.includes(d) || REF_CUSTOM.code === d).map((d) => [d, referenceSpec(d, ver)])), design: referenceDesign(ver, p.transfer ?? 1), relrec: p.relrec?.length ? REF_RELREC : undefined }
+  const ref: Project = { ...p, specs: Object.fromEntries(Object.keys(p.specs).filter((d) => REF_DOMAINS.includes(d) || REF_CUSTOM.code === d).map((d) => [d, referenceSpec(d, ver)])), design: designReference(ver, p.transfer ?? 1, p.designRef), relrec: p.relrec?.length ? REF_RELREC : undefined }
   const refKeys = new Set(toIssues(packageFindings(ref, data)).filter((i) => !i.rule.startsWith('DEF-')).map((i) => i.key))
   const must = issues.filter((i) => statusOf(i, p) === 'Must fix')
   const explainable = issues.filter((i) => canExplain(i))

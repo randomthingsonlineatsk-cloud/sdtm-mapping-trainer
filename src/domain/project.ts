@@ -6,7 +6,7 @@ import type { DomainSpec, StudyData } from './engine'
 import { build } from './engine'
 import type { Version } from './standards'
 import type { RuleSet } from './conformance'
-import type { DesignRow } from './design'
+import type { DesignRow, ProtocolDesignRef } from './design'
 import type { Row, Transfer } from './seed'
 import type { Plan } from './plan'
 import type { RelDef } from './relrec'
@@ -35,6 +35,7 @@ export interface Project {
   cdm?: { source: string; importedUtc: string; exportedUtc: string; lock: string; forms: Record<string, Row[]> } // HRP-301: the learner's own locked database from the CDM Console
   specs: Record<string, DomainSpec>
   design: Record<string, DesignRow[]> // TA, TE, TV, TI, TS as tables
+  designRef?: ProtocolDesignRef // the trial design written by the Protocol Builder, used as the reference
   ruleSet: RuleSet
   missions: MissionRun[]
   missionLevel?: Level // the level new mission runs start at
