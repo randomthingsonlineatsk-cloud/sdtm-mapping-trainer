@@ -486,6 +486,14 @@ export const SAE_PLAN: { arm: string; term: string; sev: string; rel: string; ac
   { arm: 'GLV10', term: 'Transient ischaemic attack', sev: 'Moderate', rel: 'Not related', acn: 'Dose not changed', days: 2, meds: [{ trt: 'Clopidogrel', dose: '75', unit: 'mg', freq: 'QD', route: 'Oral' }, { trt: 'Atorvastatin', dose: '40', unit: 'mg', freq: 'QD', route: 'Oral' }] },
 ]
 function seriousEvents(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: number) {
+  // The adverse event that made a subject stop the study drug ends after the last dose: it is dated
+  // to the days before the last dose (the dosing record shows when the drug was stopped).
+  const w = rng(seed + 17)
+  for (const s of subjects.filter((x) => x.fate === 'ae' && x.lastDose)) {
+    const ae = forms.AE.find((a) => a.SUBJID === s.subj && a.AEACN === 'Drug withdrawn'); if (!ae) continue
+    ae.AESTDAT = addDays(s.lastDose!, -w.int(1, 4))
+    if (ae.AEENDAT) ae.AEENDAT = addDays(s.lastDose!, w.int(3, 10))
+  }
   const r = rng(seed + 13)
   const avoid = new Set<string>([...Object.values(PLANTED).flat(), ...Object.values(PLANTED_LAB).flat(), ...Object.values(PLANTED_DV), '102-006', '104-003'].map(String))
   const coded = (term: string) => { const llt = exactLlt(SMD_10, term)!; const p = path(SMD_10, llt.code); const at = (lv: string) => p.find((t) => t.level === lv)!; return { llt, pt: at('PT').name, row: { AELLT: llt.name, AELLTCD: llt.code, AEDECOD: at('PT').name, AEPTCD: at('PT').code, AEHLT: at('HLT').name, AEHLTCD: at('HLT').code, AEHLGT: at('HLGT').name, AEHLGTCD: at('HLGT').code, AESOC: at('SOC').name, AESOCCD: at('SOC').code } } }
