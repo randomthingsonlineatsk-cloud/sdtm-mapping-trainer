@@ -200,6 +200,7 @@ export function generate(seed = 1230301): RawData {
   })
   phase2(forms, subjects, seed)
   phase3(forms, subjects, seed)
+  seriousEvents(forms, subjects, seed)
   exportFormats(forms)
   return { forms, subjects }
 }
@@ -469,4 +470,53 @@ function transfer2(t1: RawData): RawData {
     Object.assign(ae, { AELLT: llt.name, AELLTCD: llt.code, AEDECOD: at('PT').name, AEPTCD: at('PT').code, AEHLT: at('HLT').name, AEHLTCD: at('HLT').code, AEHLGT: at('HLGT').name, AEHLGTCD: at('HLGT').code, AESOC: at('SOC').name, AESOCCD: at('SOC').code })
   }
   return { forms, subjects }
+}
+
+// ---------- Serious adverse events (a separate random stream again) ----------
+// Six more serious adverse events, two in each arm, so the CSR & Narrative Studio has enough
+// patients for its narrative missions. Each is added as the last adverse event of a subject who
+// completed the study, and the new rows are appended, so no other record changes; three led to the drug being interrupted (the
+// kit interval is split around the interruption) and most were treated with a medication.
+export const SAE_PLAN: { arm: string; term: string; sev: string; rel: string; acn: string; days: number; gapAfter?: number; meds: { trt: string; dose: string; unit: string; freq: string; route: string }[] }[] = [
+  { arm: 'PBO', term: 'Community-acquired pneumonia', sev: 'Severe', rel: 'Not related', acn: 'Drug interrupted', days: 9, gapAfter: 2, meds: [{ trt: 'Clarithromycin', dose: '500', unit: 'mg', freq: 'BID', route: 'Oral' }] },
+  { arm: 'PBO', term: 'Fractured wrist', sev: 'Moderate', rel: 'Not related', acn: 'Dose not changed', days: 42, meds: [{ trt: 'Paracetamol', dose: '1000', unit: 'mg', freq: 'TID', route: 'Oral' }] },
+  { arm: 'GLV5', term: 'Renal colic', sev: 'Moderate', rel: 'Not related', acn: 'Dose not changed', days: 5, meds: [{ trt: 'Tramadol', dose: '50', unit: 'mg', freq: 'TID', route: 'Oral' }, { trt: 'Tamsulosin', dose: '0.4', unit: 'mg', freq: 'QD', route: 'Oral' }] },
+  { arm: 'GLV5', term: 'Cellulitis left leg', sev: 'Moderate', rel: 'Not related', acn: 'Drug interrupted', days: 11, gapAfter: 1, meds: [{ trt: 'Amoxicillin', dose: '500', unit: 'mg', freq: 'TID', route: 'Oral' }] },
+  { arm: 'GLV10', term: 'Syncope', sev: 'Moderate', rel: 'Related', acn: 'Drug interrupted', days: 1, gapAfter: 3, meds: [] },
+  { arm: 'GLV10', term: 'Transient ischaemic attack', sev: 'Moderate', rel: 'Not related', acn: 'Dose not changed', days: 2, meds: [{ trt: 'Clopidogrel', dose: '75', unit: 'mg', freq: 'QD', route: 'Oral' }, { trt: 'Atorvastatin', dose: '40', unit: 'mg', freq: 'QD', route: 'Oral' }] },
+]
+function seriousEvents(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: number) {
+  const r = rng(seed + 13)
+  const avoid = new Set<string>([...Object.values(PLANTED).flat(), ...Object.values(PLANTED_LAB).flat(), ...Object.values(PLANTED_DV), '102-006', '104-003'].map(String))
+  const coded = (term: string) => { const llt = exactLlt(SMD_10, term)!; const p = path(SMD_10, llt.code); const at = (lv: string) => p.find((t) => t.level === lv)!; return { llt, pt: at('PT').name, row: { AELLT: llt.name, AELLTCD: llt.code, AEDECOD: at('PT').name, AEPTCD: at('PT').code, AEHLT: at('HLT').name, AEHLTCD: at('HLT').code, AEHLGT: at('HLGT').name, AEHLGTCD: at('HLGT').code, AESOC: at('SOC').name, AESOCCD: at('SOC').code } } }
+  const used = new Set<string>()
+  for (const plan of SAE_PLAN) {
+    const c = coded(plan.term)
+    const ok = subjects.filter((s) => s.fate === 'completed' && s.arm === plan.arm && s.kit === s.arm && s.d1 && !avoid.has(s.subj) && !used.has(s.subj)
+      && forms.AE.some((a) => a.SUBJID === s.subj) && forms.AE.filter((a) => a.SUBJID === s.subj).every((a) => (a.AEDECOD ?? '') < c.pt))
+    const s = ok[Math.floor(r.next() * ok.length)]; if (!s) continue
+    used.add(s.subj)
+    const last = forms.AE.filter((a) => a.SUBJID === s.subj).map((a) => a.AEENDAT || a.AESTDAT).sort().at(-1) ?? s.d1!
+    const start = [addDays(s.d1!, r.int(45, 130)), addDays(last.slice(0, 10), 3)].sort().at(-1)!
+    const end = addDays(start, plan.days - 1)
+    const spid = String(Math.max(0, ...forms.AE.filter((a) => a.SUBJID === s.subj).map((a) => Number(a.AESPID) || 0)) + 1)
+    forms.AE.push({ __id: `AE-S${forms.AE.length + 1}`, SUBJID: s.subj, SITEID: s.site, AESPID: spid, AETERM: plan.term, AESTDAT: start, AEENDAT: end, AEONGO: 'N', AESEV: plan.sev, AESER: 'Y', AEREL: plan.rel, AEACN: plan.acn, AEOUT: 'Recovered/resolved', AESDTH: 'N', AESHOSP: 'Y', AELBACC: '', ...c.row } as Row)
+    if (plan.gapAfter !== undefined) {
+      // No tablets from the onset until the restart: trim or split the kit intervals that overlap.
+      const restart = addDays(end, plan.gapAfter + 1)
+      for (const ex of forms.EX.filter((x) => x.SUBJID === s.subj && x.EXENDAT >= start && x.EXSTDAT < restart)) {
+        if (ex.EXSTDAT < start && ex.EXENDAT >= restart) { const tail = { ...ex, __id: `${ex.__id}-R`, EXSTDAT: restart, EXSTTIM: '' } as Row; ex.EXENDAT = addDays(start, -1); forms.EX.splice(forms.EX.indexOf(ex) + 1, 0, tail) }
+        else if (ex.EXSTDAT < start) ex.EXENDAT = addDays(start, -1)
+        else if (ex.EXENDAT >= restart) { ex.EXSTDAT = restart; ex.EXSTTIM = '' }
+        else forms.EX.splice(forms.EX.indexOf(ex), 1)
+      }
+    }
+    plan.meds.forEach((m) => {
+      const n = forms.CM.filter((x) => x.SUBJID === s.subj).length + 1
+      const row = { __id: `CM-S${forms.CM.length + 1}`, SUBJID: s.subj, SITEID: s.site, CMSPID: String(n), CMTRT: m.trt, CMINDC: plan.term, CMDOSE: m.dose, CMDOSU: m.unit, CMDOSFRQ: m.freq, CMROUTE: m.route, CMAENO: spid, CMSTDAT: start, CMENDAT: end, CMONGO: 'N' } as Row
+      const d = exactDrug(row.CMTRT) ?? DRUGS.find((x) => x.name.toLowerCase() === row.CMTRT.toLowerCase())
+      if (d) { const generic = DRUGS.find((x) => x.drn === d.drn && x.generic)!; Object.assign(row, { CMDECOD: generic.name, CMDRN: d.id, CMCLAS: atcByCode.get(d.atc[0])?.name ?? '', CMCLASCD: d.atc[0] }) }
+      forms.CM.push(row)
+    })
+  }
 }
