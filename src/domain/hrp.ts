@@ -56,7 +56,7 @@ export const HRP_FORM_INFO: Record<string, { name: string; source: string; note:
   PREG: { name: 'Pregnancy test', source: 'EDC', note: 'One row per visit (screening, Day 1, Weeks 4, 8, 12 and 16): childbearing potential, and for participants of childbearing potential the test date, type (SERUM at screening, URINE after) and result.' },
   HEA: { name: 'Hand eczema assessments', source: 'EDC', note: 'One row per visit: IGA-CHE (0 clear to 4 severe) and HECSI (0 to 360) by the trained assessor, and the participant’s worst itch over the last 24 hours (0 to 10).' },
   EX: { name: 'Study drug', source: 'EDC', note: 'One row per visit from Day 1 to Week 16: whether a bottle was dispensed (EXDISP), its kit, tablets dispensed (35) and returned, and compliance. Dates are on SV.' },
-  EOS: { name: 'End of study', source: 'EDC', note: 'One row per participant: status and date.' },
+  EOS: { name: 'End of study', source: 'EDC', note: 'One row per participant, screen failures included: status (DSDECOD, already in CT) and date. Maps to DS with the informed consent milestone from IC.' },
   AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event (INSTANCE is the record number), with the console’s coded dictionary path (AELLT … AESOC with codes).' },
   CM: { name: 'Concomitant medications', source: 'EDC', note: 'One row per medication, with the console’s coded drug (CMDECOD) and class (CMCLAS, CMCLASCD).' },
   DV: { name: 'Protocol deviations', source: 'EDC', note: 'One row per deviation.' },
@@ -172,6 +172,19 @@ const HRP_REF: Record<string, Ref> = {
       EXSTDTC: e(`iso(${SVDATE('VISIT')})`), EXENDTC: e(`iso(coalesce(adddays(${SVDATE(NEXT)}, -1), subj('EOS', 'EOSDAT', 'first')))`),
       EXSTDY: e('studyday(EXSTDTC)'), EXENDY: e('studyday(EXENDTC)'),
     },
+  },
+  DS: {
+    // Disposition: the end-of-study form (one per participant, screen failures included) and the
+    // informed consent milestone, so analysis can derive completion, the reason and screening counts.
+    source: 'EOS', perm: ['EPOCH', 'DSSTDY'], sort: ['USUBJID', 'DSSTDTC', 'DSCAT'],
+    rules: {
+      ...ID('DS'), DSSEQ: { kind: 'seq' }, DSTERM: cp('DSDECOD'), DSDECOD: cp('DSDECOD'), DSCAT: c('DISPOSITION EVENT'),
+      EPOCH: e("if(DSDECOD = 'SCREEN FAILURE', 'SCREENING', epoch(DSSTDTC))"), DSSTDTC: e('iso(EOSDAT)'), DSSTDY: e('studyday(DSSTDTC)'),
+    },
+    parts: [{
+      source: 'IC',
+      rules: { ...ID('DS'), DSSEQ: { kind: 'seq' }, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e('iso(DSSTDAT)'), DSSTDY: e('studyday(DSSTDTC)') },
+    }],
   },
   VS: {
     perm: ['VISIT', 'EPOCH', 'VSDY'], sort: ['USUBJID', 'VSTESTCD', 'VISITNUM'],
