@@ -6,8 +6,8 @@ import { build } from '../src/domain/engine'
 import { onkData, onkRaw, onkReferenceSpec, ONK_DOMAINS, ONK_STUDY, ONK_CUT } from '../src/domain/onc'
 
 test('ONK-44-302 SDTM for the CSR & Narrative Studio', () => {
-  const data = onkData(), domains: Record<string, { columns: string[]; rows: (string | number | null)[][] }> = {}
-  for (const d of ONK_DOMAINS) { const b = build(onkReferenceSpec(d, '3.4'), data); const cols = b.vars; domains[d] = { columns: cols, rows: b.rows.map((r) => cols.map((c) => (r[c] ?? null) as string | number | null)) } }
+  const data = onkData(), domains = {}
+  for (const d of ONK_DOMAINS) { const b = build(onkReferenceSpec(d, '3.4'), data); const cols = b.vars; domains[d] = { columns: cols, rows: b.rows.map((r) => cols.map((c) => r[c] ?? null)) } }
   const irt = onkRaw().forms.IRT
   domains.IRT = { columns: ['USUBJID', 'RANDDT', 'RANDARM'], rows: irt.map((r) => [`${ONK_STUDY.id}-${r.SUBJID}`, String(r.RANDDT), String(r.RANDARM)]) }
   expect(domains.DM.rows.length).toBe(48); expect(domains.IRT.rows.length).toBe(42)

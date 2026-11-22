@@ -103,6 +103,7 @@ export const LAB_STANDARDS: { vendor: string; testcd: string; conv: string; stdu
   { vendor: 'ALT', conv: 'U/L', testcd: 'ALT', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
   { vendor: 'AST', conv: 'U/L', testcd: 'AST', stdunit: 'U/L', factor: 1, decimals: 0, spec: 'SERUM' },
   { vendor: 'CHOL', conv: 'mg/dL', testcd: 'CHOL', stdunit: 'mmol/L', factor: 0.02586, decimals: 2, spec: 'SERUM' },
+  { vendor: 'TBIL', conv: 'mg/dL', testcd: 'BILI', stdunit: 'umol/L', factor: 17.1, decimals: 0, spec: 'SERUM' },
 ]
 
 // Eligibility criteria (for TI), and the protocol facts behind TS.

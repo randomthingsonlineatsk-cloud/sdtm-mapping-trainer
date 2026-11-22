@@ -29,7 +29,7 @@ export const FORM_INFO: Record<string, { name: string; source: 'EDC' | 'IRT' | '
   DS: { name: 'End of study (disposition)', source: 'EDC', note: 'One row per subject, including screen failures. DSDECOD is the EDC label.' },
   AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event. The coding columns (lowest-level term to system class, with codes) come from the coding team’s export, coded with the Study Medical Dictionary (fictional, MedDRA-shaped).' },
   CM: { name: 'Prior and concomitant medications', source: 'EDC', note: 'One row per medication. CMDECOD and the class come from the coding export (Study Drug Dictionary, fictional, WHODrug-shaped). Dates are exported as DD-MMM-YYYY; an unknown day or month is exported as UN or UNK (UN-MAR-2019, UN-UNK-2019).' },
-  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Dates are YYYYMMDD and times HHMM. Resent results appear twice. At Week 12 glucose is drawn twice, before the dose and 2 hours after it (TIMEPOINT). From Week 12 the laboratory reports ALT against a new assay’s reference range.' },
+  LBC: { name: 'Central laboratory transfer', source: 'Vendor', note: 'External file from the central laboratory, one row per test result, with the vendor’s own test names and units. Dates are YYYYMMDD and times HHMM. Resent results appear twice. At Week 12 glucose is drawn twice, before the dose and 2 hours after it (TIMEPOINT). From Week 12 the laboratory reports ALT against a new assay’s reference range. Total bilirubin (TBIL) comes in mg/dL; its standard unit is umol/L.' },
   IE: { name: 'Eligibility', source: 'EDC', note: 'One row per subject when all criteria were met (IEYN = Y); otherwise one row per criterion not met, with its category and code from the protocol.' },
   MH: { name: 'Medical history', source: 'EDC', note: 'One row per condition. MHDECOD and MHBODSYS come from the coding export (Study Medical Dictionary 1.0). Start dates are often partial.' },
   DVL: { name: 'Protocol deviation log (CTMS)', source: 'CTMS', note: 'Exported from the clinical trial management system, not the EDC: one row per deviation recorded by the monitors, with category, description and whether it is important. Dates are DD/MM/YYYY.' },
@@ -306,6 +306,17 @@ function phase2(forms: Record<string, Row[]>, subjects: SubjectTruth[], seed: nu
   for (const subj of PLANTED_LAB.duplicates) {
     const first = lab.filter((x) => x.SUBJID === subj && x.VISIT === 'Week 4').slice(0, 3)
     lab.push(...first.map((x) => ({ ...x })))
+  }
+  // Total bilirubin, added later for the liver test screen (Hy's law): its own random stream and
+  // appended after the other results, so every earlier value and record ID is unchanged.
+  const rb = rng(seed + 211)
+  for (const s of subjects) {
+    const b0 = Math.max(0.25, 0.6 + rb.normal(0, 0.18))
+    for (const x of lab.filter((y) => y.SUBJID === s.subj && y.TESTCODE === 'ALT' && !lab.some((z) => z !== y && z.SUBJID === y.SUBJID && z.VISIT === y.VISIT && z.TESTCODE === 'ALT' && lab.indexOf(z) < lab.indexOf(y)))) {
+      const val = Math.max(0.2, b0 + rb.normal(0, 0.08)), hemo = s.subj === PLANTED_LAB.hemolysed && x.VISIT === 'Week 4'
+      const result = hemo ? '' : val.toFixed(1)
+      lab.push({ ...x, __id: '', TESTCODE: 'TBIL', TESTNAME: 'Bilirubin, total', RESULT: result, UNITS: 'mg/dL', REFLOW: '0.1', REFHIGH: '1.2', FLAG: result && Number(result) > 1.2 ? 'H' : '', SPECIMEN: 'Serum', FASTING: '', COMMENT: hemo ? 'Specimen hemolyzed - not reported' : '' } as Row)
+    }
   }
   lab.forEach((x, i) => { x.__id = `LBC-${String(i + 1).padStart(5, '0')}` })
   forms.LBC = lab
