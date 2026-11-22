@@ -329,6 +329,13 @@ const ONK_REF: Record<string, { rules: Record<string, Rule>; perm: string[]; sou
       PRDOSE: e('num(DOSE)'), PRDOSU: cp('DOSEU'), PRSTDTC: e("dtc(STDAT, 'DD-MMM-YYYY')"), PRENDTC: e("dtc(ENDAT, 'DD-MMM-YYYY')"), PRSTDY: e('studyday(PRSTDTC)'), PRENDY: e('studyday(PRENDTC)'),
     },
   },
+  DS: {
+    // Protocol milestones for analysis: informed consent and randomisation (the IRT's date), so
+    // ADSL can take the randomisation date from SDTM rather than from the IRT file.
+    source: 'IRT', perm: ['EPOCH', 'DSSTDY'],
+    rules: { ...ID('DS'), DSSEQ: { kind: 'seq' }, DSTERM: c('RANDOMIZED'), DSDECOD: c('RANDOMIZED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e('iso(RANDDT)'), DSSTDY: e('studyday(DSSTDTC)') },
+    parts: [{ source: 'IC', rules: { ...ID('DS'), DSSEQ: { kind: 'seq' }, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e("dtc(ICDAT, 'DD-MMM-YYYY')"), DSSTDY: e('studyday(DSSTDTC)') } }],
+  },
   DD: {
     source: 'DTH', perm: ['DDDTC', 'DDDY'],
     rules: { ...ID('DD'), DDSEQ: { kind: 'seq' }, DDTESTCD: c('PRCDTH'), DDTEST: c('Primary Cause of Death'), DDORRES: cp('DTHCAUSE'), DDSTRESC: e('upper(DTHCAUSE)'), DDDTC: e("dtc(DTHDAT, 'DD-MMM-YYYY')"), DDDY: e('studyday(DDDTC)') },
