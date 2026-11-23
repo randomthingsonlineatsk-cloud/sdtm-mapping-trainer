@@ -69,7 +69,7 @@ export function buildHandoff(p: Project, data: StudyData, now = new Date()): { m
   const manifest: Handoff = {
     format: HANDOFF_FORMAT, version: 1, createdUtc: now.toISOString(),
     producer: { app: 'SDTM Mapping Trainer', project: p.name, userId: p.userId, classId: p.classId },
-    study: { id: studyIdOf(p), title: packOf(p)?.title ?? STUDY.title, transfer: t ? { number: p.transfer ?? 1, label: t.label, date: t.date } : null, ...(p.study === 'HRP-301' ? { source: p.cdm ? { kind: 'learner' as const, lock: p.cdm.lock, name: p.cdm.source, exportedUtc: p.cdm.exportedUtc } : { kind: 'shipped' as const, lock: 'hard' } } : {}) },
+    study: { id: studyIdOf(p), title: packOf(p)?.title ?? STUDY.title, transfer: t ? { number: p.transfer ?? 1, label: t.label, date: t.date } : null, ...((p.study === 'HRP-301' || p.study === 'ONK-44-302') && (p.cdm || p.study === 'HRP-301') ? { source: p.cdm ? { kind: 'learner' as const, lock: p.cdm.lock, name: p.cdm.source, exportedUtc: p.cdm.exportedUtc } : { kind: 'shipped' as const, lock: 'hard' } } : {}) },
     standards: { model: VERSION_LABEL[p.version], ct: CT_INFO.label, define: 'Define-XML 2.1', datasetJson: 'Dataset-JSON 1.1', xpt: 'SAS V5 transport' },
     validation: {
       ruleSet: p.ruleSet, lastRunUtc: last?.utc ?? null, mustFix: count('Must fix'), open: count('Open'), explained: count('Explained'),

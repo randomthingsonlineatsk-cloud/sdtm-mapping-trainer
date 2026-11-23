@@ -69,7 +69,7 @@ function OnkStudy() {
           <Stat label="Screened" value={subjects.length} /><Stat label="Randomised" value={rand.length} tone="blue" />
           <Stat label="Lesions" value={forms.TUI.length} /><Stat label="Assessments" value={forms.RSP.length} /><Stat label="Deaths" value={forms.DTH.length} tone="red" />
         </div>
-        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {ONK_SITES.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. Independent review: {ONK_IRC}. Data cut-off {ONK_CUT}.</p>
+        <p className="text-xs text-lab-text-muted">Standard: {VERSION_LABEL[p.version]}. Terminology: {CT_INFO.label}. Sites: {ONK_SITES.map((x) => `${x.id} ${x.name}, ${x.country} (${x.iso})`).join('; ')}. Independent review: {ONK_IRC}. Data cut-off {ONK_CUT}. Data: {p.cdm ? `your own database from the CDM Console (${p.cdm.source}, ${p.cdm.lock === 'hard' ? 'hard-locked' : `lock status ${p.cdm.lock}`}); the randomisation list and the independent review file come with the study` : 'the study’s source records, the same records the CDM Console’s sites enter and its mission M24 locks; import your own locked project file on the Project tab to map your data instead'}.</p>
       </Panel>
       <div className="grid lg:grid-cols-2 gap-4">
         <Panel title="Arms" sub="Planned arms, as they appear in DM."><Table head={['ARMCD', 'ARM']} rows={ONK_ARMS.map((a) => [<span className="font-mono">{a.code}</span>, a.name])} /></Panel>

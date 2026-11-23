@@ -223,6 +223,12 @@ rules; no vendor rule text or tool is copied.
   dataset-level RELREC: TU to TR, TR to RS) and S26 (DM with deaths, DD and PR). New checks:
   measurements of lesions not in TU, death details without DTHFL, new lesions before the first
   dose, new lesions without PD, and a sum of diameters that does not add up.
+  The same records are the source the CDM Query & Edit-Check Console's sites enter for
+  ONK-44-302: once its mission M24 hard-locks the study, import the exported project file on the
+  Project tab ("Import a CDM Console study") and the eCRF pages become this study's raw datasets
+  (the randomisation list and the independent review file come with the study, as vendor data).
+  tests/onkcdm.test.mjs checks that the console's locked database gives back every raw dataset
+  row for row and the same reference SDTM in every domain.
 
 ## Phase 5
 

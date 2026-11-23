@@ -10,6 +10,7 @@
 
 import { rng, addDays } from './util'
 import { toEdc } from './rawdate'
+import { onkFromCdm } from './onkCdm'
 import { build, type DomainSpec, type OutRow, type Rule, type StudyData } from './engine'
 import { varsOf, type Version } from './standards'
 import type { RelDef } from './relrec'
@@ -362,7 +363,15 @@ export function onkData(): StudyData {
   dmCache ??= new Map(build(onkReferenceSpec('DM', '3.4'), base()).rows.map((r) => [r.__subj, r]))
   return { ...base(), refDm: dmCache }
 }
+// The same study from the learner's own locked database in the CDM Query & Edit-Check Console.
+const dmFrom = new WeakMap<object, Map<string, OutRow>>()
+export function onkDataFrom(eforms: Record<string, Row[]>): StudyData {
+  const b: StudyData = { forms: onkFromCdm(eforms), studyId: ONK_STUDY.id, visits: ONK_VISITS, arms: ONK_ARMS, sites: ONK_SITES, epochTail: 21 }
+  let dm = dmFrom.get(eforms)
+  if (!dm) { dm = new Map(build(onkReferenceSpec('DM', '3.4'), b).rows.map((r) => [r.__subj, r])); dmFrom.set(eforms, dm) }
+  return { ...b, refDm: dm }
+}
 export const ONK_PACK: StudyPack = {
-  ...ONK_STUDY, domains: ONK_DOMAINS, refSpec: onkReferenceSpec, data: onkData, formInfo: ONK_FORM_INFO, rawFields: ONK_RAW_FIELDS,
+  ...ONK_STUDY, domains: ONK_DOMAINS, refSpec: onkReferenceSpec, data: onkData, dataFrom: onkDataFrom, formInfo: ONK_FORM_INFO, rawFields: ONK_RAW_FIELDS,
   relrec: ONK_RELREC, relNeed: ['TU', 'TR', 'RS'], facts: ONK_FACTS, conventions: ONK_CONVENTIONS, arms: ONK_ARMS, sites: ONK_SITES, visits: ONK_VISITS,
 }
