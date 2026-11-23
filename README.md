@@ -232,8 +232,11 @@ rules; no vendor rule text or tool is copied.
   Adverse events (AE with SUPPAE): CTCAE-style grades in AETOXGR (no AESEV), the coder's
   dictionary path, every seriousness criterion, AEENRTPT/AEENTPT for events ongoing at the cut-off,
   and a grade 5 event for each death not caused by progression; EX has one record per cycle
-  (ONK-44 tablets daily, docetaxel infusions). The AE records are drawn on a random stream of their
-  own, so every earlier ONK-44-302 record is unchanged.
+  (ONK-44 tablets daily, docetaxel infusions). Where an event's action is DRUG INTERRUPTED, the
+  dosing shows it: an ONK-44 hold of 5 to 10 days splits that cycle into two records, and a
+  docetaxel infusion is delayed by 7 days (later infusions move with it). The AE records and the
+  interruptions are drawn on random streams of their own, so every other ONK-44-302 record is
+  unchanged.
 
 ## Phase 5
 

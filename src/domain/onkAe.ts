@@ -85,7 +85,7 @@ export function onkAdverseEvents(forms: Record<string, Raw[]>, subjects: { subj:
       const stop = addDays(onset, pr.long ? int(pr.dur[0], pr.dur[1]) : int(pr.dur[0], pr.dur[1]))
       const ongoing = stop > cut || (!!death && stop >= death)
       const serious = !!pr.serious?.(g, () => r.next())
-      const acn = !pr.related ? 'DOSE NOT CHANGED' : g >= 3 ? (s.arm === 'DOCE' ? 'DRUG INTERRUPTED' : pick(['DRUG INTERRUPTED', 'DOSE REDUCED'])) : 'DOSE NOT CHANGED'
+      const acn = !pr.related ? 'DOSE NOT CHANGED' : g >= 3 ? (s.arm === 'DOCE' ? 'DRUG INTERRUPTED' : (void pick([0, 1]), 'DRUG INTERRUPTED')) : 'DOSE NOT CHANGED' // the draw is kept so the records stay the same
       events.push({
         AETERM: pick(pr.verbatims), AESTDAT: onset, AEENDAT: ongoing ? '' : stop, AEONGO: ongoing ? 'Y' : 'N', AETOXGR: String(g),
         AESER: serious ? 'Y' : 'N', AESDTH: serious ? 'N' : '', AESLIFE: serious ? 'N' : '', AESHOSP: serious ? 'Y' : '', AESDISAB: serious ? 'N' : '', AESCONG: serious ? 'N' : '', AESMIE: serious ? 'N' : '',
@@ -102,4 +102,48 @@ export function onkAdverseEvents(forms: Record<string, Raw[]>, subjects: { subj:
     events.forEach((e, i) => out.push({ SUBJID: s.subj, AESPID: String(i + 1), AETERM: e.AETERM, ...onkCoding(e.AETERM), AESTDAT: toEdc(e.AESTDAT), AEENDAT: toEdc(e.AEENDAT), AEONGO: e.AEONGO, AETOXGR: e.AETOXGR, AESER: e.AESER, AESDTH: e.AESDTH, AESLIFE: e.AESLIFE, AESHOSP: e.AESHOSP, AESDISAB: e.AESDISAB, AESCONG: e.AESCONG, AESMIE: e.AESMIE, AEREL: e.AEREL, AEACN: e.AEACN, AEOUT: e.AEOUT }))
   }
   return out
+}
+
+/**
+ * Make the dosing record show each interruption the adverse event pages record, so the two agree.
+ * ONK-44: the daily doses are held from the day after onset for 5 to 10 days, splitting that
+ * cycle's record in two (or ending it early when the hold runs to the end of the cycle). Docetaxel:
+ * the next infusion is delayed by 7 days and the later ones move with it; an infusion pushed past
+ * the original last infusion is not given (one delay per infusion, however many events), and an event whose delayed infusion is never given led
+ * to the drug being stopped. Events that start after the (new) last dose take “Not applicable”.
+ * Uses a random stream of its own.
+ */
+export function applyInterruptions(forms: Record<string, Raw[]>, subjects: { subj: string; arm?: string }[], aes: Raw[], seed = 44302 + 7937): void {
+  const r = rng(seed)
+  const iso = (s: string) => anyDate(s) ?? ''
+  const withdrawn = new Set<Raw>(), delayed = new Set<Raw>()
+  for (const s of subjects) {
+    if (!s.arm) continue
+    const ex = () => (forms.EX ?? []).filter((x) => x.SUBJID === s.subj)
+    if (!ex().length) continue
+    const origLast = ex().map((x) => iso(x.EXSTDAT)).sort().at(-1)!
+    for (const a of aes.filter((x) => x.SUBJID === s.subj && x.AEACN === 'DRUG INTERRUPTED')) {
+      const onset = iso(a.AESTDAT)
+      if (s.arm === 'ONK44') {
+        const hold = 5 + Math.floor(r.next() * 6)
+        const row = ex().find((x) => iso(x.EXSTDAT) <= onset && onset <= iso(x.EXENDAT))
+        if (!row) continue
+        const en = iso(row.EXENDAT), back = addDays(onset, hold + 1)
+        row.EXENDAT = toEdc(onset)
+        if (back <= en) forms.EX.splice(forms.EX.indexOf(row) + 1, 0, { __id: `${row.__id}b`, SUBJID: s.subj, CYCLE: row.CYCLE, EXSTDAT: toEdc(back), EXENDAT: toEdc(en) })
+      } else {
+        const later = ex().filter((x) => iso(x.EXSTDAT) > onset)
+        if (!later.length || delayed.has(later[0])) continue // already delayed for an earlier event
+        delayed.add(later[0])
+        for (const x of later) {
+          const d = addDays(iso(x.EXSTDAT), 7)
+          if (d > origLast) forms.EX.splice(forms.EX.indexOf(x), 1)
+          else { x.EXSTDAT = toEdc(d); x.EXENDAT = toEdc(d) }
+        }
+        if (!ex().some((x) => iso(x.EXSTDAT) > onset)) { a.AEACN = 'DRUG WITHDRAWN'; withdrawn.add(a) }
+      }
+    }
+    const last = ex().map((x) => iso(x.EXENDAT)).sort().at(-1)!
+    for (const a of aes.filter((x) => x.SUBJID === s.subj && !withdrawn.has(x) && x.AEACN !== 'NOT APPLICABLE' && iso(x.AESTDAT) > last)) a.AEACN = 'NOT APPLICABLE'
+  }
 }

@@ -11,7 +11,7 @@
 import { rng, addDays } from './util'
 import { toEdc } from './rawdate'
 import { onkFromCdm } from './onkCdm'
-import { onkAdverseEvents } from './onkAe'
+import { onkAdverseEvents, applyInterruptions } from './onkAe'
 import { build, type DomainSpec, type OutRow, type Rule, type StudyData } from './engine'
 import { varsOf, type Version } from './standards'
 import type { RelDef } from './relrec'
@@ -50,7 +50,7 @@ export const ONK_FORM_INFO: Record<string, { name: string; source: string; note:
   DM: { name: 'Demographics', source: 'EDC', note: 'One row per subject screened.' },
   IC: { name: 'Informed consent', source: 'EDC', note: 'One row per subject.' },
   IRT: { name: 'Randomisation (IRT)', source: 'IRT', note: 'One row per randomised subject: arm code and date. The study is open-label.' },
-  EX: { name: 'Study treatment', source: 'EDC', note: 'One row per cycle: ONK-44 is taken daily through the cycle (start and end dates); docetaxel is infused on the cycle’s first day (start date = end date).' },
+  EX: { name: 'Study treatment', source: 'EDC', note: 'One row per cycle: ONK-44 is taken daily through the cycle (start and end dates); docetaxel is infused on the cycle’s first day (start date = end date). When ONK-44 is held for an adverse event, that cycle has two rows with the gap between them; a delayed docetaxel infusion moves the later cycles with it.' },
   LC: { name: 'Last contact', source: 'EDC', note: 'The date each subject was last known alive (or died), as of the data cut-off.' },
   PRP: { name: 'Prior cancer procedures', source: 'EDC', note: 'Surgery, radiotherapy and biopsies for lung cancer before the study. Partial dates are UN or UNK; radiotherapy has a total dose in Gy.' },
   TUI: { name: 'Lesion identification', source: 'EDC', note: 'One row per lesion: target and non-target lesions at screening, new lesions at the visit they appear. LESID is the lesion’s identifier (T01, NT01, NL01).' },
@@ -97,7 +97,7 @@ export const ONK_CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'RS as collected', rule: 'The investigator’s response is submitted as recorded, even where the measurements suggest another; differences with the independent review are expected and are not changed.' },
   { topic: 'RELREC', rule: 'Dataset-level relationships: TU to TR by TULNKID/TRLNKID (ONE to MANY) and TR to RS by TRLNKGRP/RSLNKGRP (MANY to ONE).' },
   { topic: 'PR', rule: 'One record per prior procedure: PRTRT as reported, PRCAT upper case (SURGERY, RADIOTHERAPY, BIOPSY), PRLOC and PRLAT upper case, PRDOSE and PRDOSU (Gy) for radiotherapy, PRSTDTC and PRENDTC partial when the day or month is unknown.' },
-  { topic: 'EX', rule: 'One record per cycle (EXSPID CYCLE n): ONK-44 400 mg TABLET, ORAL, QD from the first to the last daily dose of the cycle; docetaxel 75 mg/m2 INJECTION, SOLUTION, INTRAVENOUS, ONCE on the day of the infusion (EXSTDTC = EXENDTC). The arm comes from the IRT.' },
+  { topic: 'EX', rule: 'One record per constant dosing interval (EXSPID CYCLE n; a cycle split by a hold has two records): ONK-44 400 mg TABLET, ORAL, QD from the first to the last daily dose of the cycle; docetaxel 75 mg/m2 INJECTION, SOLUTION, INTRAVENOUS, ONCE on the day of the infusion (EXSTDTC = EXENDTC). The arm comes from the IRT.' },
   { topic: 'AE', rule: 'One record per event: AETERM the verbatim, AELLT … AESOC with codes from the coding (AEBODSYS and AEBDSYCD the primary system class), AETOXGR the grade (no AESEV in an oncology study graded by CTCAE), seriousness criteria only when AESER is Y, AESTDTC and AEENDTC from the form, AEENRTPT ONGOING with AEENTPT the data cut-off when the event had not ended. Treatment-emergent: AETRTEM in SUPPAE (on or after the first dose).' },
   { topic: 'DD', rule: 'One record per death: DDTESTCD PRCDTH, DDTEST Primary Cause of Death, DDORRES the cause as reported, DDSTRESC upper case, DDDTC the date of death.' },
 ]
@@ -253,7 +253,10 @@ export function onkRaw() {
     push('LC', { SUBJID: subj, LCDAT: dtcEdc(last) })
   }
   // Adverse events, on a random stream of their own (onkAe.ts).
-  for (const x of onkAdverseEvents(forms as unknown as Record<string, Record<string, string>[]>, subjects, ONK_CUT)) push('AE', x)
+  const aes = onkAdverseEvents(forms as unknown as Record<string, Record<string, string>[]>, subjects, ONK_CUT)
+  // The dosing record shows each interruption the adverse event pages record.
+  applyInterruptions(forms as unknown as Record<string, Record<string, string>[]>, subjects, aes)
+  for (const x of aes) push('AE', x)
   cache = { forms, subjects }
   return cache
 }
