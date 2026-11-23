@@ -53,6 +53,18 @@ describe('ONK-44-302', () => {
     const pr = rs.filter((r) => r.USUBJID.endsWith(ONK_PLANTED.investigatorPR!) && r.RSEVAL === 'INVESTIGATOR' && r.RSTESTCD === 'TRGRESP')
     expect(pr.some((r) => r.RSSTRESC === 'PR')).toBe(true)
   })
+  test('adverse events: coded, graded, fatal events match the deaths, all treatment-emergent', () => {
+    const ae = rows('AE'), dd = rows('DD'), supp = ref.AE.supp?.rows ?? []
+    expect(ae.length).toBeGreaterThan(100)
+    expect(ae.every((r) => r.AEDECOD && r.AEBODSYS && /^9\d{7}$/.test(String(r.AEPTCD)) && ['1', '2', '3', '4', '5'].includes(String(r.AETOXGR)))).toBe(true)
+    expect(ae.some((r) => 'AESEV' in r)).toBe(false)
+    const fatal = ae.filter((r) => r.AEOUT === 'FATAL')
+    expect(fatal.every((r) => r.AESDTH === 'Y' && r.AETOXGR === '5' && r.AEENDTC === dd.find((d) => d.USUBJID === r.USUBJID)?.DDDTC)).toBe(true)
+    expect(fatal.map((r) => r.USUBJID).sort()).toEqual(dd.filter((d) => d.DDSTRESC !== 'DISEASE PROGRESSION').map((d) => d.USUBJID).sort())
+    expect(ae.filter((r) => r.AESER === 'Y').length).toBeGreaterThanOrEqual(8)
+    expect(ae.filter((r) => r.AESER !== 'Y').every((r) => !r.AESHOSP && !r.AESDTH)).toBe(true)
+    expect(supp.filter((r) => r.QNAM === 'AETRTEM').every((r) => r.QVAL === 'Y')).toBe(true)
+  })
   test('deaths: DM, DD, and a partial date', () => {
     const dm = rows('DM'), dd = rows('DD')
     expect(dm.filter((r) => r.DTHFL === 'Y').length).toBe(dd.length)

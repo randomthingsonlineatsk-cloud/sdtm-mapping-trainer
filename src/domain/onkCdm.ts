@@ -16,7 +16,10 @@ const visitName = (v: string) => (v === 'SCR' ? 'Screening' : /^W\d+$/.test(v) ?
 const visitOrder = (v: string) => (v === 'SCR' ? 0 : v === 'D1' ? 1 : /^W(\d+)$/.test(v) ? 1 + Number(v.slice(1)) : 999)
 const num = (subj: string) => Number(subj.split('-')[1])
 
-export const ONK_EDC_FORMS = ['DM', 'IC', 'EX', 'LC', 'PRP', 'TUI', 'TRM', 'RSP', 'DTH'] as const
+export const ONK_EDC_FORMS = ['DM', 'IC', 'EX', 'LC', 'PRP', 'TUI', 'TRM', 'RSP', 'DTH', 'AE'] as const
+// The adverse event fields in the raw dataset's order: the eCRF's, with the coder's dictionary path
+// that the console's coding extract adds.
+const AE_FIELDS = ['AETERM', 'AELLT', 'AELLTCD', 'AEDECOD', 'AEPTCD', 'AEHLT', 'AEHLTCD', 'AEHLGT', 'AEHLGTCD', 'AESOC', 'AESOCCD', 'AESTDAT', 'AEENDAT', 'AEONGO', 'AETOXGR', 'AESER', 'AESDTH', 'AESLIFE', 'AESHOSP', 'AESDISAB', 'AESCONG', 'AESMIE', 'AEREL', 'AEACN', 'AEOUT']
 
 export function onkFromCdm(c: Record<string, Row[]>): Record<string, Row[]> {
   const sorted = (form: string) => [...(c[form] ?? [])].sort((a, b) => num(a.SUBJID) - num(b.SUBJID) || visitOrder(a.VISIT ?? '') - visitOrder(b.VISIT ?? '') || Number(a.INSTANCE) - Number(b.INSTANCE))
@@ -37,5 +40,6 @@ export function onkFromCdm(c: Record<string, Row[]>): Record<string, Row[]> {
     RSP: sorted('RSP').map((r) => row('RSP', { SUBJID: r.SUBJID, VISIT: visitName(r.VISIT), ASSDAT: edc(r.ASSDAT), SUMDIAM: r.SUMDIAM, TRGRESP: r.TRGRESP, NTRGRESP: r.NTRGRESP, NEWLES: r.NEWLES, OVRLRESP: r.OVRLRESP })),
     IRC: raw.IRC,
     DTH: sorted('DTH').map((r) => row('DTH', { SUBJID: r.SUBJID, DTHDAT: edc(r.DTHDAT), DTHCAUSE: r.DTHCAUSE })),
+    AE: sorted('AE').map((r) => row('AE', { SUBJID: r.SUBJID, AESPID: r.INSTANCE, ...Object.fromEntries(AE_FIELDS.map((f) => [f, f === 'AESTDAT' || f === 'AEENDAT' ? edc(r[f] ?? '') : String(r[f] ?? '')])) })),
   }
 }

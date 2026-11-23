@@ -69,7 +69,7 @@ test('the TLF Lab’s ONK-44-302 hand-off matches the reference mapping', async 
   const p = createProject('u', 'none', '3.4', 'ONK-44-302')
   for (const d of ONK_DOMAINS) p.specs[d] = onkReferenceSpec(d, '3.4')
   const h = buildHandoff(p, dataFor(p), new Date('2026-11-05T09:00:00Z'))
-  expect(h.manifest.datasets.map((d) => d.name).sort()).toEqual(['DD', 'DM', 'DS', 'PR', 'RS', 'TR', 'TU'])
+  expect(h.manifest.datasets.map((d) => d.name).sort()).toEqual(['AE', 'DD', 'DM', 'DS', 'EX', 'PR', 'RS', 'SUPPAE', 'TR', 'TU'])
   const same = existsSync(OZIP) && (() => { const z = unzipSync(new Uint8Array(readFileSync(OZIP))); return h.manifest.datasets.every((d) => z[d.files.json] && JSON.stringify(JSON.parse(strFromU8(z[d.files.json])).rows) === JSON.stringify(JSON.parse(strFromU8(h.files[d.files.json])).rows)) })()
   if (!same) { const mtime = new Date('2026-11-05T09:00:00Z'); writeFileSync(OZIP, zipSync(Object.fromEntries([['handoff.json', strToU8(JSON.stringify(h.manifest, null, 1))], ...Object.entries(h.files)].map(([k, v]) => [k, [v, { level: 6, mtime }]])))) }
 })

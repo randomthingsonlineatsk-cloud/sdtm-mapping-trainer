@@ -8,7 +8,7 @@ import { existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { onkRaw, ONK_PLANTED, ONK_STUDY, ONK_CUT, ONK_SITES } from '../src/domain/onc'
 import { anyDate } from '../src/domain/rawdate'
 
-const DATES = ['DMDAT', 'BRTHDAT', 'ICDAT', 'EXSTDAT', 'EXENDAT', 'LCDAT', 'STDAT', 'ENDAT', 'ASSDAT', 'DTHDAT']
+const DATES = ['DMDAT', 'BRTHDAT', 'ICDAT', 'EXSTDAT', 'EXENDAT', 'LCDAT', 'STDAT', 'ENDAT', 'ASSDAT', 'DTHDAT', 'AESTDAT', 'AEENDAT']
 const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 const iso = (s) => { if (!s) return ''; const p = /^UN-([A-Z]{3})-(\d{4})$/.exec(s); if (p) return `${p[2]}-${String(MON.indexOf(p[1]) + 1).padStart(2, '0')}`; return anyDate(s) ?? s }
 test('ONK-44-302 source records for the CDM Console', () => {

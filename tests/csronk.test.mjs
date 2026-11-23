@@ -11,9 +11,9 @@ test('ONK-44-302 SDTM for the CSR & Narrative Studio', () => {
   const irt = onkRaw().forms.IRT
   domains.IRT = { columns: ['USUBJID', 'RANDDT', 'RANDARM'], rows: irt.map((r) => [`${ONK_STUDY.id}-${r.SUBJID}`, String(r.RANDDT), String(r.RANDARM)]) }
   expect(domains.DM.rows.length).toBe(48); expect(domains.IRT.rows.length).toBe(42)
-  // The source records behind the analyses: the eCRF response, death and last-contact forms and
+  // The source records behind the analyses: the eCRF response, adverse event, death and last-contact forms and
   // the independent review's vendor file, as collected (before mapping).
-  const forms = onkRaw().forms, keep = ['RSP', 'IRC', 'DTH', 'LC', 'IRT']
+  const forms = onkRaw().forms, keep = ['RSP', 'IRC', 'DTH', 'LC', 'IRT', 'AE']
   const raw = Object.fromEntries(keep.map((k) => { const rows = forms[k].map((r) => Object.fromEntries(Object.entries(r).filter(([c]) => !c.startsWith('__')))); const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))]; return [k, { columns: cols, rows: rows.map((r) => cols.map((c) => r[c] ?? null)) }] }))
   const out = { format: 'csr-studio/sdtm', schema: 1, study: ONK_STUDY.id, raw, source: `SDTM Mapping Trainer: reference mapping of ${ONK_STUDY.id} (data cut-off ${ONK_CUT}), with its source eCRF forms and the independent review file`, cutoff: ONK_CUT, domains }
   const dir = '../csr-narrative-studio/src/data'

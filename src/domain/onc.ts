@@ -11,13 +11,14 @@
 import { rng, addDays } from './util'
 import { toEdc } from './rawdate'
 import { onkFromCdm } from './onkCdm'
+import { onkAdverseEvents } from './onkAe'
 import { build, type DomainSpec, type OutRow, type Rule, type StudyData } from './engine'
 import { varsOf, type Version } from './standards'
 import type { RelDef } from './relrec'
 import type { Visit } from './study'
 import type { Row } from './seed'
 import type { StudyPack } from './studypack'
-import { SORT } from './reference'
+import { SORT, AETRTEM } from './reference'
 
 export const ONK_STUDY = {
   id: 'ONK-44-302',
@@ -57,6 +58,7 @@ export const ONK_FORM_INFO: Record<string, { name: string; source: string; note:
   RSP: { name: 'Response (investigator)', source: 'EDC', note: 'One row per assessment visit: the sum of diameters the site calculated and the investigator’s RECIST 1.1 responses (target, non-target, new lesions, overall).' },
   IRC: { name: 'Independent review', source: 'Vendor', note: `From ${ONK_IRC}: the blinded independent central review’s responses per time point, read from the same scans. Response codes as the vendor writes them.` },
   DTH: { name: 'Death', source: 'EDC', note: 'One row per subject who died: the date (partial if not known) and the primary cause as the investigator reported it.' },
+  AE: { name: 'Adverse events', source: 'EDC', note: 'One row per event (AESPID is the record number), with the coder’s dictionary path from the Study Medical Dictionary 1.0 (AELLT … AESOC with codes). Severity is a CTCAE-style grade (AETOXGR 1 to 5); a death from an adverse event is grade 5.' },
 }
 const F = (pairs: [string, string][]) => pairs.map(([name, label]) => ({ name, label }))
 export const ONK_RAW_FIELDS: Record<string, { name: string; label: string }[]> = {
@@ -71,6 +73,7 @@ export const ONK_RAW_FIELDS: Record<string, { name: string; label: string }[]> =
   RSP: F([['SUBJID', 'Subject number'], ['VISIT', 'Visit'], ['ASSDAT', 'Scan date'], ['SUMDIAM', 'Sum of diameters (mm)'], ['TRGRESP', 'Target response'], ['NTRGRESP', 'Non-target response'], ['NEWLES', 'New lesions (Y/N)'], ['OVRLRESP', 'Overall response']]),
   IRC: F([['SUBJID', 'Subject number'], ['TIMEPOINT', 'Time point'], ['SCANDATE', 'Scan date (YYYYMMDD)'], ['TARGET', 'Target response'], ['NONTARGET', 'Non-target response'], ['NEWLESION', 'New lesion (Y/N)'], ['OVERALL', 'Overall response'], ['READER', 'Reader']]),
   DTH: F([['SUBJID', 'Subject number'], ['DTHDAT', 'Date of death'], ['DTHCAUSE', 'Primary cause of death']]),
+  AE: F([['SUBJID', 'Subject number'], ['AESPID', 'Record number'], ['AETERM', 'Verbatim'], ['AELLT', 'Lowest-level term'], ['AEDECOD', 'Preferred term'], ['AESOC', 'System organ class'], ['AESTDAT', 'Start'], ['AEENDAT', 'End'], ['AEONGO', 'Ongoing'], ['AETOXGR', 'Grade'], ['AESER', 'Serious'], ['AESDTH', 'Results in death'], ['AESHOSP', 'Hospitalisation'], ['AEREL', 'Related to study treatment'], ['AEACN', 'Action with study treatment'], ['AEOUT', 'Outcome']]),
 }
 export const ONK_FACTS: { what: string; value: string }[] = [
   { what: 'Phase', value: 'Phase 3, randomised 1:1, open-label' },
@@ -94,6 +97,8 @@ export const ONK_CONVENTIONS: { topic: string; rule: string }[] = [
   { topic: 'RS as collected', rule: 'The investigator’s response is submitted as recorded, even where the measurements suggest another; differences with the independent review are expected and are not changed.' },
   { topic: 'RELREC', rule: 'Dataset-level relationships: TU to TR by TULNKID/TRLNKID (ONE to MANY) and TR to RS by TRLNKGRP/RSLNKGRP (MANY to ONE).' },
   { topic: 'PR', rule: 'One record per prior procedure: PRTRT as reported, PRCAT upper case (SURGERY, RADIOTHERAPY, BIOPSY), PRLOC and PRLAT upper case, PRDOSE and PRDOSU (Gy) for radiotherapy, PRSTDTC and PRENDTC partial when the day or month is unknown.' },
+  { topic: 'EX', rule: 'One record per cycle (EXSPID CYCLE n): ONK-44 400 mg TABLET, ORAL, QD from the first to the last daily dose of the cycle; docetaxel 75 mg/m2 INJECTION, SOLUTION, INTRAVENOUS, ONCE on the day of the infusion (EXSTDTC = EXENDTC). The arm comes from the IRT.' },
+  { topic: 'AE', rule: 'One record per event: AETERM the verbatim, AELLT … AESOC with codes from the coding (AEBODSYS and AEBDSYCD the primary system class), AETOXGR the grade (no AESEV in an oncology study graded by CTCAE), seriousness criteria only when AESER is Y, AESTDTC and AEENDTC from the form, AEENRTPT ONGOING with AEENTPT the data cut-off when the event had not ended. Treatment-emergent: AETRTEM in SUPPAE (on or after the first dose).' },
   { topic: 'DD', rule: 'One record per death: DDTESTCD PRCDTH, DDTEST Primary Cause of Death, DDORRES the cause as reported, DDSTRESC upper case, DDDTC the date of death.' },
 ]
 
@@ -119,7 +124,7 @@ export function recistOverall(t: Resp | '', nt: string, newl: boolean): Resp {
 export function onkRaw() {
   if (cache) return cache
   const r = rng(44302)
-  const forms: Record<string, Row[]> = { DM: [], IC: [], IRT: [], EX: [], LC: [], PRP: [], TUI: [], TRM: [], RSP: [], IRC: [], DTH: [] }
+  const forms: Record<string, Row[]> = { DM: [], IC: [], IRT: [], EX: [], LC: [], PRP: [], TUI: [], TRM: [], RSP: [], IRC: [], DTH: [], AE: [] }
   let id = 0
   const push = (form: string, row: Record<string, string>) => forms[form].push({ __id: `${form}${++id}`, ...row } as Row)
   const subjects: { subj: string; arm?: string }[] = []
@@ -247,6 +252,8 @@ export function onkRaw() {
     } else last = [last, addDays(ONK_CUT, -r.int(0, 20))].sort().at(-1)!
     push('LC', { SUBJID: subj, LCDAT: dtcEdc(last) })
   }
+  // Adverse events, on a random stream of their own (onkAe.ts).
+  for (const x of onkAdverseEvents(forms as unknown as Record<string, Record<string, string>[]>, subjects, ONK_CUT)) push('AE', x)
   cache = { forms, subjects }
   return cache
 }
@@ -290,7 +297,7 @@ const RS_IRC: Record<string, Rule> = {
   RSEVAL: c('INDEPENDENT ASSESSOR'), RSNAM: c(ONK_IRC), RSEVALID: cp('READER'),
   VISITNUM: e('visitnum(TIMEPOINT, SCANDATE)'), VISIT: e('visitname(TIMEPOINT, SCANDATE)'), EPOCH: e('epoch(RSDTC)'), RSDTC: e("dtc(SCANDATE, 'YYYYMMDD')"), RSDY: e('studyday(RSDTC)'),
 }
-const ONK_REF: Record<string, { rules: Record<string, Rule>; perm: string[]; source?: string; filter?: string; transpose?: DomainSpec['transpose']; parts?: { source: string; rules: Record<string, Rule>; filter?: string; transpose?: DomainSpec['transpose'] }[] }> = {
+const ONK_REF: Record<string, { rules: Record<string, Rule>; perm: string[]; supp?: DomainSpec['supp']; source?: string; filter?: string; transpose?: DomainSpec['transpose']; parts?: { source: string; rules: Record<string, Rule>; filter?: string; transpose?: DomainSpec['transpose'] }[] }> = {
   DM: {
     perm: ['BRTHDTC', 'ETHNIC', 'DMDTC', 'DMDY'],
     rules: {
@@ -337,6 +344,26 @@ const ONK_REF: Record<string, { rules: Record<string, Rule>; perm: string[]; sou
     rules: { ...ID('DS'), DSSEQ: { kind: 'seq' }, DSTERM: c('RANDOMIZED'), DSDECOD: c('RANDOMIZED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e('iso(RANDDT)'), DSSTDY: e('studyday(DSSTDTC)') },
     parts: [{ source: 'IC', rules: { ...ID('DS'), DSSEQ: { kind: 'seq' }, DSTERM: c('INFORMED CONSENT OBTAINED'), DSDECOD: c('INFORMED CONSENT OBTAINED'), DSCAT: c('PROTOCOL MILESTONE'), EPOCH: c('SCREENING'), DSSTDTC: e("dtc(ICDAT, 'DD-MMM-YYYY')"), DSSTDY: e('studyday(DSSTDTC)') } }],
   },
+  EX: {
+    // One record per cycle: ONK-44 400 mg daily through the cycle; docetaxel 75 mg/m2 infused on its first day.
+    source: 'EX', perm: ['EXSPID', 'EXDOSFRQ', 'EXROUTE', 'EPOCH', 'EXSTDY', 'EXENDY'],
+    rules: {
+      ...ID('EX'), EXSEQ: { kind: 'seq' }, EXSPID: e("concat('CYCLE ', CYCLE)"), EXTRT: e("if(irt('RANDARM') = 'ONK44', 'ONK-44', 'DOCETAXEL')"), EXDOSE: e("if(irt('RANDARM') = 'ONK44', 400, 75)"),
+      EXDOSU: e("if(irt('RANDARM') = 'ONK44', 'mg', 'mg/m2')"), EXDOSFRM: e("if(irt('RANDARM') = 'ONK44', 'TABLET', 'INJECTION, SOLUTION')"), EXDOSFRQ: e("if(irt('RANDARM') = 'ONK44', 'QD', 'ONCE')"),
+      EXROUTE: e("if(irt('RANDARM') = 'ONK44', 'ORAL', 'INTRAVENOUS')"), EPOCH: e('epoch(EXSTDTC)'), EXSTDTC: e("dtc(EXSTDAT, 'DD-MMM-YYYY')"), EXENDTC: e("dtc(EXENDAT, 'DD-MMM-YYYY')"), EXSTDY: e('studyday(EXSTDTC)'), EXENDY: e('studyday(EXENDTC)'),
+    },
+  },
+  AE: {
+    source: 'AE', perm: ['AESPID', 'AELLT', 'AELLTCD', 'AEPTCD', 'AEHLT', 'AEHLTCD', 'AEHLGT', 'AEHLGTCD', 'AEBDSYCD', 'AESOC', 'AESOCCD', 'AETOXGR', 'AESDTH', 'AESLIFE', 'AESHOSP', 'AESDISAB', 'AESCONG', 'AESMIE', 'AEOUT', 'EPOCH', 'AESTDY', 'AEENDY', 'AEENRTPT', 'AEENTPT'], supp: [AETRTEM],
+    rules: {
+      ...ID('AE'), AESEQ: { kind: 'seq' }, AESPID: cp('AESPID'), AETERM: cp('AETERM'), AELLT: cp('AELLT'), AELLTCD: cp('AELLTCD'), AEDECOD: cp('AEDECOD'), AEPTCD: cp('AEPTCD'),
+      AEHLT: cp('AEHLT'), AEHLTCD: cp('AEHLTCD'), AEHLGT: cp('AEHLGT'), AEHLGTCD: cp('AEHLGTCD'), AEBODSYS: cp('AESOC'), AEBDSYCD: cp('AESOCCD'), AESOC: cp('AESOC'), AESOCCD: cp('AESOCCD'),
+      AETOXGR: cp('AETOXGR'), AESER: cp('AESER'), AEACN: cp('AEACN'), AEREL: cp('AEREL'), AEOUT: cp('AEOUT'),
+      AESDTH: e("if(AESER = 'Y', AESDTH, '')"), AESLIFE: e("if(AESER = 'Y', AESLIFE, '')"), AESHOSP: e("if(AESER = 'Y', AESHOSP, '')"), AESDISAB: e("if(AESER = 'Y', AESDISAB, '')"), AESCONG: e("if(AESER = 'Y', AESCONG, '')"), AESMIE: e("if(AESER = 'Y', AESMIE, '')"),
+      EPOCH: e('epoch(AESTDTC)'), AESTDTC: e("dtc(AESTDAT, 'DD-MMM-YYYY')"), AEENDTC: e("dtc(AEENDAT, 'DD-MMM-YYYY')"), AESTDY: e('studyday(AESTDTC)'), AEENDY: e('studyday(AEENDTC)'),
+      AEENRTPT: e("if(AEONGO = 'Y', 'ONGOING', '')"), AEENTPT: e(`if(AEONGO = 'Y', '${ONK_CUT}', '')`),
+    },
+  },
   DD: {
     source: 'DTH', perm: ['DDDTC', 'DDDY'],
     rules: { ...ID('DD'), DDSEQ: { kind: 'seq' }, DDTESTCD: c('PRCDTH'), DDTEST: c('Primary Cause of Death'), DDORRES: cp('DTHCAUSE'), DDSTRESC: e('upper(DTHCAUSE)'), DDDTC: e("dtc(DTHDAT, 'DD-MMM-YYYY')"), DDDY: e('studyday(DDDTC)') },
@@ -353,6 +380,7 @@ export function onkReferenceSpec(domain: string, ver: Version): DomainSpec {
   const pick = (rules: Record<string, Rule>) => Object.fromEntries(vars.filter((v) => rules[v]).map((v) => [v, rules[v]]))
   return {
     domain, source: r.source ?? domain, vars, rules: pick(r.rules), sort: SORT[domain] ?? ['USUBJID'],
+    ...(r.supp ? { supp: r.supp } : {}),
     ...(r.filter ? { filter: r.filter } : {}), ...(r.transpose ? { transpose: r.transpose } : {}),
     ...(r.parts ? { parts: r.parts.map((p) => ({ ...p, rules: pick(p.rules) })) } : {}),
   }

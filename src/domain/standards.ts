@@ -316,9 +316,13 @@ const META_34: Record<string, VarMeta[]> = {
     v('AESEV', 'Severity/Intensity', 'Char', 'Record Qualifier', 'Perm', 'AESEV'), v('AESER', 'Serious Event', 'Char', 'Record Qualifier', 'Exp', 'NY'),
     v('AEACN', 'Action Taken with Study Treatment', 'Char', 'Record Qualifier', 'Exp', 'ACN'), v('AEREL', 'Causality', 'Char', 'Record Qualifier', 'Exp'),
     v('AEOUT', 'Outcome of Adverse Event', 'Char', 'Record Qualifier', 'Perm', 'OUT'),
+    v('AESCONG', 'Congenital Anomaly or Birth Defect', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('AESDISAB', 'Persist or Signif Disability/Incapacity', 'Char', 'Record Qualifier', 'Perm', 'NY'),
     v('AESDTH', 'Results in Death', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('AESHOSP', 'Requires or Prolongs Hospitalization', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('AESLIFE', 'Is Life Threatening', 'Char', 'Record Qualifier', 'Perm', 'NY'), v('AESMIE', 'Other Medically Important Serious Event', 'Char', 'Record Qualifier', 'Perm', 'NY'),
+    v('AETOXGR', 'Standard Toxicity Grade', 'Char', 'Record Qualifier', 'Perm'),
     v('EPOCH', 'Epoch', 'Char', 'Timing', 'Perm', 'EPOCH'), v('AESTDTC', 'Start Date/Time of Adverse Event', 'Char', 'Timing', 'Exp'), v('AEENDTC', 'End Date/Time of Adverse Event', 'Char', 'Timing', 'Exp'),
     v('AESTDY', 'Study Day of Start of Adverse Event', 'Num', 'Timing', 'Perm'), v('AEENDY', 'Study Day of End of Adverse Event', 'Num', 'Timing', 'Perm'),
+    v('AEENRTPT', 'End Relative to Reference Time Point', 'Char', 'Timing', 'Perm', 'STENRF'), v('AEENTPT', 'End Reference Time Point', 'Char', 'Timing', 'Perm'),
   ],
   CM: [
     ...ids('CM'), v('CMSPID', 'Sponsor-Defined Identifier', 'Char', 'Identifier', 'Perm'),
